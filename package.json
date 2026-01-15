@@ -10,7 +10,10 @@
     "test:watch": "cross-env NODE_ENV=test jest --watch",
     "test:coverage": "cross-env NODE_ENV=test jest --coverage",
     "seed": "node tests/seed.js",
-    "seed:test": "cross-env NODE_ENV=test node tests/seed.js"
+    "seed:test": "cross-env NODE_ENV=test node tests/seed.js",
+    "seed:notifications": "node seed_notifications.js",
+    "seed:subscriptions": "node seed_subscriptions.js",
+    "test:notifications": "node test_notifications.js"
   },
   "keywords": [],
   "author": "",

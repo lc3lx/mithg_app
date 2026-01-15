@@ -21,6 +21,10 @@ const {
 } = require("../utils/validators/chatValidator");
 
 const authService = require("../services/authService");
+const {
+  requireSubscriptionAndVerification,
+  requireSubscriptionForMessaging
+} = require("../middlewares/subscriptionMiddleware");
 
 const router = express.Router();
 
@@ -29,7 +33,7 @@ router.use(authService.protect);
 
 // Chat routes
 router.get("/", getChats);
-router.post("/", createChatValidator, createChat);
+router.post("/", requireSubscriptionAndVerification, createChatValidator, createChat);
 
 // Polling for new messages
 router.get("/poll", pollMessages);
@@ -39,7 +43,7 @@ router.get("/:id", getChatValidator, getChat);
 router.delete("/:id", deleteChatValidator, deleteChat);
 
 // Message routes
-router.post("/:id/messages", sendMessageValidator, sendMessage);
+router.post("/:id/messages", requireSubscriptionAndVerification, sendMessageValidator, sendMessage);
 router.get("/:id/messages", getChatValidator, getChatMessages);
 
 // Mark as read

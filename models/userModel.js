@@ -190,7 +190,7 @@ const userSchema = new mongoose.Schema(
     subscriptionEndDate: Date,
     subscriptionPackage: {
       type: String,
-      enum: ["1month", "3months", "6months"],
+      enum: ["basic", "premium"],
     },
 
     // Message Statistics

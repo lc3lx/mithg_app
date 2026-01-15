@@ -14,6 +14,10 @@ const {
 } = require("../utils/validators/messagingRequestValidator");
 
 const authService = require("../services/authService");
+const {
+  requireSubscriptionAndVerification,
+  requireSubscriptionForMessaging
+} = require("../middlewares/subscriptionMiddleware");
 
 const router = express.Router();
 
@@ -24,7 +28,7 @@ router.use(authService.protect);
 router
   .route("/")
   .get(getMessagingRequests)
-  .post(sendMessagingRequestValidator, sendMessagingRequest);
+  .post(requireSubscriptionAndVerification, sendMessagingRequestValidator, sendMessagingRequest);
 
 router.put(
   "/:id/respond",

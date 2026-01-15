@@ -29,7 +29,7 @@ exports.createSubscriptionPackage = asyncHandler(async (req, res, next) => {
     req.body;
 
   // Validate package type
-  if (!["1month", "3months", "6months"].includes(packageType)) {
+  if (!["basic", "premium"].includes(packageType)) {
     return next(new ApiError("Invalid package type", 400));
   }
 
@@ -45,14 +45,11 @@ exports.createSubscriptionPackage = asyncHandler(async (req, res, next) => {
   // Calculate duration in days
   let durationDays;
   switch (packageType) {
-    case "1month":
-      durationDays = 30;
+    case "basic":
+      durationDays = 30; // Basic subscription for 30 days
       break;
-    case "3months":
-      durationDays = 90;
-      break;
-    case "6months":
-      durationDays = 180;
+    case "premium":
+      durationDays = 365; // Premium subscription for 1 year
       break;
     default:
       return next(new ApiError("Invalid package type", 400));

@@ -8,6 +8,7 @@ const ApiError = require("../utils/apiError");
 const { uploadSingleImage } = require("../middlewares/uploadImageMiddleware");
 const createToken = require("../utils/createToken");
 const User = require("../models/userModel");
+const { createFriendRequestNotification, createFriendRequestAcceptedNotification } = require("./notificationService");
 
 // Upload single image
 exports.uploadUserImage = uploadSingleImage("profileImg");
@@ -349,6 +350,9 @@ exports.sendFriendRequest = asyncHandler(async (req, res, next) => {
     $push: { friendRequests: req.user._id },
   });
 
+  // Create notification for the target user
+  await createFriendRequestNotification(req.user._id, userId);
+
   res.status(200).json({
     message: "Friend request sent successfully",
   });
@@ -383,6 +387,9 @@ exports.acceptFriendRequest = asyncHandler(async (req, res, next) => {
     $pull: { sentFriendRequests: req.user._id },
     $push: { friends: req.user._id },
   });
+
+  // Create notification for the sender (who sent the original request)
+  await createFriendRequestAcceptedNotification(req.user._id, userId);
 
   res.status(200).json({
     message: "Friend request accepted successfully",

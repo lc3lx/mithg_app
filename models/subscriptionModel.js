@@ -4,7 +4,7 @@ const subscriptionSchema = new mongoose.Schema(
   {
     packageType: {
       type: String,
-      enum: ["1month", "3months", "6months"],
+      enum: ["basic", "premium"],
       required: [true, "Package type is required"],
     },
     name: {

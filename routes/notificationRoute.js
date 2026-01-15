@@ -8,6 +8,7 @@ const {
   deleteReadNotifications,
   getNotificationStats,
   createNotification,
+  createTestNotifications,
 } = require("../services/notificationService");
 
 const {
@@ -36,6 +37,9 @@ router.put("/:id/read", markAsReadValidator, markAsRead);
 router.put("/mark-all-read", markAllAsRead);
 router.delete("/delete-read", deleteReadNotifications);
 router.get("/stats", getNotificationStats);
+
+// Test route for development (temporary)
+router.post("/test", createTestNotifications);
 
 // Admin routes for creating notifications (optional)
 router.use(authService.allowedTo("admin"));

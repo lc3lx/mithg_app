@@ -42,6 +42,11 @@ const {
 } = require("../services/userService");
 
 const authService = require("../services/authService");
+const {
+  requireSubscriptionAndVerification,
+  requireSubscriptionForFriendRequest,
+  requireSubscriptionForMessaging
+} = require("../middlewares/subscriptionMiddleware");
 
 const router = express.Router();
 
@@ -83,6 +88,7 @@ router.get("/favorites", getUserFavorites);
 // Friend Requests
 router.post(
   "/friend-request/:userId",
+  requireSubscriptionAndVerification,
   sendFriendRequestValidator,
   sendFriendRequest
 );

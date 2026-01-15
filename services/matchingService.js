@@ -92,6 +92,9 @@ exports.getMatches = asyncHandler(async (req, res) => {
       $nin: [...currentUser.friends, ...currentUser.blockedUsers],
     },
     active: true,
+    // Only show subscribed users (users with active subscription)
+    isSubscribed: true,
+    subscriptionEndDate: { $gt: new Date() },
     // Age range compatibility
     age: {
       $gte: currentUser.minAgePreference,
@@ -140,7 +143,12 @@ exports.getMatchProfile = asyncHandler(async (req, res, next) => {
     return next(new ApiError("Cannot view blocked user profile", 403));
   }
 
-  const matchProfile = await User.findById(userId)
+  const matchProfile = await User.findOne({
+    _id: userId,
+    // Only allow viewing profiles of subscribed users
+    isSubscribed: true,
+    subscriptionEndDate: { $gt: new Date() }
+  })
     .select(
       "name age gender bio location profileImg coverImg interests isOnline lastSeen posts friends"
     )

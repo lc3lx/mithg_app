@@ -188,3 +188,201 @@ exports.createNotification = asyncHandler(async (req, res) => {
     data: notification,
   });
 });
+
+// Helper functions for creating notifications
+exports.createFriendRequestNotification = async (senderId, receiverId) => {
+  try {
+    const notification = await Notification.create({
+      user: receiverId,
+      type: 'friend_request',
+      title: 'طلب صداقة جديد',
+      message: 'لديك طلب صداقة جديد',
+      relatedUser: senderId,
+    });
+    return notification;
+  } catch (error) {
+    console.error('Error creating friend request notification:', error);
+  }
+};
+
+exports.createFriendRequestAcceptedNotification = async (senderId, receiverId) => {
+  try {
+    const notification = await Notification.create({
+      user: senderId,
+      type: 'friend_request_accepted',
+      title: 'تم قبول طلب الصداقة',
+      message: 'تم قبول طلب صداقتك',
+      relatedUser: receiverId,
+    });
+    return notification;
+  } catch (error) {
+    console.error('Error creating friend request accepted notification:', error);
+  }
+};
+
+exports.createMessageNotification = async (senderId, receiverId, chatId, messageContent) => {
+  try {
+    const notification = await Notification.create({
+      user: receiverId,
+      type: 'new_message',
+      title: 'رسالة جديدة',
+      message: messageContent.length > 50 ? messageContent.substring(0, 50) + '...' : messageContent,
+      relatedUser: senderId,
+      relatedChat: chatId,
+      data: { messageContent },
+    });
+    return notification;
+  } catch (error) {
+    console.error('Error creating message notification:', error);
+  }
+};
+
+exports.createLikeNotification = async (likerId, postOwnerId, postId) => {
+  try {
+    const notification = await Notification.create({
+      user: postOwnerId,
+      type: 'post_like',
+      title: 'إعجاب جديد',
+      message: 'أعجب شخص بمنشورك',
+      relatedUser: likerId,
+      relatedPost: postId,
+    });
+    return notification;
+  } catch (error) {
+    console.error('Error creating like notification:', error);
+  }
+};
+
+exports.createCommentNotification = async (commenterId, postOwnerId, postId, commentContent) => {
+  try {
+    const notification = await Notification.create({
+      user: postOwnerId,
+      type: 'post_comment',
+      title: 'تعليق جديد',
+      message: commentContent.length > 50 ? commentContent.substring(0, 50) + '...' : commentContent,
+      relatedUser: commenterId,
+      relatedPost: postId,
+      data: { commentContent },
+    });
+    return notification;
+  } catch (error) {
+    console.error('Error creating comment notification:', error);
+  }
+};
+
+exports.createProfileViewNotification = async (viewerId, profileOwnerId) => {
+  try {
+    // Check if notification already exists for this viewer in the last 24 hours
+    const existingNotification = await Notification.findOne({
+      user: profileOwnerId,
+      type: 'profile_view',
+      relatedUser: viewerId,
+      createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+    });
+
+    if (!existingNotification) {
+      const notification = await Notification.create({
+        user: profileOwnerId,
+        type: 'profile_view',
+        title: 'زيارة ملف شخصي',
+        message: 'شخص زار ملفك الشخصي',
+        relatedUser: viewerId,
+      });
+      return notification;
+    }
+  } catch (error) {
+    console.error('Error creating profile view notification:', error);
+  }
+};
+
+exports.createMatchNotification = async (userId1, userId2, matchData) => {
+  try {
+    // Create notification for both users
+    const notifications = await Promise.all([
+      Notification.create({
+        user: userId1,
+        type: 'match_suggestion',
+        title: 'تطابق جديد!',
+        message: 'تم العثور على تطابق مناسب لك',
+        relatedUser: userId2,
+        data: matchData,
+      }),
+      Notification.create({
+        user: userId2,
+        type: 'match_suggestion',
+        title: 'تطابق جديد!',
+        message: 'تم العثور على تطابق مناسب لك',
+        relatedUser: userId1,
+        data: matchData,
+      })
+    ]);
+    return notifications;
+  } catch (error) {
+    console.error('Error creating match notifications:', error);
+  }
+};
+
+exports.createSecurityNotification = async (userId, title, message) => {
+  try {
+    const notification = await Notification.create({
+      user: userId,
+      type: 'security_update',
+      title: title,
+      message: message,
+    });
+    return notification;
+  } catch (error) {
+    console.error('Error creating security notification:', error);
+  }
+};
+
+// @desc    Create test notifications for development
+// @route   POST /api/v1/notifications/test
+// @access  Private/Admin
+exports.createTestNotifications = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const testNotifications = [
+    {
+      user: userId,
+      type: 'friend_request',
+      title: 'طلب صداقة جديد',
+      message: 'لديك طلب صداقة جديد من أحمد',
+      isRead: false,
+    },
+    {
+      user: userId,
+      type: 'new_message',
+      title: 'رسالة جديدة',
+      message: 'مرحبا! كيف حالك اليوم؟',
+      isRead: false,
+    },
+    {
+      user: userId,
+      type: 'post_like',
+      title: 'إعجاب جديد',
+      message: 'أعجب شخص بمنشورك',
+      isRead: false,
+    },
+    {
+      user: userId,
+      type: 'security_update',
+      title: 'تحديث أمني',
+      message: 'تم تحديث إعدادات الأمان لحسابك',
+      isRead: true,
+    },
+    {
+      user: userId,
+      type: 'match_suggestion',
+      title: 'تطابق جديد!',
+      message: 'تم العثور على تطابق مناسب لك',
+      isRead: false,
+    },
+  ];
+
+  const notifications = await Notification.insertMany(testNotifications);
+
+  res.status(201).json({
+    message: "Test notifications created successfully",
+    data: notifications,
+  });
+});

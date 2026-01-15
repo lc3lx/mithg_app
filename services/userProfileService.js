@@ -236,7 +236,12 @@ exports.deleteGalleryItem = asyncHandler(async (req, res, next) => {
 exports.getUserProfile = asyncHandler(async (req, res, next) => {
   const { userId } = req.params;
 
-  const user = await User.findById(userId)
+  const user = await User.findOne({
+    _id: userId,
+    // Only allow viewing profiles of subscribed users
+    isSubscribed: true,
+    subscriptionEndDate: { $gt: new Date() }
+  })
     .select(
       "name age gender bio location profileImg coverImg gallery about isOnline lastSeen friends profileViews"
     )
@@ -268,7 +273,11 @@ exports.getUserProfile = asyncHandler(async (req, res, next) => {
 // @route   GET /api/v1/users/profiles
 // @access  Public
 exports.getAllProfiles = asyncHandler(async (req, res, next) => {
-  const users = await User.find()
+  // Only show profiles of users with active subscription
+  const users = await User.find({
+    isSubscribed: true,
+    subscriptionEndDate: { $gt: new Date() }
+  })
     .select(
       "name age gender bio location profileImg coverImg gallery about isOnline lastSeen profileViews"
     )
