@@ -124,11 +124,45 @@ exports.getPendingVerificationRequests = asyncHandler(async (req, res) => {
     .limitFields()
     .search();
 
-  const requests = await features.query;
+  const requests = await features.mongooseQuery;
 
   res.status(200).json({
-    results: requests.length,
-    data: requests,
+    results: requests ? requests.length : 0,
+    data: requests || [],
+  });
+});
+
+// @desc    Get all verification requests (Admin only) - with status filter
+// @route   GET /api/v1/verification/all-requests
+// @access  Private/Admin
+exports.getAllVerificationRequests = asyncHandler(async (req, res) => {
+  const { adminType } = req.admin;
+
+  // Build filter based on admin type
+  const filter = {};
+  if (adminType !== "super") {
+    filter.adminType = adminType;
+  }
+
+  // Apply status filter from query params
+  if (req.query.status) {
+    filter.status = req.query.status;
+  }
+
+  const features = new ApiFeatures(
+    IdentityVerification.find(filter).sort({ createdAt: -1 }),
+    req.query
+  )
+    .filter()
+    .sort()
+    .limitFields()
+    .search();
+
+  const requests = await features.mongooseQuery;
+
+  res.status(200).json({
+    results: requests ? requests.length : 0,
+    data: requests || [],
   });
 });
 

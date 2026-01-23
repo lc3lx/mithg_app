@@ -98,14 +98,24 @@ exports.addToGallery = asyncHandler(async (req, res, next) => {
 
 // @desc    Get user gallery
 // @route   GET /api/v1/users/:userId/gallery
-// @access  Public (for viewing profiles) or Private (for own gallery)
+// @access  Private/Protect (friends or self)
 exports.getUserGallery = asyncHandler(async (req, res, next) => {
   const { userId } = req.params;
 
-  const user = await User.findById(userId).select("gallery");
+  const user = await User.findById(userId).select("gallery friends");
 
   if (!user) {
     return next(new ApiError("User not found", 404));
+  }
+
+  const isFriend =
+    req.user._id.toString() === userId ||
+    user.friends
+      .map((friend) => friend.toString())
+      .includes(req.user._id.toString());
+
+  if (!isFriend) {
+    return next(new ApiError("Gallery is available for friends only", 403));
   }
 
   // Sort gallery by creation date (newest first)
@@ -232,7 +242,7 @@ exports.deleteGalleryItem = asyncHandler(async (req, res, next) => {
 
 // @desc    Get user profile with gallery and about
 // @route   GET /api/v1/users/:userId/profile
-// @access  Public
+// @access  Private/Protect
 exports.getUserProfile = asyncHandler(async (req, res, next) => {
   const { userId } = req.params;
 
@@ -264,6 +274,38 @@ exports.getUserProfile = asyncHandler(async (req, res, next) => {
     friendsCount: user.friends.length,
   };
 
+  const isFriend =
+    req.user._id.toString() === userId ||
+    user.friends
+      .map((friend) => friend.toString())
+      .includes(req.user._id.toString());
+
+  if (req.user._id.toString() !== userId && !isFriend) {
+    profileData.profileImg = null;
+    profileData.coverImg = null;
+    profileData.gallery = [];
+    profileData.bio = null;
+    profileData.about = null;
+    profileData.location = null;
+    profileData.country = null;
+    profileData.city = null;
+    profileData.nationality = null;
+    profileData.educationalLevel = null;
+    profileData.fieldOfWork = null;
+    profileData.socialStatus = null;
+    profileData.religion = null;
+    profileData.hairColor = null;
+    profileData.height = null;
+    profileData.weight = null;
+    profileData.hijab = null;
+    profileData.havingChildren = null;
+    profileData.desire = null;
+    profileData.polygamy = null;
+    profileData.smoking = null;
+  }
+
+  profileData.isFriend = isFriend;
+
   res.status(200).json({
     data: profileData,
   });
@@ -271,20 +313,34 @@ exports.getUserProfile = asyncHandler(async (req, res, next) => {
 
 // @desc    Get all user profiles
 // @route   GET /api/v1/users/profiles
-// @access  Public
+// @access  Private/Protect
 exports.getAllProfiles = asyncHandler(async (req, res, next) => {
-  // Only show profiles of users with active subscription
-  const users = await User.find({
+  const currentGender = req.user?.gender;
+  const targetGender =
+    currentGender === "male"
+      ? "female"
+      : currentGender === "female"
+      ? "male"
+      : undefined;
+
+  // Only show profiles of users with active subscription and opposite gender
+  const filter = {
     isSubscribed: true,
-    subscriptionEndDate: { $gt: new Date() }
-  })
+    subscriptionEndDate: { $gt: new Date() },
+    _id: { $ne: req.user._id },
+  };
+  if (targetGender) {
+    filter.gender = targetGender;
+  }
+
+  const users = await User.find(filter)
     .select(
-      "name age gender bio location profileImg coverImg gallery about isOnline lastSeen profileViews"
+      "name age gender bio location profileImg coverImg gallery about isOnline lastSeen profileViews friends isSubscribed identityVerified"
     )
     .sort({ createdAt: -1 });
 
   // Process each user profile
-  const profiles = users.map(user => {
+  const profiles = users.map((user) => {
     // Sort gallery by primary first, then by creation date
     const sortedGallery = user.gallery.sort((a, b) => {
       if (a.isPrimary && !b.isPrimary) return -1;
@@ -292,10 +348,25 @@ exports.getAllProfiles = asyncHandler(async (req, res, next) => {
       return new Date(b.createdAt) - new Date(a.createdAt);
     });
 
-    return {
+    const isFriend = user.friends
+      .map((friend) => friend.toString())
+      .includes(req.user._id.toString());
+
+    const profileData = {
       ...user.toObject(),
       gallery: sortedGallery,
+      isFriend,
     };
+
+    if (!isFriend) {
+      profileData.profileImg = null;
+      profileData.coverImg = null;
+      profileData.gallery = [];
+      profileData.bio = null;
+      profileData.about = null;
+    }
+
+    return profileData;
   });
 
   res.status(200).json({

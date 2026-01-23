@@ -21,6 +21,18 @@ exports.getSubscriptionPackages = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Get all subscription packages (Admin only)
+// @route   GET /api/v1/subscriptions/admin/packages
+// @access  Private/Admin
+exports.getAdminSubscriptionPackages = asyncHandler(async (req, res) => {
+  const packages = await Subscription.find().sort({ price: 1 });
+
+  res.status(200).json({
+    results: packages.length,
+    data: packages,
+  });
+});
+
 // @desc    Create subscription package (Admin only)
 // @route   POST /api/v1/subscriptions/packages
 // @access  Private/Admin
@@ -353,7 +365,7 @@ exports.getPaymentRequests = asyncHandler(async (req, res) => {
     .limitFields()
     .search();
 
-  const requests = await features.query;
+  const requests = await features.mongooseQuery;
 
   res.status(200).json({
     results: requests.length,
@@ -446,7 +458,7 @@ exports.getSubscriptionCodes = asyncHandler(async (req, res) => {
     .limitFields()
     .search();
 
-  const codes = await features.query;
+  const codes = await features.mongooseQuery;
 
   res.status(200).json({
     results: codes.length,

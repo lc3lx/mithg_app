@@ -5,17 +5,69 @@ const ApiFeatures = require("../utils/apiFeatures");
 const { createAdminToken } = require("../utils/createToken");
 
 const Admin = require("../models/adminModel");
+const AdminActivity = require("../models/adminActivityModel");
 const User = require("../models/userModel");
 const Subscription = require("../models/subscriptionModel");
 const PaymentRequest = require("../models/paymentRequestModel");
 const SubscriptionCode = require("../models/subscriptionCodeModel");
 const IdentityVerification = require("../models/identityVerificationModel");
 
+const getDefaultPermissions = (adminType) => {
+  if (adminType === "super") {
+    return {
+      manageSubscriptions: true,
+      manageUsers: true,
+      verifyIdentities: true,
+      manageAdmins: true,
+      viewReports: true,
+      monitorChats: true,
+      manageBannedWords: true,
+      manageWallets: true,
+      manageRechargeCodes: true,
+      moderateContent: true,
+    };
+  }
+  return {
+    manageSubscriptions: false,
+    manageUsers: false,
+    verifyIdentities: true,
+    manageAdmins: false,
+    viewReports: true,
+    monitorChats: true,
+    manageBannedWords: false,
+    manageWallets: false,
+    manageRechargeCodes: false,
+    moderateContent: true,
+  };
+};
+
+const logAdminAction = async (
+  adminId,
+  action,
+  targetType,
+  targetId,
+  details
+) => {
+  if (!adminId) return;
+  try {
+    await AdminActivity.create({
+      admin: adminId,
+      action,
+      targetType,
+      targetId,
+      details,
+    });
+    await Admin.findByIdAndUpdate(adminId, { $inc: { actionsCount: 1 } });
+  } catch (error) {
+    // Avoid blocking main operation if logging fails
+  }
+};
+
 // @desc    Create new admin (Super admin only)
 // @route   POST /api/v1/admins
 // @access  Private/SuperAdmin
 exports.createAdmin = asyncHandler(async (req, res, next) => {
-  const { name, email, password, phone, adminType } = req.body;
+  const { name, email, password, phone, adminType, permissions } = req.body;
 
   // Check if email already exists
   const existingAdmin = await Admin.findOne({ email });
@@ -41,6 +93,14 @@ exports.createAdmin = asyncHandler(async (req, res, next) => {
     password,
     phone,
     adminType,
+    permissions: permissions
+      ? { ...getDefaultPermissions(adminType), ...permissions }
+      : getDefaultPermissions(adminType),
+  });
+
+  await logAdminAction(req.admin?._id, "create_admin", "admin", admin._id, {
+    name: admin.name,
+    adminType: admin.adminType,
   });
 
   // Remove password from response
@@ -65,7 +125,7 @@ exports.getAdmins = asyncHandler(async (req, res) => {
     .limitFields()
     .search();
 
-  const admins = await features.query;
+  const admins = await features.mongooseQuery;
 
   res.status(200).json({
     results: admins.length,
@@ -78,7 +138,8 @@ exports.getAdmins = asyncHandler(async (req, res) => {
 // @access  Private/Admin
 exports.updateAdmin = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
-  const { name, email, phone, adminType, isActive, permissions } = req.body;
+  const { name, email, phone, adminType, isActive, permissions, password } =
+    req.body;
   const currentAdmin = req.admin;
 
   // Check if admin exists
@@ -103,14 +164,27 @@ exports.updateAdmin = asyncHandler(async (req, res, next) => {
   if (name) admin.name = name;
   if (email) admin.email = email;
   if (phone) admin.phone = phone;
-  if (adminType && currentAdmin.adminType === "super")
+  if (adminType && currentAdmin.adminType === "super") {
     admin.adminType = adminType;
-  if (isActive !== undefined && currentAdmin.adminType === "super")
+    if (!permissions) {
+      admin.permissions = getDefaultPermissions(adminType);
+    }
+  }
+  if (isActive !== undefined && currentAdmin.adminType === "super") {
     admin.isActive = isActive;
-  if (permissions && currentAdmin.adminType === "super")
-    admin.permissions = permissions;
+  }
+  if (permissions && currentAdmin.adminType === "super") {
+    admin.permissions = { ...admin.permissions.toObject(), ...permissions };
+  }
+  if (password && currentAdmin.adminType === "super") {
+    admin.password = password;
+  }
 
   await admin.save();
+
+  await logAdminAction(req.admin?._id, "update_admin", "admin", admin._id, {
+    name: admin.name,
+  });
 
   // Remove password from response
   admin.password = undefined;
@@ -146,6 +220,8 @@ exports.deleteAdmin = asyncHandler(async (req, res, next) => {
 
   await Admin.findByIdAndDelete(id);
 
+  await logAdminAction(req.admin?._id, "delete_admin", "admin", id, {});
+
   res.status(200).json({
     message: "Admin deleted successfully",
   });
@@ -156,14 +232,40 @@ exports.deleteAdmin = asyncHandler(async (req, res, next) => {
 // @access  Public
 exports.adminLogin = asyncHandler(async (req, res, next) => {
   const { email, password } = req.body;
+  console.log(req.body)
 
   if (!email || !password) {
     return next(new ApiError("Please provide email and password", 400));
   }
 
   // Check if admin exists and get password
-  const admin = await Admin.findOne({ email }).select("+password");
-  if (!admin || !(await admin.comparePassword(password))) {
+  const admin = await Admin.findOne({ email: email.trim() }).select("+password");
+
+  if (!admin) {
+    return next(new ApiError("Incorrect email or password", 401));
+  }
+
+  // Normalize incoming password for comparison (avoid accidental non-string / surrounding whitespace)
+  const candidatePassword =
+    typeof password === "string" ? password : String(password || "");
+
+  // Helpful debug logs (remove or lower verbosity in production)
+  console.log("adminLogin: comparing passwords", {
+    email: admin.email,
+    candidateLength: candidatePassword.length,
+    storedHashLength: admin.password ? admin.password.length : 0,
+  });
+
+  // Try exact and trimmed variants (some clients send accidental spaces/newlines)
+  const isValidPassword =
+    (await admin.comparePassword(candidatePassword)) ||
+    (candidatePassword !== candidatePassword.trim() &&
+      (await admin.comparePassword(candidatePassword.trim())));
+
+  console.log("adminLogin: password valid?", isValidPassword);
+
+  if (!isValidPassword) {
+    console.log(admin);
     return next(new ApiError("Incorrect email or password", 401));
   }
 
@@ -276,7 +378,10 @@ exports.getDashboardStats = asyncHandler(async (req, res) => {
       },
       subscriptions: {
         activePackages: activeSubscriptions,
-        totalRevenue: totalRevenue[0].total || 0,
+        totalRevenue:
+          totalRevenue && totalRevenue.length > 0
+            ? totalRevenue[0].total || 0
+            : 0,
       },
       verifications: {
         pending: pendingVerifications,
@@ -339,6 +444,106 @@ exports.getRecentActivity = asyncHandler(async (req, res) => {
     },
   });
 });
+
+// @desc    Get users growth chart data (Admin only)
+// @route   GET /api/v1/admins/charts/users-growth
+// @access  Private/Admin
+exports.getUsersGrowthChart = asyncHandler(async (req, res) => {
+  // Get user registrations for the last 6 months
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+  const usersGrowth = await User.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: sixMonthsAgo },
+      },
+    },
+    {
+      $group: {
+        _id: {
+          year: { $year: "$createdAt" },
+          month: { $month: "$createdAt" },
+        },
+        count: { $sum: 1 },
+      },
+    },
+    {
+      $sort: { "_id.year": 1, "_id.month": 1 },
+    },
+  ]);
+
+  // Format the data for frontend
+  const formattedData = usersGrowth.map((item) => ({
+    month: `${item._id.year}-${item._id.month.toString().padStart(2, "0")}`,
+    users: item.count,
+    label: _getMonthName(item._id.month),
+  }));
+
+  res.status(200).json({
+    data: formattedData,
+  });
+});
+
+// @desc    Get revenue growth chart data (Admin only)
+// @route   GET /api/v1/admins/charts/revenue-growth
+// @access  Private/Admin
+exports.getRevenueGrowthChart = asyncHandler(async (req, res) => {
+  // Get approved payments for the last 6 months
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+  const revenueGrowth = await PaymentRequest.aggregate([
+    {
+      $match: {
+        status: "approved",
+        reviewedAt: { $gte: sixMonthsAgo },
+      },
+    },
+    {
+      $group: {
+        _id: {
+          year: { $year: "$reviewedAt" },
+          month: { $month: "$reviewedAt" },
+        },
+        totalRevenue: { $sum: "$amount" },
+      },
+    },
+    {
+      $sort: { "_id.year": 1, "_id.month": 1 },
+    },
+  ]);
+
+  // Format the data for frontend
+  const formattedData = revenueGrowth.map((item) => ({
+    month: `${item._id.year}-${item._id.month.toString().padStart(2, "0")}`,
+    revenue: item.totalRevenue,
+    label: _getMonthName(item._id.month),
+  }));
+
+  res.status(200).json({
+    data: formattedData,
+  });
+});
+
+// Helper function to get month name in Arabic
+function _getMonthName(monthNumber) {
+  const months = [
+    "يناير",
+    "فبراير",
+    "مارس",
+    "أبريل",
+    "مايو",
+    "يونيو",
+    "يوليو",
+    "أغسطس",
+    "سبتمبر",
+    "أكتوبر",
+    "نوفمبر",
+    "ديسمبر",
+  ];
+  return months[monthNumber - 1] || "غير معروف";
+}
 
 // @desc    Protect admin routes
 // @access  Private/Admin
@@ -411,4 +616,212 @@ exports.restrictToSuperAdmin = asyncHandler(async (req, res, next) => {
     );
   }
   next();
+});
+
+// @desc    Get all users (filtered by admin type)
+// @route   GET /api/v1/admins/users
+// @access  Private/Admin
+exports.getAdminUsers = asyncHandler(async (req, res) => {
+  const { adminType } = req.admin;
+
+  // Build filter based on admin type
+  let filter = {};
+  if (adminType === "male") {
+    filter.gender = "male";
+  } else if (adminType === "female") {
+    filter.gender = "female";
+  }
+  // super admin sees all users (no filter)
+
+  // Apply additional filters from query params
+  if (req.query.isSubscribed !== undefined) {
+    filter.isSubscribed = req.query.isSubscribed === "true";
+  }
+  if (req.query.identityVerified !== undefined) {
+    filter.identityVerified = req.query.identityVerified === "true";
+  }
+  if (req.query.isBlocked !== undefined) {
+    filter.isBlocked = req.query.isBlocked === "true";
+  }
+  if (req.query.isActive !== undefined) {
+    filter.isActive = req.query.isActive === "true";
+  }
+
+  // Build query with ApiFeatures
+  const apiFeatures = new ApiFeatures(User.find(filter), req.query)
+    .paginate()
+    .filter()
+    .search("User")
+    .limitFields()
+    .sort();
+
+  const { mongooseQuery, paginationResult } = apiFeatures;
+  const users = await mongooseQuery.select("-password");
+
+  res.status(200).json({
+    results: users.length,
+    paginationResult,
+    data: users,
+  });
+});
+
+// @desc    Toggle user subscription
+// @route   PUT /api/v1/admins/users/:id/subscription
+// @access  Private/Admin
+exports.toggleUserSubscription = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+  const { isSubscribed, subscriptionEndDate } = req.body;
+
+  const user = await User.findById(id);
+  if (!user) {
+    return next(new ApiError("User not found", 404));
+  }
+
+  // Check admin permissions based on admin type
+  const { adminType } = req.admin;
+  if (adminType !== "super" && user.gender !== adminType) {
+    return next(
+      new ApiError("You do not have permission to manage this user", 403)
+    );
+  }
+
+  const newIsSubscribed =
+    isSubscribed !== undefined ? isSubscribed : !user.isSubscribed;
+
+  // Prepare update object
+  const updateData = { isSubscribed: newIsSubscribed };
+
+  if (newIsSubscribed && subscriptionEndDate) {
+    updateData.subscriptionEndDate = new Date(subscriptionEndDate);
+  } else if (!newIsSubscribed) {
+    updateData.subscriptionEndDate = null;
+    updateData.subscriptionPackage = null;
+  }
+
+  // Use updateOne to update only subscription fields, avoiding validation issues with other fields
+  await User.updateOne({ _id: id }, { $set: updateData });
+
+  // Fetch updated user
+  const updatedUser = await User.findById(id).select(
+    "_id isSubscribed subscriptionEndDate"
+  );
+
+  res.status(200).json({
+    message: `User subscription ${
+      newIsSubscribed ? "activated" : "deactivated"
+    } successfully`,
+    data: {
+      userId: updatedUser._id,
+      isSubscribed: updatedUser.isSubscribed,
+      subscriptionEndDate: updatedUser.subscriptionEndDate,
+    },
+  });
+
+  await logAdminAction(req.admin?._id, "toggle_user_subscription", "user", id, {
+    isSubscribed: newIsSubscribed,
+  });
+});
+
+// @desc    Toggle user active status
+// @route   PUT /api/v1/admins/users/:id/active
+// @access  Private/Admin
+exports.toggleUserActive = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+  const { isActive } = req.body;
+
+  const user = await User.findById(id);
+  if (!user) {
+    return next(new ApiError("User not found", 404));
+  }
+
+  // Check admin permissions based on admin type
+  const { adminType } = req.admin;
+  if (adminType !== "super" && user.gender !== adminType) {
+    return next(
+      new ApiError("You do not have permission to manage this user", 403)
+    );
+  }
+
+  const newIsActive = isActive !== undefined ? isActive : !user.isActive;
+
+  // Use updateOne to update only isActive field, avoiding validation issues with other fields
+  await User.updateOne({ _id: id }, { $set: { isActive: newIsActive } });
+
+  // Fetch updated user
+  const updatedUser = await User.findById(id).select("_id isActive");
+
+  res.status(200).json({
+    message: `User account ${
+      newIsActive ? "activated" : "deactivated"
+    } successfully`,
+    data: {
+      userId: updatedUser._id,
+      isActive: updatedUser.isActive,
+    },
+  });
+
+  await logAdminAction(req.admin?._id, "toggle_user_active", "user", id, {
+    isActive: newIsActive,
+  });
+});
+
+// @desc    Verify user identity (admin action)
+// @route   PUT /api/v1/admins/users/:id/verify
+// @access  Private/Admin
+exports.verifyUserIdentity = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+
+  const user = await User.findById(id);
+  if (!user) {
+    return next(new ApiError("User not found", 404));
+  }
+
+  // Check admin permissions based on admin type
+  const { adminType } = req.admin;
+  if (adminType !== "super" && user.gender !== adminType) {
+    return next(
+      new ApiError("You do not have permission to manage this user", 403)
+    );
+  }
+
+  await User.updateOne(
+    { _id: id },
+    {
+      $set: {
+        identityVerified: true,
+        identityVerificationStatus: "approved",
+        identityVerificationSubmitted: true,
+      },
+    }
+  );
+
+  res.status(200).json({
+    message: "User verified successfully",
+    data: {
+      userId: id,
+      identityVerified: true,
+      identityVerificationStatus: "approved",
+    },
+  });
+
+  await logAdminAction(req.admin?._id, "verify_user_identity", "user", id, {
+    identityVerified: true,
+  });
+});
+
+// @desc    Get admin activity logs (Super admin only)
+// @route   GET /api/v1/admins/:id/activity
+// @access  Private/SuperAdmin
+exports.getAdminActivity = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const limit = Math.min(parseInt(req.query.limit || "50", 10), 200);
+
+  const activities = await AdminActivity.find({ admin: id })
+    .sort({ createdAt: -1 })
+    .limit(limit);
+
+  res.status(200).json({
+    results: activities.length,
+    data: activities,
+  });
 });

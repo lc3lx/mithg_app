@@ -18,6 +18,14 @@ exports.blockUser = asyncHandler(async (req, res, next) => {
     return next(new ApiError("User not found", 404));
   }
 
+  // Check admin permissions based on admin type
+  const { adminType } = req.admin;
+  if (adminType !== "super" && user.gender !== adminType) {
+    return next(
+      new ApiError("You do not have permission to manage this user", 403)
+    );
+  }
+
   if (user.isBlocked) {
     return next(new ApiError("User is already blocked", 400));
   }
@@ -59,6 +67,14 @@ exports.unblockUser = asyncHandler(async (req, res, next) => {
     return next(new ApiError("User not found", 404));
   }
 
+  // Check admin permissions based on admin type
+  const { adminType } = req.admin;
+  if (adminType !== "super" && user.gender !== adminType) {
+    return next(
+      new ApiError("You do not have permission to manage this user", 403)
+    );
+  }
+
   if (!user.isBlocked) {
     return next(new ApiError("User is not blocked", 400));
   }
@@ -95,7 +111,7 @@ exports.getBlockedUsers = asyncHandler(async (req, res) => {
     .limitFields()
     .search();
 
-  const users = await features.query;
+  const users = await features.mongooseQuery;
 
   res.status(200).json({
     results: users.length,

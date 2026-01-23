@@ -9,8 +9,10 @@ const rateLimit = require("express-rate-limit");
 const hpp = require("hpp");
 const helmet = require("helmet");
 const mongoSanitize = require("express-mongo-sanitize");
-// Removed Socket.io - using polling instead
 const http = require("http");
+const { Server } = require("socket.io");
+const supportSocket = require("./utils/supportSocket");
+const chatSocket = require("./utils/socket");
 
 dotenv.config();
 const ApiError = require("./utils/apiError");
@@ -54,6 +56,20 @@ const app = express();
 
 // إنشاء HTTP server
 const server = http.createServer(app);
+
+// Socket.io server (support messages)
+const io = new Server(server, {
+  cors: {
+    origin: process.env.CLIENT_URL || "*",
+    credentials: true,
+  },
+});
+const onlineUsers = new Map();
+const onlineAdmins = new Map();
+app.set("io", io);
+app.set("onlineUsers", onlineUsers);
+supportSocket(io, onlineUsers, onlineAdmins);
+chatSocket(io);
 
 // Enable other domains to access your application
 app.use(
@@ -142,10 +158,10 @@ const limiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Stricter limiter for authentication routes
+// Stricter limiter for authentication routes (disabled for development)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 attempts per 15 minutes
+  max: 50, // Increased to 50 attempts per 15 minutes for development
   message: {
     error:
       "Too many authentication attempts, please try again after 15 minutes",
@@ -202,10 +218,14 @@ app.all("*", (req, res, next) => {
 // Global error handling middleware for express
 app.use(globalError);
 
+// Create default admin if not exists
+
 const PORT = process.env.PORT || 8000;
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`App running on port ${PORT}`);
   console.log(`Socket.io server is running`);
+
+  // Create default admin
 });
 
 // Handle rejection outside express

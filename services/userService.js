@@ -8,6 +8,7 @@ const ApiError = require("../utils/apiError");
 const { uploadSingleImage } = require("../middlewares/uploadImageMiddleware");
 const createToken = require("../utils/createToken");
 const User = require("../models/userModel");
+const UserReport = require("../models/userReportModel");
 const { createFriendRequestNotification, createFriendRequestAcceptedNotification } = require("./notificationService");
 
 // Upload single image
@@ -513,5 +514,119 @@ exports.getFriends = asyncHandler(async (req, res) => {
   res.status(200).json({
     results: friends.length,
     data: friends,
+  });
+});
+
+// @desc    Remove friend
+// @route   DELETE /api/v1/users/friends/:userId
+// @access  Private/Protect
+exports.removeFriend = asyncHandler(async (req, res, next) => {
+  const { userId } = req.params;
+
+  if (userId === req.user._id.toString()) {
+    return next(new ApiError("You cannot remove yourself", 400));
+  }
+
+  const currentUser = await User.findById(req.user._id);
+  const otherUser = await User.findById(userId);
+
+  if (!currentUser || !otherUser) {
+    return next(new ApiError("User not found", 404));
+  }
+
+  if (!currentUser.friends.includes(userId)) {
+    return next(new ApiError("User is not in your friends list", 400));
+  }
+
+  await User.findByIdAndUpdate(req.user._id, {
+    $pull: {
+      friends: userId,
+      friendRequests: userId,
+      sentFriendRequests: userId,
+    },
+  });
+
+  await User.findByIdAndUpdate(userId, {
+    $pull: {
+      friends: req.user._id,
+      friendRequests: req.user._id,
+      sentFriendRequests: req.user._id,
+    },
+  });
+
+  res.status(200).json({
+    message: "Friend removed successfully",
+  });
+});
+
+// @desc    Block user
+// @route   POST /api/v1/users/block/:userId
+// @access  Private/Protect
+exports.blockUser = asyncHandler(async (req, res, next) => {
+  const { userId } = req.params;
+
+  if (userId === req.user._id.toString()) {
+    return next(new ApiError("You cannot block yourself", 400));
+  }
+
+  const currentUser = await User.findById(req.user._id);
+  const otherUser = await User.findById(userId);
+
+  if (!currentUser || !otherUser) {
+    return next(new ApiError("User not found", 404));
+  }
+
+  if (currentUser.blockedUsers.includes(userId)) {
+    return next(new ApiError("User is already blocked", 400));
+  }
+
+  await User.findByIdAndUpdate(req.user._id, {
+    $addToSet: { blockedUsers: userId },
+    $pull: {
+      friends: userId,
+      friendRequests: userId,
+      sentFriendRequests: userId,
+    },
+  });
+
+  await User.findByIdAndUpdate(userId, {
+    $pull: {
+      friends: req.user._id,
+      friendRequests: req.user._id,
+      sentFriendRequests: req.user._id,
+    },
+  });
+
+  res.status(200).json({
+    message: "User blocked successfully",
+  });
+});
+
+// @desc    Report user
+// @route   POST /api/v1/users/report/:userId
+// @access  Private/Protect
+exports.reportUser = asyncHandler(async (req, res, next) => {
+  const { userId } = req.params;
+  const { reason, details } = req.body || {};
+
+  if (userId === req.user._id.toString()) {
+    return next(new ApiError("You cannot report yourself", 400));
+  }
+
+  const otherUser = await User.findById(userId);
+  if (!otherUser) {
+    return next(new ApiError("User not found", 404));
+  }
+
+  const report = await UserReport.create({
+    reporter: req.user._id,
+    reportedUser: userId,
+    reason: reason || "",
+    details: details || "",
+  });
+
+  res.status(201).json({
+    message: "Report submitted successfully",
+    data: report,
   });
 });

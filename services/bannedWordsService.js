@@ -66,13 +66,40 @@ exports.getBannedWords = asyncHandler(async (req, res) => {
     .filter()
     .sort()
     .limitFields()
-    .search();
+    .paginate(await BannedWords.countDocuments());
 
-  const bannedWords = await features.query;
+  // Custom search for banned words (search in word and variations)
+  if (req.query.keyword || req.query.search) {
+    const keyword = req.query.keyword || req.query.search;
+    features.mongooseQuery = features.mongooseQuery.find({
+      $or: [
+        { word: { $regex: keyword, $options: 'i' } },
+        { variations: { $regex: keyword, $options: 'i' } },
+      ],
+    });
+  }
+
+  const bannedWords = await features.mongooseQuery;
+
+  // Ensure bannedWords is an array
+  const bannedWordsArray = Array.isArray(bannedWords) ? bannedWords : [];
+
+  // Get stats
+  const totalWords = await BannedWords.countDocuments();
+  const activeWords = await BannedWords.countDocuments({ isActive: true });
+  const totalViolations = await BannedWords.aggregate([
+    { $group: { _id: null, total: { $sum: "$violationCount" } } },
+  ]);
 
   res.status(200).json({
-    results: bannedWords.length,
-    data: bannedWords,
+    status: "success",
+    results: bannedWordsArray.length,
+    data: bannedWordsArray,
+    stats: {
+      total: totalWords,
+      active: activeWords,
+      totalViolations: totalViolations.length > 0 ? totalViolations[0].total : 0,
+    },
   });
 });
 

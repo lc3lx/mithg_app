@@ -1,9 +1,15 @@
 const asyncHandler = require("express-async-handler");
 const ApiError = require("../utils/apiError");
 const ApiFeatures = require("../utils/apiFeatures");
-const { getAll, getOne, deleteOne } = require("./handlersFactory");
+const {
+  getAll,
+  getOne,
+  deleteOne,
+  updateOne,
+} = require("./handlersFactory");
 
 const Notification = require("../models/notificationModel");
+const User = require("../models/userModel");
 
 // @desc    Get user notifications
 // @route   GET /api/v1/notifications
@@ -186,6 +192,137 @@ exports.createNotification = asyncHandler(async (req, res) => {
   res.status(201).json({
     message: "Notification created successfully",
     data: notification,
+  });
+});
+
+// ===============================
+// Admin specific handlers
+// ===============================
+
+// @desc    Get all notifications (admin)
+// @route   GET /api/v1/notifications/admin
+// @access  Private/Admin
+exports.getAllNotificationsAdmin = getAll(Notification, "Notification");
+
+// @desc    Get single notification (admin)
+// @route   GET /api/v1/notifications/admin/:id
+// @access  Private/Admin
+exports.getNotificationAdmin = getOne(Notification);
+
+// @desc    Update notification (admin)
+// @route   PUT /api/v1/notifications/admin/:id
+// @access  Private/Admin
+exports.updateNotificationAdmin = updateOne(Notification);
+
+// @desc    Delete notification (admin)
+// @route   DELETE /api/v1/notifications/admin/:id
+// @access  Private/Admin
+exports.deleteNotificationAdmin = deleteOne(Notification);
+
+// @desc    Get notification stats (admin)
+// @route   GET /api/v1/notifications/admin/stats
+// @access  Private/Admin
+exports.getNotificationStatsAdmin = asyncHandler(async (req, res) => {
+  const totalNotifications = await Notification.countDocuments();
+  const scheduledNotifications = await Notification.countDocuments({
+    status: "scheduled",
+  });
+  const draftedNotifications = await Notification.countDocuments({
+    status: "draft",
+  });
+  const sentNotifications = await Notification.countDocuments({
+    status: "sent",
+  });
+
+  const statsByType = await Notification.aggregate([
+    {
+      $group: {
+        _id: "$type",
+        count: { $sum: 1 },
+        opened: { $sum: "$openedCount" },
+        recipients: { $sum: "$recipientsCount" },
+      },
+    },
+  ]);
+
+  res.status(200).json({
+    data: {
+      total: totalNotifications,
+      scheduled: scheduledNotifications,
+      draft: draftedNotifications,
+      sent: sentNotifications,
+      byType: statsByType,
+    },
+  });
+});
+
+// @desc    Create admin broadcast notifications
+// @route   POST /api/v1/notifications/admin
+// @access  Private/Admin
+exports.createAdminBroadcastNotification = asyncHandler(async (req, res, next) => {
+  const {
+    recipientType = "all",
+    type,
+    title,
+    message,
+    status,
+    scheduledAt,
+    userIds,
+  } = req.body;
+
+  // Build recipients query
+  let recipients = [];
+  if (recipientType === "specific") {
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return next(
+        new ApiError("userIds must be provided when recipientType is specific", 400)
+      );
+    }
+    // Ensure unique IDs
+    const uniqueIds = [...new Set(userIds.map(String))];
+    recipients = uniqueIds.map((id) => ({ _id: id }));
+  } else {
+    const query = {};
+    if (recipientType === "premium") {
+      query.isSubscribed = true;
+    } else if (recipientType === "new_users") {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      query.createdAt = { $gte: thirtyDaysAgo };
+    } else if (recipientType === "inactive") {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      // Basic heuristic: accounts older than 30 days (no activity tracking field is guaranteed)
+      query.createdAt = { $lte: thirtyDaysAgo };
+    }
+    const users = await User.find(query).select("_id");
+    recipients = users.map((u) => ({ _id: u._id }));
+  }
+
+  if (!recipients || recipients.length === 0) {
+    return next(new ApiError("No recipients found for the selected criteria", 404));
+  }
+
+  const computedStatus = status || (scheduledAt ? "scheduled" : "sent");
+  const parsedScheduledAt = scheduledAt ? new Date(scheduledAt) : undefined;
+
+  const docs = recipients.map((r) => ({
+    user: r._id,
+    type,
+    title,
+    message,
+    recipientType,
+    status: computedStatus,
+    ...(parsedScheduledAt ? { scheduledAt: parsedScheduledAt } : {}),
+    ...(computedStatus === "sent" ? { sentAt: new Date() } : {}),
+    recipientsCount: 1,
+    openedCount: 0,
+  }));
+
+  const inserted = await Notification.insertMany(docs, { ordered: false });
+
+  res.status(201).json({
+    message: "Broadcast notifications created",
+    results: inserted.length,
+    data: inserted,
   });
 });
 

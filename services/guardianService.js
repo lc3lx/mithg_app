@@ -388,7 +388,7 @@ exports.getPendingGuardianVerifications = asyncHandler(async (req, res) => {
     .limitFields()
     .search();
 
-  const guardians = await features.query;
+  const guardians = await features.mongooseQuery;
 
   res.status(200).json({
     results: guardians.length,

@@ -10,6 +10,7 @@ const notificationSchema = new mongoose.Schema(
     type: {
       type: String,
       enum: [
+        // User interaction notifications
         "friend_request",
         "friend_request_accepted",
         "friend_request_rejected",
@@ -18,6 +19,14 @@ const notificationSchema = new mongoose.Schema(
         "post_comment",
         "profile_view",
         "match_suggestion",
+        "security_update",
+        // Admin broadcast notifications
+        "update",
+        "promotion",
+        "security",
+        "welcome",
+        "maintenance",
+        "general",
       ],
       required: true,
     },
@@ -30,6 +39,31 @@ const notificationSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
+    },
+    recipientType: {
+      type: String,
+      enum: ["specific", "all", "premium", "new_users", "inactive"],
+      default: "specific",
+    },
+    status: {
+      type: String,
+      enum: ["draft", "scheduled", "sent", "cancelled"],
+      default: "sent",
+    },
+    scheduledAt: Date,
+    sentAt: {
+      type: Date,
+      default: Date.now,
+    },
+    recipientsCount: {
+      type: Number,
+      default: 1,
+      min: 0,
+    },
+    openedCount: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
     // Related entities
     relatedUser: {
@@ -54,6 +88,12 @@ const notificationSchema = new mongoose.Schema(
       default: false,
     },
     readAt: Date,
+    openRate: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100,
+    },
     // Push notification data
     pushSent: {
       type: Boolean,
@@ -72,6 +112,8 @@ const notificationSchema = new mongoose.Schema(
 notificationSchema.index({ user: 1, createdAt: -1 });
 notificationSchema.index({ user: 1, isRead: 1 });
 notificationSchema.index({ type: 1 });
+notificationSchema.index({ status: 1 });
+notificationSchema.index({ scheduledAt: 1 }, { sparse: true });
 
 // Populate related entities when querying
 notificationSchema.pre(/^find/, function (next) {

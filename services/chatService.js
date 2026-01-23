@@ -16,6 +16,8 @@ const {
 const Chat = require("../models/chatModel");
 const User = require("../models/userModel");
 const Message = require("../models/messageModel");
+const UserWarnings = require("../models/userWarningsModel");
+const BannedWords = require("../models/bannedWordsModel");
 
 // @desc    Get all chats for logged user
 // @route   GET /api/v1/chats
@@ -436,13 +438,28 @@ exports.deleteChat = asyncHandler(async (req, res, next) => {
 // @route   GET /api/v1/admins/chats
 // @access  Private/Admin
 exports.getAllChats = asyncHandler(async (req, res) => {
-  const documentsCounts = await Chat.countDocuments();
+  const { adminType } = req.admin;
+
+  // Build filter based on admin type
+  let filter = { isActive: true };
+  
+  // Filter by gender if not super admin
+  if (adminType !== "super") {
+    // Get all users of the admin's gender type
+    const usersOfGender = await User.find({ gender: adminType }).select("_id");
+    const userIds = usersOfGender.map(u => u._id);
+    
+    // Filter chats where at least one participant matches admin's gender
+    filter.participants = { $in: userIds };
+  }
+
+  const documentsCounts = await Chat.countDocuments(filter);
 
   const apiFeatures = new ApiFeatures(
-    Chat.find({ isActive: true })
+    Chat.find(filter)
       .populate({
         path: "participants",
-        select: "name profileImg isOnline lastSeen email",
+        select: "name profileImg isOnline lastSeen email gender",
       })
       .populate({
         path: "lastMessage",
@@ -454,7 +471,7 @@ exports.getAllChats = asyncHandler(async (req, res) => {
       })
       .sort({ lastMessageTime: -1 }),
     req.query
-  ).paginate();
+  ).paginate(documentsCounts);
 
   const { mongooseQuery, paginationResult } = apiFeatures;
   const chats = await mongooseQuery;
@@ -578,5 +595,360 @@ exports.cleanupChatMessages = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     message: `Deleted ${result.deletedCount} archived messages older than ${daysOld} days`,
+  });
+});
+
+// @desc    Get chat messages for admin monitoring
+// @route   GET /api/v1/admins/chats/:id/messages
+// @access  Private/Admin
+exports.getChatMessagesForAdmin = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+  const { adminType } = req.admin;
+
+  // Get chat
+  const chat = await Chat.findById(id);
+  if (!chat) {
+    return next(new ApiError("Chat not found", 404));
+  }
+
+  // Check admin permissions based on admin type
+  if (adminType !== "super") {
+    // Check if any participant matches admin's gender
+    const participants = await User.find({ _id: { $in: chat.participants } });
+    const hasMatchingGender = participants.some(p => p.gender === adminType);
+    
+    if (!hasMatchingGender) {
+      return next(
+        new ApiError("You do not have permission to view this chat", 403)
+      );
+    }
+  }
+
+  const apiFeatures = new ApiFeatures(
+    Message.find({ chat: id })
+      .populate({
+        path: "sender",
+        select: "name profileImg isOnline email gender",
+      })
+      .populate({
+        path: "replyTo",
+        select: "content sender messageType",
+      })
+      .sort({ createdAt: -1 }),
+    req.query
+  ).paginate();
+
+  const { mongooseQuery, paginationResult } = apiFeatures;
+  const messages = await mongooseQuery;
+
+  res.status(200).json({
+    results: messages.length,
+    paginationResult,
+    data: messages.reverse(), // Return in chronological order
+  });
+});
+
+// @desc    Get single chat for admin monitoring
+// @route   GET /api/v1/admins/chats/:id
+// @access  Private/Admin
+exports.getChatForAdmin = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+  const { adminType } = req.admin;
+
+  const chat = await Chat.findById(id)
+    .populate({
+      path: "participants",
+      select: "name profileImg isOnline lastSeen email gender",
+    })
+    .populate({
+      path: "lastMessage",
+      select: "content sender messageType createdAt isRead",
+      populate: {
+        path: "sender",
+        select: "name",
+      },
+    });
+
+  if (!chat) {
+    return next(new ApiError("Chat not found", 404));
+  }
+
+  // Check admin permissions based on admin type
+  if (adminType !== "super") {
+    // Check if any participant matches admin's gender
+    const participants = await User.find({ _id: { $in: chat.participants } });
+    const hasMatchingGender = participants.some(p => p.gender === adminType);
+    
+    if (!hasMatchingGender) {
+      return next(
+        new ApiError("You do not have permission to view this chat", 403)
+      );
+    }
+  }
+
+  // Get message counts
+  const totalMessages = await Message.countDocuments({ chat: id });
+  const unreadMessages = await Message.countDocuments({
+    chat: id,
+    isRead: false,
+  });
+
+  res.status(200).json({
+    data: {
+      ...chat.toObject(),
+      totalMessages,
+      unreadMessages,
+    },
+  });
+});
+
+// @desc    Get chats with banned words violations
+// @route   GET /api/v1/admins/chats/violations
+// @access  Private/Admin
+exports.getChatViolations = asyncHandler(async (req, res) => {
+  const { adminType } = req.admin;
+
+  // Build filter based on admin type
+  let filter = { isActive: true };
+  
+  // Filter by gender if not super admin
+  if (adminType !== "super") {
+    const usersOfGender = await User.find({ gender: adminType }).select("_id");
+    const userIds = usersOfGender.map(u => u._id);
+    filter.participants = { $in: userIds };
+  }
+
+  // Get all warnings related to chats
+  const warnings = await UserWarnings.find({
+    chat: { $exists: true },
+    warningType: "banned_word",
+  })
+    .populate({
+      path: "user",
+      select: "name profileImg email gender",
+    })
+    .populate({
+      path: "chat",
+      select: "participants lastMessage lastMessageTime",
+      populate: {
+        path: "participants",
+        select: "name profileImg email gender",
+      },
+    })
+    .populate({
+      path: "bannedWord",
+      select: "word category severity",
+    })
+    .sort({ createdAt: -1 });
+
+  // Get unique chat IDs from warnings
+  const chatIds = [...new Set(warnings.map(w => w.chat?._id?.toString()).filter(Boolean))];
+
+  // Get chats with violations
+  const chatsWithViolations = await Chat.find({
+    _id: { $in: chatIds },
+    ...filter,
+  })
+    .populate({
+      path: "participants",
+      select: "name profileImg isOnline lastSeen email gender",
+    })
+    .populate({
+      path: "lastMessage",
+      select: "content sender messageType createdAt isRead",
+      populate: {
+        path: "sender",
+        select: "name",
+      },
+    })
+    .sort({ lastMessageTime: -1 });
+
+  // Add violation details to each chat
+  const chatsWithDetails = chatsWithViolations.map(chat => {
+    const chatWarnings = warnings.filter(
+      w => w.chat?._id?.toString() === chat._id.toString()
+    );
+    
+    const violationMessages = chatWarnings.map(w => ({
+      id: w._id,
+      userId: w.user?._id,
+      userName: w.user?.name,
+      bannedWord: w.bannedWord?.word,
+      category: w.bannedWord?.category,
+      severity: w.bannedWord?.severity,
+      createdAt: w.createdAt,
+    }));
+
+    return {
+      ...chat.toObject(),
+      violations: violationMessages,
+      violationCount: chatWarnings.length,
+    };
+  });
+
+  res.status(200).json({
+    results: chatsWithDetails.length,
+    data: chatsWithDetails,
+  });
+});
+
+// @desc    Block a participant from a chat permanently
+// @route   PUT /api/v1/admins/chats/:id/block-participant/:userId
+// @access  Private/Admin
+exports.blockChatParticipant = asyncHandler(async (req, res, next) => {
+  const { id, userId } = req.params;
+  const { blockReason } = req.body;
+  const adminId = req.admin._id;
+  const { adminType } = req.admin;
+
+  // Get chat
+  const chat = await Chat.findById(id);
+  if (!chat) {
+    return next(new ApiError("Chat not found", 404));
+  }
+
+  // Get user
+  const user = await User.findById(userId);
+  if (!user) {
+    return next(new ApiError("User not found", 404));
+  }
+
+  // Check admin permissions
+  if (adminType !== "super" && user.gender !== adminType) {
+    return next(
+      new ApiError("You do not have permission to block this user", 403)
+    );
+  }
+
+  // Check if user is participant in chat
+  if (!chat.participants.includes(userId)) {
+    return next(new ApiError("User is not a participant in this chat", 400));
+  }
+
+  // Block user permanently (set blockedUntil to far future)
+  const blockedUntil = new Date();
+  blockedUntil.setFullYear(blockedUntil.getFullYear() + 100); // 100 years = permanent
+
+  user.isBlocked = true;
+  user.blockedUntil = blockedUntil;
+  user.blockReason = blockReason || "Permanent block from chat monitoring";
+  user.blockedBy = adminId;
+  await user.save();
+
+  // Deactivate all chats for this user
+  await Chat.updateMany(
+    { participants: userId, isActive: true },
+    { isActive: false }
+  );
+
+  res.status(200).json({
+    message: "User blocked permanently and removed from all chats",
+    data: {
+      userId: user._id,
+      userName: user.name,
+      chatId: chat._id,
+    },
+  });
+});
+
+// @desc    Block both participants from a chat permanently
+// @route   PUT /api/v1/admins/chats/:id/block-both
+// @access  Private/Admin
+exports.blockBothParticipants = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+  const { blockReason } = req.body;
+  const adminId = req.admin._id;
+  const { adminType } = req.admin;
+
+  // Get chat
+  const chat = await Chat.findById(id);
+  if (!chat) {
+    return next(new ApiError("Chat not found", 404));
+  }
+
+  if (chat.participants.length !== 2) {
+    return next(new ApiError("This endpoint is only for direct chats with 2 participants", 400));
+  }
+
+  // Get both participants
+  const [user1, user2] = await Promise.all([
+    User.findById(chat.participants[0]),
+    User.findById(chat.participants[1]),
+  ]);
+
+  if (!user1 || !user2) {
+    return next(new ApiError("One or both participants not found", 404));
+  }
+
+  // Check admin permissions
+  if (adminType !== "super") {
+    // Admin can only block users of their gender type
+    const canBlockUser1 = user1.gender === adminType;
+    const canBlockUser2 = user2.gender === adminType;
+    
+    if (!canBlockUser1 && !canBlockUser2) {
+      return next(
+        new ApiError("You do not have permission to block these users", 403)
+      );
+    }
+  }
+
+  // Block both users permanently
+  const blockedUntil = new Date();
+  blockedUntil.setFullYear(blockedUntil.getFullYear() + 100); // 100 years = permanent
+
+  const blockReasonFinal = blockReason || "Permanent block from chat monitoring";
+
+  // Block user1 if admin has permission
+  if (adminType === "super" || user1.gender === adminType) {
+    user1.isBlocked = true;
+    user1.blockedUntil = blockedUntil;
+    user1.blockReason = blockReasonFinal;
+    user1.blockedBy = adminId;
+    await user1.save();
+
+    // Deactivate all chats for user1
+    await Chat.updateMany(
+      { participants: user1._id, isActive: true },
+      { isActive: false }
+    );
+  }
+
+  // Block user2 if admin has permission
+  if (adminType === "super" || user2.gender === adminType) {
+    user2.isBlocked = true;
+    user2.blockedUntil = blockedUntil;
+    user2.blockReason = blockReasonFinal;
+    user2.blockedBy = adminId;
+    await user2.save();
+
+    // Deactivate all chats for user2
+    await Chat.updateMany(
+      { participants: user2._id, isActive: true },
+      { isActive: false }
+    );
+  }
+
+  // Deactivate this specific chat
+  chat.isActive = false;
+  await chat.save();
+
+  res.status(200).json({
+    message: "Both participants blocked permanently and chat deactivated",
+    data: {
+      chatId: chat._id,
+      blockedUsers: [
+        {
+          userId: user1._id,
+          userName: user1.name,
+          blocked: adminType === "super" || user1.gender === adminType,
+        },
+        {
+          userId: user2._id,
+          userName: user2.name,
+          blocked: adminType === "super" || user2.gender === adminType,
+        },
+      ],
+    },
   });
 });

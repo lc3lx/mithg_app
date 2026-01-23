@@ -68,7 +68,7 @@ exports.getUserWarnings = asyncHandler(async (req, res) => {
     .limitFields()
     .search();
 
-  const warnings = await features.query;
+  const warnings = await features.mongooseQuery;
 
   res.status(200).json({
     results: warnings.length,

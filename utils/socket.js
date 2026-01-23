@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/userModel");
+const Admin = require("../models/adminModel");
 const Chat = require("../models/chatModel");
 const Message = require("../models/messageModel");
 const Notification = require("../models/notificationModel");
@@ -22,8 +23,10 @@ const getUnreadCount = async (chatId, userId) => {
 };
 
 const socketHandler = (io) => {
+  const chatNamespace = io.of("/chat");
+
   // Middleware للمصادقة
-  io.use(async (socket, next) => {
+  chatNamespace.use(async (socket, next) => {
     try {
       const { token } = socket.handshake.auth;
 
@@ -33,12 +36,23 @@ const socketHandler = (io) => {
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
 
+      if (decoded.adminId) {
+        const admin = await Admin.findById(decoded.adminId);
+        if (!admin) {
+          return next(new Error("Admin not found"));
+        }
+        socket.role = "admin";
+        socket.adminId = decoded.adminId;
+        return next();
+      }
+
       // التحقق من وجود المستخدم
       const user = await User.findById(decoded.userId);
       if (!user) {
         return next(new Error("User not found"));
       }
 
+      socket.role = "user";
       socket.userId = decoded.userId;
       socket.user = user;
       next();
@@ -47,61 +61,69 @@ const socketHandler = (io) => {
     }
   });
 
-  io.on("connection", async (socket) => {
-    console.log(`User ${socket.userId} connected`);
+  chatNamespace.on("connection", async (socket) => {
+    if (socket.role === "admin") {
+      socket.join("admin_chat_monitoring");
+    } else {
+      console.log(`User ${socket.userId} connected`);
 
-    // إضافة المستخدم للقائمة المتصلة
-    onlineUsers.set(socket.userId, socket.id);
+      // إضافة المستخدم للقائمة المتصلة
+      onlineUsers.set(socket.userId, socket.id);
 
-    // تحديث حالة المستخدم لتصبح متصل
-    await User.findByIdAndUpdate(socket.userId, {
-      isOnline: true,
-      lastSeen: new Date(),
-    });
+      // تحديث حالة المستخدم لتصبح متصل
+      await User.findByIdAndUpdate(socket.userId, {
+        isOnline: true,
+        lastSeen: new Date(),
+      });
 
-    // إرسال قائمة المستخدمين المتصلين للجميع
-    io.emit("user_online", { userId: socket.userId });
+      // إرسال قائمة المستخدمين المتصلين للجميع
+      chatNamespace.emit("user_online", { userId: socket.userId });
 
-    // الانضمام للدردشات الخاصة بالمستخدم
-    const userChats = await Chat.find({
-      participants: socket.userId,
-      isActive: true,
-    }).select("_id");
+      // الانضمام للدردشات الخاصة بالمستخدم
+      const userChats = await Chat.find({
+        participants: socket.userId,
+        isActive: true,
+      }).select("_id");
 
-    userChats.forEach((chat) => {
-      socket.join(chat._id.toString());
-    });
+      userChats.forEach((chat) => {
+        socket.join(chat._id.toString());
+      });
 
-    // إرسال إشعارات غير المقروءة
-    const unreadNotifications = await Notification.countDocuments({
-      user: socket.userId,
-      isRead: false,
-    });
+      // إرسال إشعارات غير المقروءة
+      const unreadNotifications = await Notification.countDocuments({
+        user: socket.userId,
+        isRead: false,
+      });
 
-    socket.emit("unread_count", { count: unreadNotifications });
+      socket.emit("unread_count", { count: unreadNotifications });
 
-    // إرسال رسائل غير المقروءة لكل دردشة
-    const chatsWithUnread = await Chat.find({
-      participants: socket.userId,
-      isActive: true,
-      "unreadCount.user": socket.userId,
-    }).select("unreadCount");
+      // إرسال رسائل غير المقروءة لكل دردشة
+      const chatsWithUnread = await Chat.find({
+        participants: socket.userId,
+        isActive: true,
+        "unreadCount.user": socket.userId,
+      }).select("unreadCount");
 
-    chatsWithUnread.forEach((chat) => {
-      const unreadCount = chat.unreadCount.find(
-        (count) => count.user.toString() === socket.userId
-      );
-      if (unreadCount && unreadCount.count > 0) {
-        socket.emit("chat_unread_count", {
-          chatId: chat._id,
-          count: unreadCount.count,
-        });
-      }
-    });
+      chatsWithUnread.forEach((chat) => {
+        const unreadCount = chat.unreadCount.find(
+          (count) => count.user.toString() === socket.userId
+        );
+        if (unreadCount && unreadCount.count > 0) {
+          socket.emit("chat_unread_count", {
+            chatId: chat._id,
+            count: unreadCount.count,
+          });
+        }
+      });
+    }
 
     // إرسال رسالة
     socket.on("send_message", async (data) => {
       try {
+        if (socket.role === "admin") {
+          socket.emit("error", { message: "Admins cannot send messages" });
+          return;
+        }
         const { chatId, content, messageType = "text" } = data;
 
         // التحقق من أن المستخدم مشارك في الدردشة أو ولي أمر
@@ -205,7 +227,7 @@ const socketHandler = (io) => {
             );
             if (participantSocketId) {
               const count = await getUnreadCount(chatId, participantId);
-              io.to(participantSocketId).emit("chat_unread_count", {
+              chatNamespace.to(participantSocketId).emit("chat_unread_count", {
                 chatId,
                 count,
               });
@@ -222,7 +244,11 @@ const socketHandler = (io) => {
         ]);
 
         // إرسال الرسالة لجميع المشاركين في الدردشة
-        io.to(chatId).emit("new_message", {
+        chatNamespace.to(chatId).emit("new_message", {
+          chatId,
+          message: message,
+        });
+        chatNamespace.to("admin_chat_monitoring").emit("new_message", {
           chatId,
           message: message,
         });
@@ -255,7 +281,7 @@ const socketHandler = (io) => {
                 isRead: false,
               });
 
-              io.to(participantSocketId).emit("notification", {
+              chatNamespace.to(participantSocketId).emit("notification", {
                 type: "new_message",
                 title: "New Message",
                 message: `${socket.user.name} sent you a message`,
@@ -286,6 +312,10 @@ const socketHandler = (io) => {
     // تحديد الرسائل كمقروءة
     socket.on("mark_as_read", async (data) => {
       try {
+        if (socket.role === "admin") {
+          socket.emit("error", { message: "Admins cannot mark messages as read" });
+          return;
+        }
         const { chatId } = data;
 
         // التحقق من أن المستخدم مشارك في الدردشة أو ولي أمر
@@ -315,7 +345,11 @@ const socketHandler = (io) => {
         });
 
         // إرسال تحديث لجميع المشاركين
-        io.to(chatId).emit("messages_read", {
+        chatNamespace.to(chatId).emit("messages_read", {
+          chatId,
+          userId: socket.userId,
+        });
+        chatNamespace.to("admin_chat_monitoring").emit("messages_read", {
           chatId,
           userId: socket.userId,
         });
@@ -381,7 +415,7 @@ const socketHandler = (io) => {
             isRead: false,
           });
 
-          io.to(targetSocketId).emit("notification", {
+          chatNamespace.to(targetSocketId).emit("notification", {
             type: "profile_like",
             title: "Profile Liked",
             message: `${socket.user.name} liked your profile`,

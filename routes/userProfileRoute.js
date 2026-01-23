@@ -35,7 +35,7 @@ router.put("/about", updateAboutValidator, updateAbout);
 // Gallery routes
 router.post(
   "/gallery",
-  uploadImageMiddleware.uploadSingleImage,
+  uploadImageMiddleware.uploadSingleImage("file"),
   addToGalleryValidator,
   addToGallery
 );

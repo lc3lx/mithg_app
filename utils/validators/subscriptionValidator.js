@@ -3,8 +3,8 @@ const validatorMiddleware = require("../../middlewares/validatorMiddleware");
 
 exports.createSubscriptionPackageValidator = [
   body("packageType")
-    .isIn(["1month", "3months", "6months"])
-    .withMessage("Package type must be 1month, 3months, or 6months"),
+    .isIn(["basic", "premium"])
+    .withMessage("Package type must be basic or premium"),
 
   body("name")
     .isLength({ min: 2, max: 100 })

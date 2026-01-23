@@ -17,16 +17,9 @@ const {
   bulkAddBannedWordsValidator,
 } = require("../utils/validators/bannedWordsValidator");
 
-const authService = require("../services/authService");
-const adminService = require("../services/adminService");
-
 const router = express.Router();
 
-// All routes require admin authentication
-router.use(authService.protect);
-router.use(adminService.protectAdmin);
-
-// Check for manageBannedWords permission
+// Check for manageBannedWords permission (admin auth already handled by parent route)
 router.use((req, res, next) => {
   if (!req.admin.permissions.manageBannedWords) {
     return res.status(403).json({

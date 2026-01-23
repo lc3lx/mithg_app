@@ -37,8 +37,8 @@ const router = express.Router();
 // GET all posts for regular users (with likes) - يوزرز عاديين فقط
 router.get("/user", authService.protect, createFilterObj, getPosts);
 
-// GET all admin posts (public - all authenticated users can view)
-router.get("/", authService.protect, createFilterObj, getPosts);
+// GET all admin posts (admin only)
+router.get("/", adminService.protectAdmin, createFilterObj, getPosts);
 
 // POST create admin post (admin only)
 router.post(

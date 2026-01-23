@@ -15,19 +15,18 @@ const {
 
 const router = express.Router();
 
-// Apply stricter rate limiting for auth routes
+// Rate limiting disabled for authentication routes
+// const authLimiter = rateLimit({
+//   windowMs: 15 * 60 * 1000, // 15 minutes
+//   max: 50, // Increased to 50 attempts per 15 minutes for development
+//   message: {
+//     error:
+//       "Too many authentication attempts, please try again after 15 minutes",
+//   },
+// });
 
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 attempts per 15 minutes
-  message: {
-    error:
-      "Too many authentication attempts, please try again after 15 minutes",
-  },
-});
-
-// Apply auth limiter to all auth routes
-router.use(authLimiter);
+// Apply auth limiter to all auth routes (disabled)
+// router.use(authLimiter);
 
 router.post("/signup", signupValidator, signup);
 router.post("/login", loginValidator, login);

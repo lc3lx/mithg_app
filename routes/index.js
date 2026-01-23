@@ -9,10 +9,12 @@ const userProfileRoute = require("./userProfileRoute");
 const subscriptionRoute = require("./subscriptionRoute");
 const identityVerificationRoute = require("./identityVerificationRoute");
 const adminRoute = require("./adminRoute");
+const rechargeRequestRoute = require("./rechargeRequestRoute");
 const guardianRoute = require("./guardianRoute");
-const bannedWordsRoute = require("./bannedWordsRoute");
 const userWarningsRoute = require("./userWarningsRoute");
 const userModerationRoute = require("./userModerationRoute");
+const supportRoute = require("./supportRoute");
+const rechargeService = require("../services/rechargeService");
 
 const mountRoutes = (app) => {
   app.use("/api/v1/users", userRoute);
@@ -26,10 +28,14 @@ const mountRoutes = (app) => {
   app.use("/api/v1/subscriptions", subscriptionRoute);
   app.use("/api/v1/verification", identityVerificationRoute);
   app.use("/api/v1/admins", adminRoute);
+  app.use("/api/v1/recharge-requests", rechargeRequestRoute);
   app.use("/api/v1/guardians", guardianRoute);
-  app.use("/api/v1/banned-words", bannedWordsRoute);
   app.use("/api/v1/warnings", userWarningsRoute);
   app.use("/api/v1/moderation", userModerationRoute);
+  app.use("/api/v1/support", supportRoute);
+
+  // Recharge codes for users (authenticated users can use codes)
+  app.post("/api/v1/recharge-codes/use", rechargeService.useRechargeCode);
 };
 
 module.exports = mountRoutes;

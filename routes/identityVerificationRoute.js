@@ -3,6 +3,7 @@ const {
   submitIdentityVerification,
   getUserVerificationStatus,
   getPendingVerificationRequests,
+  getAllVerificationRequests,
   reviewVerificationRequest,
   getVerificationRequestDetails,
   getUserVerificationHistory,
@@ -19,28 +20,26 @@ const adminService = require("../services/adminService");
 
 const router = express.Router();
 
-// All routes require authentication
-router.use(authService.protect);
-
-// User routes
+// User routes - require user authentication
 router.post(
   "/submit",
+  authService.protect,
   submitIdentityVerificationValidator,
   submitIdentityVerification
 );
-router.get("/status", getUserVerificationStatus);
-router.get("/history", getUserVerificationHistory);
+router.get("/status", authService.protect, getUserVerificationStatus);
+router.get("/history", authService.protect, getUserVerificationHistory);
 
-// Admin only routes
-router.use(adminService.protectAdmin);
-
-router.get("/requests", getPendingVerificationRequests);
-router.get("/requests/:id", getVerificationRequestDetails);
+// Admin only routes - require admin authentication only
+router.get("/requests", adminService.protectAdmin, getPendingVerificationRequests);
+router.get("/all-requests", adminService.protectAdmin, getAllVerificationRequests);
+router.get("/requests/:id", adminService.protectAdmin, getVerificationRequestDetails);
 router.put(
   "/requests/:id/review",
+  adminService.protectAdmin,
   reviewVerificationRequestValidator,
   reviewVerificationRequest
 );
-router.get("/stats", getVerificationStats);
+router.get("/stats", adminService.protectAdmin, getVerificationStats);
 
 module.exports = router;

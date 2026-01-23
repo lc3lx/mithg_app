@@ -9,6 +9,12 @@ const {
   getNotificationStats,
   createNotification,
   createTestNotifications,
+  getAllNotificationsAdmin,
+  getNotificationAdmin,
+  updateNotificationAdmin,
+  deleteNotificationAdmin,
+  getNotificationStatsAdmin,
+  createAdminBroadcastNotification,
 } = require("../services/notificationService");
 
 const {
@@ -16,13 +22,34 @@ const {
   markAsReadValidator,
   deleteNotificationValidator,
   createNotificationValidator,
+  updateNotificationValidator,
+  createAdminBroadcastValidator,
 } = require("../utils/validators/notificationValidator");
 
 const authService = require("../services/authService");
+const adminService = require("../services/adminService");
 
 const router = express.Router();
 
-// All routes require authentication
+// Admin routes - full CRUD and statistics access (mounted BEFORE user protect)
+const adminRouter = express.Router({ mergeParams: true });
+
+adminRouter
+  .route("/")
+  .get(getAllNotificationsAdmin)
+  .post(createAdminBroadcastValidator, createAdminBroadcastNotification);
+
+adminRouter.get("/stats", getNotificationStatsAdmin);
+
+adminRouter
+  .route("/:id")
+  .get(getNotificationAdmin)
+  .put(updateNotificationValidator, updateNotificationAdmin)
+  .delete(deleteNotificationAdmin);
+
+router.use("/admin", adminService.protectAdmin, adminRouter);
+
+// All user routes require user authentication
 router.use(authService.protect);
 
 // User notification routes
@@ -40,9 +67,5 @@ router.get("/stats", getNotificationStats);
 
 // Test route for development (temporary)
 router.post("/test", createTestNotifications);
-
-// Admin routes for creating notifications (optional)
-router.use(authService.allowedTo("admin"));
-router.post("/", createNotificationValidator, createNotification);
 
 module.exports = router;

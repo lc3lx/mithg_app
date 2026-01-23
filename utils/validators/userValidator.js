@@ -213,3 +213,20 @@ exports.cancelFriendRequestValidator = [
   check("userId").isMongoId().withMessage("Invalid User id format"),
   validatorMiddleware,
 ];
+
+exports.removeFriendValidator = [
+  check("userId").isMongoId().withMessage("Invalid User id format"),
+  validatorMiddleware,
+];
+
+exports.blockUserValidator = [
+  check("userId").isMongoId().withMessage("Invalid User id format"),
+  validatorMiddleware,
+];
+
+exports.reportUserValidator = [
+  check("userId").isMongoId().withMessage("Invalid User id format"),
+  body("reason").optional().isString().withMessage("Reason must be a string"),
+  body("details").optional().isString().withMessage("Details must be a string"),
+  validatorMiddleware,
+];

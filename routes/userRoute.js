@@ -12,6 +12,9 @@ const {
   acceptFriendRequestValidator,
   rejectFriendRequestValidator,
   cancelFriendRequestValidator,
+  removeFriendValidator,
+  blockUserValidator,
+  reportUserValidator,
 } = require("../utils/validators/userValidator");
 
 const {
@@ -39,6 +42,9 @@ const {
   rejectFriendRequest,
   cancelFriendRequest,
   getFriendRequests,
+  removeFriend,
+  blockUser,
+  reportUser,
 } = require("../services/userService");
 
 const authService = require("../services/authService");
@@ -109,6 +115,9 @@ router.delete(
 );
 router.get("/friend-requests", getFriendRequests);
 router.get("/friends/list", getFriends);
+router.delete("/friends/:userId", removeFriendValidator, removeFriend);
+router.post("/block/:userId", blockUserValidator, blockUser);
+router.post("/report/:userId", reportUserValidator, reportUser);
 
 // Admin
 router.use(authService.allowedTo("admin", "manager"));

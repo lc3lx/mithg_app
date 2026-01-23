@@ -1,6 +1,7 @@
 const express = require("express");
 const {
   getSubscriptionPackages,
+  getAdminSubscriptionPackages,
   createSubscriptionPackage,
   updateSubscriptionPackage,
   subscribeWithPaymentRequest,
@@ -32,6 +33,38 @@ const router = express.Router();
 // Public routes
 router.get("/packages", getSubscriptionPackages);
 
+// Admin only routes
+router.use("/admin", adminService.protectAdmin);
+
+// Subscription packages management
+router
+  .route("/admin/packages")
+  .get(getAdminSubscriptionPackages)
+  .post(createSubscriptionPackageValidator, createSubscriptionPackage);
+
+router
+  .route("/admin/packages/:id")
+  .put(updateSubscriptionPackageValidator, updateSubscriptionPackage);
+
+// Payment requests management
+router.get("/admin/requests", getPaymentRequests);
+router.put(
+  "/admin/requests/:id/approve",
+  approvePaymentRequestValidator,
+  approvePaymentRequest
+);
+router.put(
+  "/admin/requests/:id/reject",
+  rejectPaymentRequestValidator,
+  rejectPaymentRequest
+);
+
+// Subscription codes management
+router
+  .route("/admin/codes")
+  .get(getSubscriptionCodes)
+  .post(createSubscriptionCodeValidator, createSubscriptionCode);
+
 // Protected user routes
 router.use(authService.protect);
 router.get("/status", getUserSubscriptionStatus);
@@ -42,36 +75,5 @@ router.post(
 );
 router.post("/subscribe/code", subscribeWithCodeValidator, subscribeWithCode);
 router.get("/my-requests", getUserPaymentRequests);
-
-// Admin only routes
-router.use(adminService.protectAdmin);
-
-// Subscription packages management
-router
-  .route("/packages")
-  .post(createSubscriptionPackageValidator, createSubscriptionPackage);
-
-router
-  .route("/packages/:id")
-  .put(updateSubscriptionPackageValidator, updateSubscriptionPackage);
-
-// Payment requests management
-router.get("/requests", getPaymentRequests);
-router.put(
-  "/requests/:id/approve",
-  approvePaymentRequestValidator,
-  approvePaymentRequest
-);
-router.put(
-  "/requests/:id/reject",
-  rejectPaymentRequestValidator,
-  rejectPaymentRequest
-);
-
-// Subscription codes management
-router
-  .route("/codes")
-  .get(getSubscriptionCodes)
-  .post(createSubscriptionCodeValidator, createSubscriptionCode);
 
 module.exports = router;

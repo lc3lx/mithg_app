@@ -32,6 +32,10 @@ const adminSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    actionsCount: {
+      type: Number,
+      default: 0,
+    },
     permissions: {
       manageSubscriptions: {
         type: Boolean,
@@ -61,6 +65,14 @@ const adminSchema = new mongoose.Schema(
         type: Boolean,
         default: false,
       },
+      manageWallets: {
+        type: Boolean,
+        default: false,
+      },
+      manageRechargeCodes: {
+        type: Boolean,
+        default: false,
+      },
       moderateContent: {
         type: Boolean,
         default: false,
@@ -79,13 +91,14 @@ const adminSchema = new mongoose.Schema(
 // Hash password before saving
 adminSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
-  this.password = await bcrypt.hash(this.password, 12);
+  const salt = await bcrypt.genSalt(12);
+  this.password = await bcrypt.hash(this.password, salt);
   next();
 });
 
 // Set default permissions based on admin type
 adminSchema.pre("save", function (next) {
-  if (this.isNew) {
+  if (this.isNew && (!this.permissions || Object.keys(this.permissions).length === 0)) {
     switch (this.adminType) {
       case "super":
         this.permissions = {
@@ -96,6 +109,8 @@ adminSchema.pre("save", function (next) {
           viewReports: true,
           monitorChats: true,
           manageBannedWords: true,
+          manageWallets: true,
+          manageRechargeCodes: true,
           moderateContent: true,
         };
         break;
@@ -109,6 +124,8 @@ adminSchema.pre("save", function (next) {
           viewReports: true,
           monitorChats: true,
           manageBannedWords: false,
+          manageWallets: false,
+          manageRechargeCodes: false,
           moderateContent: true,
         };
         break;

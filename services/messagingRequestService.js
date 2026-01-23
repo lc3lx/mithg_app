@@ -76,6 +76,14 @@ exports.sendMessagingRequest = asyncHandler(async (req, res, next) => {
     return next(new ApiError("User is not subscribed", 403));
   }
 
+  const isFriend = sender.friends
+    .map((friend) => friend.toString())
+    .includes(receiverId.toString());
+
+  if (!isFriend) {
+    return next(new ApiError("You can only message friends", 403));
+  }
+
   // Check if request already exists
   const existingRequest = await MessagingRequest.findOne({
     $or: [

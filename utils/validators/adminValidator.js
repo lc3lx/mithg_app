@@ -60,16 +60,35 @@ exports.updateAdminValidator = [
     .isObject()
     .withMessage("Permissions must be an object"),
 
+  body("password")
+    .optional()
+    .isLength({ min: 8 })
+    .withMessage("Password must be at least 8 characters long"),
+
   validatorMiddleware,
 ];
 
+// Middleware لتنظيف البريد الإلكتروني قبل الـ validation
+const sanitizeEmail = (req, res, next) => {
+  if (req.body && req.body.email && typeof req.body.email === 'string') {
+    // إزالة النقاط والمسافات الزائدة في النهاية
+    req.body.email = req.body.email.replace(/\.+$/, '').trim();
+  }
+  next();
+};
+
 exports.adminLoginValidator = [
+  sanitizeEmail,
   body("email")
+    .trim()
     .isEmail()
     .withMessage("Please provide a valid email")
     .normalizeEmail(),
 
-  body("password").notEmpty().withMessage("Password is required"),
+  body("password")
+    .trim()
+    .notEmpty()
+    .withMessage("Password is required"),
 
   validatorMiddleware,
 ];
