@@ -6,6 +6,8 @@ const Subscription = require("../models/subscriptionModel");
 const User = require("../models/userModel");
 const PaymentRequest = require("../models/paymentRequestModel");
 const SubscriptionCode = require("../models/subscriptionCodeModel");
+const Wallet = require("../models/walletModel");
+const Transaction = require("../models/transactionModel");
 
 // @desc    Get all active subscription packages
 // @route   GET /api/v1/subscriptions/packages
@@ -219,6 +221,34 @@ exports.subscribeWithCode = asyncHandler(async (req, res, next) => {
     $inc: { currentUsers: 1 },
   });
 
+  // Record transaction in app wallet for code activation
+  let appWallet = await Wallet.getAppWallet();
+  if (!appWallet) {
+    appWallet = await Wallet.create({
+      walletType: "app",
+      balance: 0,
+      currency: subscription.currency || "SAR",
+    });
+  }
+  await appWallet.addCredit(
+    subscription.price,
+    `Subscription code used: ${subscriptionCode.code}`,
+    subscriptionCode.code
+  );
+  await Transaction.create({
+    wallet: appWallet._id,
+    user: userId,
+    type: "subscription_payment",
+    amount: subscription.price,
+    currency: subscription.currency || "SAR",
+    description: "Subscription activated via code",
+    reference: subscriptionCode.code,
+    subscription: subscription._id,
+    status: "completed",
+    paymentMethod: "recharge_code",
+    externalReference: subscriptionCode.code,
+  });
+
   res.status(200).json({
     message: "Subscription activated successfully!",
     data: {
@@ -313,6 +343,35 @@ exports.approvePaymentRequest = asyncHandler(async (req, res, next) => {
   // Update subscription user count
   await Subscription.findByIdAndUpdate(subscription._id, {
     $inc: { currentUsers: 1 },
+  });
+
+  // Record transaction in app wallet
+  let appWallet = await Wallet.getAppWallet();
+  if (!appWallet) {
+    appWallet = await Wallet.create({
+      walletType: "app",
+      balance: 0,
+      currency: paymentRequest.currency || "SAR",
+    });
+  }
+  await appWallet.addCredit(
+    paymentRequest.amount,
+    `Manual subscription payment approved: ${paymentRequest._id}`,
+    paymentRequest.transactionReference
+  );
+  await Transaction.create({
+    wallet: appWallet._id,
+    user: paymentRequest.user,
+    type: "subscription_payment",
+    amount: paymentRequest.amount,
+    currency: paymentRequest.currency || "SAR",
+    description: "Manual subscription payment approved",
+    reference: paymentRequest.transactionReference,
+    subscription: subscription._id,
+    status: "completed",
+    paymentMethod: paymentRequest.paymentMethod || "bank_transfer",
+    externalReference: paymentRequest.transactionReference,
+    admin: req.admin._id,
   });
 
   res.status(200).json({

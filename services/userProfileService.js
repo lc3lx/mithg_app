@@ -108,11 +108,16 @@ exports.getUserGallery = asyncHandler(async (req, res, next) => {
     return next(new ApiError("User not found", 404));
   }
 
+  const requesterId = req.user._id.toString();
   const isFriend =
-    req.user._id.toString() === userId ||
-    user.friends
-      .map((friend) => friend.toString())
-      .includes(req.user._id.toString());
+    requesterId === userId ||
+    user.friends.some((friend) => {
+      const friendId =
+        friend && typeof friend === "object" && friend._id
+          ? friend._id.toString()
+          : friend.toString();
+      return friendId === requesterId;
+    });
 
   if (!isFriend) {
     return next(new ApiError("Gallery is available for friends only", 403));
@@ -248,9 +253,13 @@ exports.getUserProfile = asyncHandler(async (req, res, next) => {
 
   const user = await User.findOne({
     _id: userId,
-    // Only allow viewing profiles of subscribed users
+    // Only allow viewing profiles of subscribed users (no end date = active)
     isSubscribed: true,
-    subscriptionEndDate: { $gt: new Date() }
+    $or: [
+      { subscriptionEndDate: { $gt: new Date() } },
+      { subscriptionEndDate: null },
+      { subscriptionEndDate: { $exists: false } },
+    ],
   })
     .select(
       "name age gender bio location profileImg coverImg gallery about isOnline lastSeen friends profileViews"
@@ -315,23 +324,32 @@ exports.getUserProfile = asyncHandler(async (req, res, next) => {
 // @route   GET /api/v1/users/profiles
 // @access  Private/Protect
 exports.getAllProfiles = asyncHandler(async (req, res, next) => {
-  const currentGender = req.user?.gender;
-  const targetGender =
-    currentGender === "male"
-      ? "female"
-      : currentGender === "female"
-      ? "male"
-      : undefined;
+  const currentGender = req.user ? req.user.gender : undefined;
+  let targetGender;
+  if (currentGender === "male") {
+    targetGender = "female";
+  } else if (currentGender === "female") {
+    targetGender = "male";
+  }
 
   // Only show profiles of users with active subscription and opposite gender
   const filter = {
     isSubscribed: true,
-    subscriptionEndDate: { $gt: new Date() },
     _id: { $ne: req.user._id },
+    $or: [
+      { subscriptionEndDate: { $gt: new Date() } },
+      { subscriptionEndDate: null },
+      { subscriptionEndDate: { $exists: false } },
+    ],
   };
   if (targetGender) {
     filter.gender = targetGender;
   }
+
+  const currentUser = await User.findById(req.user._id).select("friends");
+  const friendIds = currentUser
+    ? currentUser.friends.map((id) => id.toString())
+    : [];
 
   const users = await User.find(filter)
     .select(
@@ -348,9 +366,8 @@ exports.getAllProfiles = asyncHandler(async (req, res, next) => {
       return new Date(b.createdAt) - new Date(a.createdAt);
     });
 
-    const isFriend = user.friends
-      .map((friend) => friend.toString())
-      .includes(req.user._id.toString());
+    const userId = user._id.toString();
+    const isFriend = friendIds.includes(userId);
 
     const profileData = {
       ...user.toObject(),
@@ -358,19 +375,18 @@ exports.getAllProfiles = asyncHandler(async (req, res, next) => {
       isFriend,
     };
 
-    if (!isFriend) {
-      profileData.profileImg = null;
-      profileData.coverImg = null;
-      profileData.gallery = [];
-      profileData.bio = null;
-      profileData.about = null;
+    if (isFriend) {
+      return null;
     }
+    profileData.gallery = [];
 
     return profileData;
   });
 
+  const filteredProfiles = profiles.filter(Boolean);
+
   res.status(200).json({
-    results: profiles.length,
-    data: profiles,
+    results: filteredProfiles.length,
+    data: filteredProfiles,
   });
 });

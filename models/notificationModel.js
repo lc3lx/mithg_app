@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { sendPushToUser } = require("../utils/pushNotification");
 
 const notificationSchema = new mongoose.Schema(
   {
@@ -125,6 +126,23 @@ notificationSchema.pre(/^find/, function (next) {
     select: "title content",
   });
   next();
+});
+
+notificationSchema.post("save", async function (doc) {
+  try {
+    if (doc.pushSent) return;
+    await sendPushToUser(doc.user, doc);
+    await doc.constructor.updateOne(
+      { _id: doc._id },
+      { pushSent: true, pushSentAt: new Date() }
+    );
+  } catch (error) {
+    // Avoid crashing on push failures
+    await doc.constructor.updateOne(
+      { _id: doc._id },
+      { pushSent: true, pushSentAt: new Date() }
+    );
+  }
 });
 
 // Auto-delete old notifications (keep only last 100 per user)

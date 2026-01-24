@@ -8,6 +8,7 @@ const ApiError = require("../utils/apiError");
 const { uploadSingleImage } = require("../middlewares/uploadImageMiddleware");
 const createToken = require("../utils/createToken");
 const User = require("../models/userModel");
+const Chat = require("../models/chatModel");
 const UserReport = require("../models/userReportModel");
 const { createFriendRequestNotification, createFriendRequestAcceptedNotification } = require("./notificationService");
 
@@ -117,6 +118,12 @@ exports.getLoggedUserData = asyncHandler(async (req, res, next) => {
 
   if (!user) {
     return next(new ApiError('User not found', 404));
+  }
+
+  // Auto-expire subscription if end date passed
+  if (user.subscriptionEndDate && user.subscriptionEndDate < new Date()) {
+    user.isSubscribed = false;
+    await user.save();
   }
 
   // Convert to plain object
@@ -388,6 +395,19 @@ exports.acceptFriendRequest = asyncHandler(async (req, res, next) => {
     $pull: { sentFriendRequests: req.user._id },
     $push: { friends: req.user._id },
   });
+
+  // Ensure a direct chat exists between the two friends
+  const existingChat = await Chat.findOne({
+    chatType: "direct",
+    participants: { $all: [req.user._id, userId] },
+    isActive: true,
+  });
+  if (!existingChat) {
+    await Chat.create({
+      participants: [req.user._id, userId],
+      chatType: "direct",
+    });
+  }
 
   // Create notification for the sender (who sent the original request)
   await createFriendRequestAcceptedNotification(req.user._id, userId);

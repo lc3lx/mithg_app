@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const Admin = require("./models/adminModel");
-require("dotenv").config({ path: "./config.env" });
+require("dotenv").config();
 
 // Connect to database
 mongoose

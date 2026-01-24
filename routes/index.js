@@ -14,6 +14,7 @@ const guardianRoute = require("./guardianRoute");
 const userWarningsRoute = require("./userWarningsRoute");
 const userModerationRoute = require("./userModerationRoute");
 const supportRoute = require("./supportRoute");
+const deviceTokenRoute = require("./deviceTokenRoute");
 const rechargeService = require("../services/rechargeService");
 
 const mountRoutes = (app) => {
@@ -33,6 +34,7 @@ const mountRoutes = (app) => {
   app.use("/api/v1/warnings", userWarningsRoute);
   app.use("/api/v1/moderation", userModerationRoute);
   app.use("/api/v1/support", supportRoute);
+  app.use("/api/v1/device-tokens", deviceTokenRoute);
 
   // Recharge codes for users (authenticated users can use codes)
   app.post("/api/v1/recharge-codes/use", rechargeService.useRechargeCode);
