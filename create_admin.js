@@ -31,6 +31,7 @@ const createAdmin = async () => {
       console.log("   Password: admin123 (if not changed)");
       process.exit(0);
     }
+  
 
     // Hash password
     const salt = await bcrypt.genSalt(12);

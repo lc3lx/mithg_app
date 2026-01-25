@@ -56,7 +56,7 @@ const app = express();
 
 // إنشاء HTTP server
 const server = http.createServer(app);
-
+app.set("trust proxy", 1);
 // Socket.io server (support messages)
 const io = new Server(server, {
   cors: {
