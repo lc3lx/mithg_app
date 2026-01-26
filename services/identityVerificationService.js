@@ -1,6 +1,9 @@
 const asyncHandler = require("express-async-handler");
 const ApiError = require("../utils/apiError");
 const ApiFeatures = require("../utils/apiFeatures");
+const sharp = require("sharp");
+const path = require("path");
+const fs = require("fs");
 
 const IdentityVerification = require("../models/identityVerificationModel");
 const User = require("../models/userModel");
@@ -51,8 +54,65 @@ exports.submitIdentityVerification = asyncHandler(async (req, res, next) => {
     return next(new ApiError("Your identity is already verified", 400));
   }
 
-  // Validate documents
-  if (!documents || documents.length === 0) {
+  // Process uploaded files from req.files
+  const processedDocuments = [];
+  const files = req.files || {};
+
+  // Process each document file
+  for (let i = 0; i < 3; i++) {
+    const fileKey = `documents[${i}][url]`;
+    let fileArray = files[fileKey];
+    
+    // Handle both array and single file
+    if (!Array.isArray(fileArray) && fileArray) {
+      fileArray = [fileArray];
+    }
+    
+    if (fileArray && fileArray.length > 0) {
+      const file = fileArray[0];
+      let docType = null;
+      
+      // Get type from req.body.documents if provided
+      if (documents && Array.isArray(documents) && documents[i]) {
+        docType = documents[i].type;
+      }
+      
+      // Determine type based on index if not provided
+      if (!docType) {
+        if (i === 0 || i === 1) {
+          docType = 'id_card';
+        } else if (i === 2) {
+          docType = 'selfie';
+        }
+      }
+
+      // Generate unique filename
+      const filename = `verification_${userId}_${Date.now()}_${i}.jpg`;
+      const uploadPath = path.join(__dirname, '../uploads/verification', filename);
+
+      // Ensure directory exists
+      const uploadDir = path.dirname(uploadPath);
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      // Process and save image
+      await sharp(file.buffer)
+        .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 85 })
+        .toFile(uploadPath);
+
+      // Save document info
+      processedDocuments.push({
+        type: docType,
+        url: filename,
+        uploadedAt: new Date(),
+      });
+    }
+  }
+
+  // Validate that we have at least one document
+  if (processedDocuments.length === 0) {
     return next(new ApiError("At least one document is required", 400));
   }
 
@@ -60,7 +120,7 @@ exports.submitIdentityVerification = asyncHandler(async (req, res, next) => {
   const verificationRequest = await IdentityVerification.create({
     user: userId,
     adminType,
-    documents,
+    documents: processedDocuments,
   });
 
   // Update user status

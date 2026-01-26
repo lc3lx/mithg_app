@@ -15,6 +15,7 @@ const {
   reviewVerificationRequestValidator,
 } = require("../utils/validators/identityVerificationValidator");
 
+const uploadImageMiddleware = require("../middlewares/uploadImageMiddleware");
 const authService = require("../services/authService");
 const adminService = require("../services/adminService");
 
@@ -24,6 +25,11 @@ const router = express.Router();
 router.post(
   "/submit",
   authService.protect,
+  uploadImageMiddleware.uploadMixOfImages([
+    { name: 'documents[0][url]', maxCount: 1 },
+    { name: 'documents[1][url]', maxCount: 1 },
+    { name: 'documents[2][url]', maxCount: 1 },
+  ]),
   submitIdentityVerificationValidator,
   submitIdentityVerification
 );
