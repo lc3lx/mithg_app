@@ -809,6 +809,50 @@ exports.verifyUserIdentity = asyncHandler(async (req, res, next) => {
   });
 });
 
+// @desc    Unverify user identity (admin action)
+// @route   PUT /api/v1/admins/users/:id/unverify
+// @access  Private/Admin
+exports.unverifyUserIdentity = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+
+  const user = await User.findById(id);
+  if (!user) {
+    return next(new ApiError("User not found", 404));
+  }
+
+  // Check admin permissions based on admin type
+  const { adminType } = req.admin;
+  if (adminType !== "super" && user.gender !== adminType) {
+    return next(
+      new ApiError("You do not have permission to manage this user", 403)
+    );
+  }
+
+  await User.updateOne(
+    { _id: id },
+    {
+      $set: {
+        identityVerified: false,
+        identityVerificationStatus: "new",
+        identityVerificationSubmitted: false,
+      },
+    }
+  );
+
+  res.status(200).json({
+    message: "User verification revoked successfully",
+    data: {
+      userId: id,
+      identityVerified: false,
+      identityVerificationStatus: "new",
+    },
+  });
+
+  await logAdminAction(req.admin?._id, "unverify_user_identity", "user", id, {
+    identityVerified: false,
+  });
+});
+
 // @desc    Get admin activity logs (Super admin only)
 // @route   GET /api/v1/admins/:id/activity
 // @access  Private/SuperAdmin

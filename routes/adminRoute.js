@@ -14,6 +14,7 @@ const {
   toggleUserSubscription,
   toggleUserActive,
   verifyUserIdentity,
+  unverifyUserIdentity,
   getAdminActivity,
 } = require("../services/adminService");
 
@@ -135,6 +136,18 @@ router.put(
     next();
   },
   verifyUserIdentity
+);
+router.put(
+  "/users/:id/unverify",
+  (req, res, next) => {
+    if (!req.admin.permissions.verifyIdentities) {
+      return res.status(403).json({
+        message: "You don't have permission to verify identities",
+      });
+    }
+    next();
+  },
+  unverifyUserIdentity
 );
 
 // Super admin only routes
