@@ -39,8 +39,15 @@ exports.getAdminSubscriptionPackages = asyncHandler(async (req, res) => {
 // @route   POST /api/v1/subscriptions/packages
 // @access  Private/Admin
 exports.createSubscriptionPackage = asyncHandler(async (req, res, next) => {
-  const { packageType, name, description, price, currency, features } =
-    req.body;
+  const {
+    packageType,
+    name,
+    description,
+    price,
+    currency,
+    features,
+    durationDays,
+  } = req.body;
 
   // Validate package type
   if (!["basic", "premium"].includes(packageType)) {
@@ -56,17 +63,19 @@ exports.createSubscriptionPackage = asyncHandler(async (req, res, next) => {
     return next(new ApiError("Package type already exists", 400));
   }
 
-  // Calculate duration in days
-  let durationDays;
-  switch (packageType) {
-    case "basic":
-      durationDays = 30; // Basic subscription for 30 days
-      break;
-    case "premium":
-      durationDays = 365; // Premium subscription for 1 year
-      break;
-    default:
-      return next(new ApiError("Invalid package type", 400));
+  // Calculate duration in days (allow override from request)
+  let resolvedDurationDays = durationDays;
+  if (!resolvedDurationDays) {
+    switch (packageType) {
+      case "basic":
+        resolvedDurationDays = 30; // Basic subscription for 30 days
+        break;
+      case "premium":
+        resolvedDurationDays = 365; // Premium subscription for 1 year
+        break;
+      default:
+        return next(new ApiError("Invalid package type", 400));
+    }
   }
 
   const subscriptionPackage = await Subscription.create({
@@ -75,7 +84,7 @@ exports.createSubscriptionPackage = asyncHandler(async (req, res, next) => {
     description,
     price,
     currency: currency || "USD",
-    durationDays,
+    durationDays: resolvedDurationDays,
     features: features || [],
   });
 
