@@ -322,9 +322,10 @@ exports.approvePaymentRequest = asyncHandler(async (req, res, next) => {
   const { reviewNotes } = req.body;
   const { _id: adminId } = req.admin;
 
-  const paymentRequest = await PaymentRequest.findById(id).populate(
-    "subscription"
-  );
+  const paymentRequest = await PaymentRequest.findById(id).populate({
+    path: "subscription",
+    select: "name packageType price currency durationDays isActive",
+  });
   if (!paymentRequest) {
     return next(new ApiError("Payment request not found", 404));
   }

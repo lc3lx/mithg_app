@@ -75,7 +75,7 @@ paymentRequestSchema.pre(/^find/, function (next) {
   })
     .populate({
       path: "subscription",
-      select: "name packageType price currency durationDays",
+      select: "name packageType price currency durationDays isActive",
     })
     .populate({
       path: "reviewedBy",
