@@ -8,6 +8,7 @@ const PaymentRequest = require("../models/paymentRequestModel");
 const SubscriptionCode = require("../models/subscriptionCodeModel");
 const Wallet = require("../models/walletModel");
 const Transaction = require("../models/transactionModel");
+const rechargeService = require("./rechargeService");
 
 // @desc    Get all active subscription packages
 // @route   GET /api/v1/subscriptions/packages
@@ -189,7 +190,8 @@ exports.subscribeWithCode = asyncHandler(async (req, res, next) => {
   }).populate("subscription");
 
   if (!subscriptionCode) {
-    return next(new ApiError("Invalid subscription code", 404));
+    // Fall back to recharge code flow (same codes for subscriptions)
+    return rechargeService.useRechargeCode(req, res, next);
   }
 
   if (!subscriptionCode.canBeUsed()) {
