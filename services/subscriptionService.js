@@ -322,10 +322,7 @@ exports.approvePaymentRequest = asyncHandler(async (req, res, next) => {
   const { reviewNotes } = req.body;
   const { _id: adminId } = req.admin;
 
-  const paymentRequest = await PaymentRequest.findById(id).populate({
-    path: "subscription",
-    select: "name packageType price currency durationDays isActive",
-  });
+  const paymentRequest = await PaymentRequest.findById(id);
   if (!paymentRequest) {
     return next(new ApiError("Payment request not found", 404));
   }
@@ -334,9 +331,18 @@ exports.approvePaymentRequest = asyncHandler(async (req, res, next) => {
     return next(new ApiError("Request has already been processed", 400));
   }
 
-  const { subscription } = paymentRequest;
-  if (!subscription || !subscription.isActive) {
-    return next(new ApiError("Subscription package is not available", 400));
+  // Get subscription ID (handle both ObjectId and populated object)
+  const subscriptionId = paymentRequest.subscription?._id || paymentRequest.subscription;
+  
+  // Fetch subscription directly to ensure we have the latest data including isActive
+  const subscription = await Subscription.findById(subscriptionId);
+  if (!subscription) {
+    return next(new ApiError("Subscription package not found", 404));
+  }
+
+  // Ensure subscription is active
+  if (subscription.isActive !== true) {
+    return next(new ApiError("Subscription package is not active", 400));
   }
 
   // Calculate subscription end date
