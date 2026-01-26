@@ -5,6 +5,7 @@ const ApiFeatures = require("../utils/apiFeatures");
 const RechargeCode = require("../models/rechargeCodeModel");
 const Wallet = require("../models/walletModel");
 const Transaction = require("../models/transactionModel");
+const User = require("../models/userModel");
 
 // @desc    Get all recharge codes
 // @route   GET /api/v1/admins/recharge-codes
