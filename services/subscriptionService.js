@@ -225,6 +225,11 @@ exports.subscribeWithCode = asyncHandler(async (req, res, next) => {
   subscriptionCode.currentUses += 1;
   await subscriptionCode.save();
 
+  // Delete the code once it's consumed
+  if (subscriptionCode.currentUses >= subscriptionCode.maxUses) {
+    await subscriptionCode.deleteOne();
+  }
+
   // Update subscription user count
   await Subscription.findByIdAndUpdate(subscription._id, {
     $inc: { currentUsers: 1 },
