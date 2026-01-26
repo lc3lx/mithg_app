@@ -309,15 +309,9 @@ exports.subscribeWithCode = asyncHandler(async (req, res, next) => {
 exports.getUserSubscriptionStatus = asyncHandler(async (req, res) => {
   const userId = req.user._id;
 
-  const user = await User.findById(userId)
-    .select(
-      "isSubscribed subscriptionEndDate subscriptionPackage identityVerified identityVerificationStatus"
-    )
-    .populate({
-      path: "subscriptionPackage",
-      model: "Subscription",
-      select: "name features",
-    });
+  const user = await User.findById(userId).select(
+    "isSubscribed subscriptionEndDate subscriptionPackage identityVerified identityVerificationStatus"
+  );
 
   // Check if subscription is expired
   let isExpired = false;
@@ -330,11 +324,27 @@ exports.getUserSubscriptionStatus = asyncHandler(async (req, res) => {
     user.isSubscribed = false;
   }
 
+  // Get subscription package details if packageType exists
+  let subscriptionPackageDetails = null;
+  if (user.subscriptionPackage) {
+    const subscription = await Subscription.findOne({
+      packageType: user.subscriptionPackage,
+      isActive: true,
+    }).select("name features");
+    if (subscription) {
+      subscriptionPackageDetails = {
+        name: subscription.name,
+        features: subscription.features,
+        packageType: user.subscriptionPackage,
+      };
+    }
+  }
+
   res.status(200).json({
     data: {
       isSubscribed: user.isSubscribed,
       subscriptionEndDate: user.subscriptionEndDate,
-      subscriptionPackage: user.subscriptionPackage,
+      subscriptionPackage: subscriptionPackageDetails,
       isExpired,
       identityVerified: user.identityVerified,
       identityVerificationStatus: user.identityVerificationStatus,
