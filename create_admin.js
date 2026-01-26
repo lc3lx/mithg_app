@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-const bcrypt = require("bcryptjs");
 const Admin = require("./models/adminModel");
 require("dotenv").config();
 
@@ -33,15 +32,11 @@ const createAdmin = async () => {
     }
   
 
-    // Hash password
-    const salt = await bcrypt.genSalt(12);
-    const hashedPassword = await bcrypt.hash("admin123", salt);
-
     // Create super admin
     const admin = await Admin.create({
       name: "Super Admin",
       email: "admin@mithaq-syr.com",
-      password: hashedPassword, // This will be hashed by pre-save middleware
+      password: "admin123", // pre-save middleware will hash
       adminType: "super",
       phone: "+966500000000",
       isActive: true,
