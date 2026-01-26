@@ -4,6 +4,7 @@ const {
   getAdminSubscriptionPackages,
   createSubscriptionPackage,
   updateSubscriptionPackage,
+  deleteSubscriptionPackage,
   subscribeWithPaymentRequest,
   subscribeWithCode,
   getUserSubscriptionStatus,
@@ -44,7 +45,8 @@ router
 
 router
   .route("/admin/packages/:id")
-  .put(updateSubscriptionPackageValidator, updateSubscriptionPackage);
+  .put(updateSubscriptionPackageValidator, updateSubscriptionPackage)
+  .delete(deleteSubscriptionPackage);
 
 // Payment requests management
 router.get("/admin/requests", getPaymentRequests);

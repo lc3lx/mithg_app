@@ -123,6 +123,34 @@ exports.updateSubscriptionPackage = asyncHandler(async (req, res, next) => {
   });
 });
 
+// @desc    Delete subscription package (Admin only)
+// @route   DELETE /api/v1/subscriptions/packages/:id
+// @access  Private/Admin
+exports.deleteSubscriptionPackage = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+
+  const subscriptionPackage = await Subscription.findById(id);
+  if (!subscriptionPackage) {
+    return next(new ApiError("Subscription package not found", 404));
+  }
+
+  // Check if package has active users
+  if (subscriptionPackage.currentUsers > 0) {
+    return next(
+      new ApiError(
+        "Cannot delete package with active users. Please deactivate it instead.",
+        400
+      )
+    );
+  }
+
+  await Subscription.findByIdAndDelete(id);
+
+  res.status(200).json({
+    message: "Subscription package deleted successfully",
+  });
+});
+
 // @desc    Subscribe user to package using payment request
 // @route   POST /api/v1/subscriptions/subscribe/request
 // @access  Private/Protect
