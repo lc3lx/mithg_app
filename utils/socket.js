@@ -24,48 +24,87 @@ const getUnreadCount = async (chatId, userId) => {
 
 const socketHandler = (io) => {
   const chatNamespace = io.of("/chat");
+  console.log("🔌 [Chat Socket] Chat namespace '/chat' created");
 
   // Middleware للمصادقة
   chatNamespace.use(async (socket, next) => {
+    console.log("🔐 [Chat Socket] Authentication attempt from:", socket.id);
+    console.log("🔐 [Chat Socket] Handshake auth:", socket.handshake.auth);
+    console.log("🔐 [Chat Socket] Handshake headers:", socket.handshake.headers);
+    
     try {
       const { token } = socket.handshake.auth;
+      console.log("🔐 [Chat Socket] Token received:", token ? "✅ Yes" : "❌ No");
 
       if (!token) {
-        return next(new Error("Authentication error"));
+        console.error("❌ [Chat Socket] Authentication failed: No token provided");
+        return next(new Error("Authentication error: No token provided"));
       }
 
+      console.log("🔐 [Chat Socket] Verifying token...");
       const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+      console.log("🔐 [Chat Socket] Token decoded successfully:", {
+        userId: decoded.userId,
+        adminId: decoded.adminId,
+      });
 
       if (decoded.adminId) {
+        console.log("🔐 [Chat Socket] Admin authentication detected");
         const admin = await Admin.findById(decoded.adminId);
         if (!admin) {
+          console.error("❌ [Chat Socket] Admin not found:", decoded.adminId);
           return next(new Error("Admin not found"));
         }
         socket.role = "admin";
         socket.adminId = decoded.adminId;
+        console.log("✅ [Chat Socket] Admin authenticated:", decoded.adminId);
         return next();
       }
 
       // التحقق من وجود المستخدم
+      console.log("🔐 [Chat Socket] User authentication detected");
       const user = await User.findById(decoded.userId);
       if (!user) {
+        console.error("❌ [Chat Socket] User not found:", decoded.userId);
         return next(new Error("User not found"));
       }
 
       socket.role = "user";
       socket.userId = decoded.userId;
       socket.user = user;
+      console.log("✅ [Chat Socket] User authenticated:", {
+        userId: decoded.userId,
+        userName: user.name,
+      });
       next();
     } catch (error) {
-      next(new Error("Authentication error"));
+      console.error("❌ [Chat Socket] Authentication error:", error.message);
+      console.error("❌ [Chat Socket] Error stack:", error.stack);
+      next(new Error(`Authentication error: ${error.message}`));
     }
   });
 
   chatNamespace.on("connection", async (socket) => {
+    console.log("🔌 [Chat Socket] New connection attempt:", socket.id);
+    console.log("🔌 [Chat Socket] Socket role:", socket.role);
+    console.log("🔌 [Chat Socket] Socket userId:", socket.userId);
+    console.log("🔌 [Chat Socket] Socket adminId:", socket.adminId);
+    
+    // إضافة event listeners للأخطاء
+    socket.on("error", (error) => {
+      console.error("❌ [Chat Socket] Socket error:", error);
+    });
+    
+    socket.on("connect_error", (error) => {
+      console.error("❌ [Chat Socket] Connection error:", error);
+    });
+    
     if (socket.role === "admin") {
+      console.log("👤 [Chat Socket] Admin connected:", socket.adminId);
       socket.join("admin_chat_monitoring");
+      console.log("✅ [Chat Socket] Admin joined admin_chat_monitoring room");
     } else {
-      console.log(`User ${socket.userId} connected`);
+      console.log(`✅ [Chat Socket] User ${socket.userId} connected successfully`);
 
       // إضافة المستخدم للقائمة المتصلة
       onlineUsers.set(socket.userId, socket.id);
@@ -119,8 +158,17 @@ const socketHandler = (io) => {
 
     // إرسال رسالة
     socket.on("send_message", async (data) => {
+      console.log("📨 [Chat Socket] send_message event received:", {
+        socketId: socket.id,
+        userId: socket.userId,
+        chatId: data?.chatId,
+        messageType: data?.messageType,
+        contentLength: data?.content?.length,
+      });
+      
       try {
         if (socket.role === "admin") {
+          console.warn("⚠️ [Chat Socket] Admin tried to send message");
           socket.emit("error", { message: "Admins cannot send messages" });
           return;
         }
@@ -432,8 +480,9 @@ const socketHandler = (io) => {
     });
 
     // عند قطع الاتصال
-    socket.on("disconnect", async () => {
-      console.log(`User ${socket.userId} disconnected`);
+    socket.on("disconnect", async (reason) => {
+      console.log(`🔌 [Chat Socket] User ${socket.userId} disconnected`);
+      console.log(`🔌 [Chat Socket] Disconnect reason:`, reason);
 
       // إزالة المستخدم من القائمة المتصلة
       onlineUsers.delete(socket.userId);

@@ -58,18 +58,28 @@ const app = express();
 const server = http.createServer(app);
 app.set("trust proxy", 1);
 // Socket.io server (support messages)
+console.log("🔌 [Socket.IO] Initializing Socket.IO server...");
+console.log("🔌 [Socket.IO] CORS Origin:", process.env.CLIENT_URL || "*");
 const io = new Server(server, {
   cors: {
     origin: process.env.CLIENT_URL || "*",
     credentials: true,
   },
 });
+console.log("✅ [Socket.IO] Socket.IO server created successfully");
+
 const onlineUsers = new Map();
 const onlineAdmins = new Map();
 app.set("io", io);
 app.set("onlineUsers", onlineUsers);
+
+console.log("🔌 [Socket.IO] Setting up support socket...");
 supportSocket(io, onlineUsers, onlineAdmins);
+console.log("✅ [Socket.IO] Support socket setup complete");
+
+console.log("🔌 [Socket.IO] Setting up chat socket...");
 chatSocket(io);
+console.log("✅ [Socket.IO] Chat socket setup complete");
 
 // Enable other domains to access your application
 app.use(
@@ -222,8 +232,10 @@ app.use(globalError);
 
 const PORT = process.env.PORT || 8000;
 server.listen(PORT, async () => {
-  console.log(`App running on port ${PORT}`);
-  console.log(`Socket.io server is running`);
+  console.log(`🚀 App running on port ${PORT}`);
+  console.log(`🔌 Socket.io server is running`);
+  console.log(`🔌 Socket.io namespaces:`, Object.keys(io.nsps));
+  console.log(`🔌 Socket.io CORS origin:`, process.env.CLIENT_URL || "*");
 
   // Create default admin
 });
