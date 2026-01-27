@@ -234,8 +234,14 @@ const PORT = process.env.PORT || 8000;
 server.listen(PORT, async () => {
   console.log(`🚀 App running on port ${PORT}`);
   console.log(`🔌 Socket.io server is running`);
-  console.log(`🔌 Socket.io namespaces:`, Object.keys(io.nsps));
   console.log(`🔌 Socket.io CORS origin:`, process.env.CLIENT_URL || "*");
+  
+  // طباعة namespaces بعد التأكد من وجودها
+  if (io && io.nsps) {
+    console.log(`🔌 Socket.io namespaces:`, Object.keys(io.nsps));
+  } else {
+    console.log(`🔌 Socket.io namespaces: Not initialized yet`);
+  }
 
   // Create default admin
 });
