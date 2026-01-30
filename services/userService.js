@@ -230,6 +230,8 @@ exports.updateLoggedUserProfileInfo = asyncHandler(async (req, res, next) => {
   if (req.body.hairColor !== undefined) user.hairColor = req.body.hairColor;
   if (req.body.height !== undefined) user.height = req.body.height;
   if (req.body.weight !== undefined) user.weight = req.body.weight;
+  if (req.body.bodyShape !== undefined) user.bodyShape = req.body.bodyShape;
+  if (req.body.healthProblems !== undefined) user.healthProblems = req.body.healthProblems;
 
   // Save to trigger post("save") hooks
   const updatedUser = await user.save();

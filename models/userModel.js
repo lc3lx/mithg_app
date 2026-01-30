@@ -117,6 +117,14 @@ const userSchema = new mongoose.Schema(
       min: 30,
       max: 200,
     },
+    bodyShape: {
+      type: String,
+      trim: true,
+    },
+    healthProblems: {
+      type: String,
+      trim: true,
+    },
     profileImg: String,
     coverImg: String,
 

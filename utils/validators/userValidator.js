@@ -164,19 +164,19 @@ exports.updateLoggedUserValidator = [
         }
       })
     ),
-  check("email")
-    .notEmpty()
-    .withMessage("Email required")
+  body("email")
+    .optional()
     .isEmail()
     .withMessage("Invalid email address")
-    .custom((val) =>
-      User.findOne({ email: val }).then((user) => {
-        if (user) {
-          return Promise.reject(new Error("E-mail already in user"));
+    .custom((val, { req }) => {
+      if (!val) return true;
+      return User.findOne({ email: val }).then((user) => {
+        if (user && user._id.toString() !== req.user._id.toString()) {
+          return Promise.reject(new Error("E-mail already in use"));
         }
-      })
-    ),
-  check("phone")
+      });
+    }),
+  body("phone")
     .optional()
     .isMobilePhone(["ar-EG", "ar-SA"])
     .withMessage("Invalid phone number only accepted Egy and SA Phone numbers"),
