@@ -6,7 +6,7 @@
 
 const OTP_EXPIRY_MS = 2 * 60 * 1000; // 2 minutes
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
-const RATE_LIMIT_MAX = 3;
+const RATE_LIMIT_MAX = 1000;
 
 /** phone -> { code, expiresAt } */
 const store = new Map();
@@ -47,7 +47,8 @@ export async function sendOTP(phone) {
   if (isRateLimited(phone)) {
     return {
       success: false,
-      message: "تم تجاوز الحد المسموح. حاول بعد ساعة (3 طلبات كحد أقصى لكل رقم في الساعة).",
+      message:
+        "تم تجاوز الحد المسموح. حاول بعد ساعة (3 طلبات كحد أقصى لكل رقم في الساعة).",
     };
   }
 
@@ -72,8 +73,8 @@ export async function sendOTP(phone) {
       msg.includes("timeout") || msg.includes("connection")
         ? "واتساب غير متصل أو انقطع. تأكد من مسح رمز QR واتساب (GET /api/v1/otp/qr) ثم حاول مرة أخرى."
         : msg.includes("Invalid phone")
-          ? "رقم الهاتف غير صالح. استخدم صيغة دولية مثل 963912345678."
-          : "فشل إرسال الرسالة عبر واتساب. تأكد من اتصال واتساب ومسح رمز QR.";
+        ? "رقم الهاتف غير صالح. استخدم صيغة دولية مثل 963912345678."
+        : "فشل إرسال الرسالة عبر واتساب. تأكد من اتصال واتساب ومسح رمز QR.";
     return { success: false, message: userMessage };
   }
 }
@@ -88,11 +89,17 @@ export function verifyOTP(phone, code) {
   const key = String(phone).trim();
   const entry = store.get(key);
   if (!entry) {
-    return { success: false, message: "لم يتم إرسال رمز لهذا الرقم أو انتهت صلاحية الرمز." };
+    return {
+      success: false,
+      message: "لم يتم إرسال رمز لهذا الرقم أو انتهت صلاحية الرمز.",
+    };
   }
   if (Date.now() > entry.expiresAt) {
     store.delete(key);
-    return { success: false, message: "انتهت صلاحية رمز التحقق. اطلب رمزاً جديداً." };
+    return {
+      success: false,
+      message: "انتهت صلاحية رمز التحقق. اطلب رمزاً جديداً.",
+    };
   }
   const codeStr = String(code).trim();
   if (codeStr !== entry.code) {
