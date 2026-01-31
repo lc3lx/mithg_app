@@ -13,9 +13,21 @@ const AUTH_FOLDER = path.join(__dirname, "auth_info_wa");
 let sock = null;
 let isReady = false;
 let resolveReady = null;
+/** آخر رمز QR كـ Data URL (للعرض في المتصفح على الـ VPS) */
+let lastQRDataUrl = null;
+
 const readyPromise = new Promise((resolve) => {
   resolveReady = resolve;
 });
+
+/**
+ * للحصول على رمز QR للعرض في صفحة ويب (مفيد عند التشغيل على VPS)
+ * @returns {{ connected: boolean, qrDataUrl: string | null }}
+ */
+export function getQRForWeb() {
+  if (isReady) return { connected: true, qrDataUrl: null };
+  return { connected: false, qrDataUrl: lastQRDataUrl };
+}
 
 /**
  * Format phone to WhatsApp JID (e.g. +963912345678 -> 963912345678@s.whatsapp.net)
@@ -67,13 +79,16 @@ async function connect() {
 
     if (qr) {
       try {
+        lastQRDataUrl = await QRCode.toDataURL(qr, { width: 300, margin: 2 });
         const qrText = await QRCode.toString(qr, { type: "terminal", small: true });
         console.log("\n📱 امسح رمز QR بواسطة واتساب (WhatsApp > Linked Devices):\n");
         console.log(qrText);
-        console.log("\n");
+        console.log("\n   أو افتح في المتصفح: GET /api/v1/otp/qr\n");
       } catch (e) {
         console.log("QR (raw):", qr);
       }
+    } else {
+      lastQRDataUrl = null;
     }
 
     if (connection === "close") {
@@ -91,6 +106,7 @@ async function connect() {
 
     if (connection === "open") {
       isReady = true;
+      lastQRDataUrl = null;
       if (resolveReady) resolveReady();
       console.log("✅ واتساب متصل وجاهز لإرسال OTP.");
     }
