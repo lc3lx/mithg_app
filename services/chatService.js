@@ -94,6 +94,21 @@ exports.getChats = asyncHandler(async (req, res) => {
     });
   }
 
+  // استبعاد المحادثات المباشرة عندما أُلغيت الصداقة (المحادثة تختفي من عند الاثنين)
+  const currentUser = await User.findById(req.user._id).select("friends").lean();
+  const friendIds = (currentUser?.friends || []).map((id) => id.toString());
+
+  chatsWithUnread = chatsWithUnread.filter((chat) => {
+    const participants = chat.participants || [];
+    if (participants.length !== 2) return true; // محادثة جماعية: نبقّيها
+    const other = participants.find(
+      (p) => (p._id || p).toString() !== req.user._id.toString()
+    );
+    if (!other) return true;
+    const otherId = (other._id || other).toString();
+    return friendIds.includes(otherId);
+  });
+
   res.status(200).json({
     results: chatsWithUnread.length,
     paginationResult,
