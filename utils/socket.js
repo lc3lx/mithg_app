@@ -243,114 +243,93 @@ const socketHandler = (io) => {
         }
 
         const message = await Message.create(messageData);
-
-        // تحديث آخر رسالة في الدردشة
-        await Chat.findByIdAndUpdate(chatId, {
-          lastMessage: message._id,
-          lastMessageTime: new Date(),
-        });
-
-        // تحديث عداد الرسائل غير المقروءة للمشاركين الآخرين
         const otherParticipants = chat.participants.filter(
           (p) => p.toString() !== socket.userId
         );
 
-        // تحديث عداد الرسائل غير المقروءة للمشاركين الآخرين
-        await Promise.all(
-          otherParticipants.map(async (participantId) => {
-            await Chat.findByIdAndUpdate(
-              chatId,
-              {
-                $inc: { "unreadCount.$[elem].count": 1 },
-              },
-              {
-                arrayFilters: [{ "elem.user": participantId }],
-                upsert: true,
-              }
-            );
-
-            // إرسال تحديث العداد للمستخدم المتصل
-            const participantSocketId = onlineUsers.get(
-              participantId.toString()
-            );
-            if (participantSocketId) {
-              const count = await getUnreadCount(chatId, participantId);
-              chatNamespace.to(participantSocketId).emit("chat_unread_count", {
-                chatId,
-                count,
-              });
-            }
-          })
-        );
-
-        // إضافة المرسل للرسالة
+        // إظهار الرسالة فوراً: populate ثم emit بدون انتظار تحديثات الدردشة/الإشعارات
         await message.populate([
-          {
-            path: "sender",
-            select: "name profileImg",
-          },
+          { path: "sender", select: "name profileImg" },
         ]);
 
-        // إرسال الرسالة لجميع المشاركين في الدردشة
-        chatNamespace.to(chatId).emit("new_message", {
+        const messagePayload = {
           chatId,
-          message: message,
-        });
-        chatNamespace.to("admin_chat_monitoring").emit("new_message", {
-          chatId,
-          message: message,
-        });
-
-        // إنشاء إشعارات للمشاركين الآخرين
-        const notificationPromises = otherParticipants.map((participantId) =>
-          Notification.createNotification({
-            user: participantId,
-            type: "new_message",
-            title: "New Message",
-            message: `${socket.user.name} sent you a message`,
-            relatedUser: socket.userId,
-            relatedChat: chatId,
-            relatedMessage: message._id,
-            data: { chatId, messageId: message._id },
-          })
-        );
-
-        await Promise.all(notificationPromises);
-
-        // إرسال إشعارات فورية للمستخدمين المتصلين
-        await Promise.all(
-          otherParticipants.map(async (participantId) => {
-            const participantSocketId = onlineUsers.get(
-              participantId.toString()
-            );
-            if (participantSocketId) {
-              const unreadCount = await Notification.countDocuments({
-                user: participantId,
-                isRead: false,
-              });
-
-              chatNamespace.to(participantSocketId).emit("notification", {
-                type: "new_message",
-                title: "New Message",
-                message: `${socket.user.name} sent you a message`,
-                unreadCount,
-              });
-            }
-          })
-        );
-
-        // إعداد الرد مع معلومات التحذير إذا وجدت
-        const responseData = {
-          messageId: message._id,
+          message: message.toObject ? message.toObject() : message,
         };
 
+        // إرسال فوري للمشاركين (بما فيهم المرسل) — مثل واتساب
+        chatNamespace.to(chatId).emit("new_message", messagePayload);
+        chatNamespace.to("admin_chat_monitoring").emit("new_message", messagePayload);
+
+        // تأكيد للمرسل مع الرسالة الكاملة لاستبدال المؤقت فوراً
+        const responseData = {
+          message: message.toObject ? message.toObject() : message,
+          messageId: message._id,
+        };
         if (warningResult && !warningResult.safe) {
           responseData.warning = warningResult.warning;
           responseData.bannedWord = warningResult.bannedWord;
         }
-
-        // إرسال تأكيد الإرسال للمرسل
         socket.emit("message_sent", responseData);
+
+        // تحديثات الدردشة والإشعارات بعد الإرسال (لا تُبطئ الواجهة)
+        setImmediate(async () => {
+          try {
+            await Chat.findByIdAndUpdate(chatId, {
+              lastMessage: message._id,
+              lastMessageTime: new Date(),
+            });
+
+            for (const participantId of otherParticipants) {
+              await Chat.findByIdAndUpdate(
+                chatId,
+                { $inc: { "unreadCount.$[elem].count": 1 } },
+                { arrayFilters: [{ "elem.user": participantId }], upsert: true }
+              );
+              const participantSocketId = onlineUsers.get(participantId.toString());
+              if (participantSocketId) {
+                const count = await getUnreadCount(chatId, participantId);
+                chatNamespace.to(participantSocketId).emit("chat_unread_count", {
+                  chatId,
+                  count,
+                });
+              }
+            }
+
+            await Promise.all(
+              otherParticipants.map((participantId) =>
+                Notification.createNotification({
+                  user: participantId,
+                  type: "new_message",
+                  title: "New Message",
+                  message: `${socket.user.name} sent you a message`,
+                  relatedUser: socket.userId,
+                  relatedChat: chatId,
+                  relatedMessage: message._id,
+                  data: { chatId, messageId: message._id },
+                })
+              )
+            );
+
+            for (const participantId of otherParticipants) {
+              const participantSocketId = onlineUsers.get(participantId.toString());
+              if (participantSocketId) {
+                const unreadCount = await Notification.countDocuments({
+                  user: participantId,
+                  isRead: false,
+                });
+                chatNamespace.to(participantSocketId).emit("notification", {
+                  type: "new_message",
+                  title: "New Message",
+                  message: `${socket.user.name} sent you a message`,
+                  unreadCount,
+                });
+              }
+            }
+          } catch (err) {
+            console.error("Chat background update error:", err);
+          }
+        });
       } catch (error) {
         console.error("Send message error:", error);
         socket.emit("error", { message: "Failed to send message" });
