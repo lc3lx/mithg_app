@@ -328,8 +328,8 @@ exports.getUserProfile = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get all user profiles
-// @route   GET /api/v1/users/profiles
+// @desc    Get all user profiles (with optional search/filter)
+// @route   GET /api/v1/users/profiles?search=...
 // @access  Private/Protect
 exports.getAllProfiles = asyncHandler(async (req, res, next) => {
   const currentGender = req.user ? req.user.gender : undefined;
@@ -352,6 +352,28 @@ exports.getAllProfiles = asyncHandler(async (req, res, next) => {
   };
   if (targetGender) {
     filter.gender = targetGender;
+  }
+
+  // فلترة بالبحث: مدينة، دولة، اسم، اسم حساب، مجال عمل، نبذة، أو وصف عام
+  const searchTerm = (req.query.search && typeof req.query.search === "string")
+    ? req.query.search.trim()
+    : "";
+  if (searchTerm.length > 0) {
+    const escaped = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const searchRegex = new RegExp(escaped, "i");
+    filter.$and = [
+      {
+        $or: [
+          { name: { $regex: searchRegex } },
+          { username: { $regex: searchRegex } },
+          { city: { $regex: searchRegex } },
+          { country: { $regex: searchRegex } },
+          { nationality: { $regex: searchRegex } },
+          { fieldOfWork: { $regex: searchRegex } },
+          { about: { $regex: searchRegex } },
+        ],
+      },
+    ];
   }
 
   const currentUser = await User.findById(req.user._id).select("friends");

@@ -1,4 +1,4 @@
-const { body, param } = require("express-validator");
+const { body, param, query } = require("express-validator");
 const validatorMiddleware = require("../../middlewares/validatorMiddleware");
 
 exports.updateAboutValidator = [
@@ -56,5 +56,10 @@ exports.getUserProfileValidator = [
 ];
 
 exports.getAllProfilesValidator = [
+  query("search")
+    .optional()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage("Search term must be at most 100 characters"),
   validatorMiddleware,
 ];
