@@ -210,9 +210,15 @@ const socketHandler = (io) => {
         }
 
         // التحقق من أن الطرف الآخر لا يزال صديقاً ولم يحظر المرسل
+        // chat.participants may be populated (user docs); extract raw id for findById
+        const myIdStr = (socket.userId && (socket.userId.toString ? socket.userId.toString() : socket.userId)) || "";
         const otherParticipantIds = chat.participants
-          .map((p) => p.toString())
-          .filter((id) => id !== socket.userId);
+          .map((p) => {
+            const id = p && (p._id !== undefined ? p._id : p.id !== undefined ? p.id : p);
+            return id ? (id.toString ? id.toString() : String(id)) : null;
+          })
+          .filter(Boolean)
+          .filter((id) => id !== myIdStr);
         if (otherParticipantIds.length > 0) {
           const otherUser = await User.findById(otherParticipantIds[0])
             .select("friends blockedUsers")
@@ -221,7 +227,7 @@ const socketHandler = (io) => {
             const otherBlocked = (otherUser.blockedUsers || []).map((id) =>
               id.toString()
             );
-            if (otherBlocked.includes(socket.userId)) {
+            if (otherBlocked.includes(myIdStr)) {
               socket.emit("error", {
                 message: "تم حظرك من قبل هذا المستخدم",
               });
@@ -230,7 +236,7 @@ const socketHandler = (io) => {
             const otherFriends = (otherUser.friends || []).map((id) =>
               id.toString()
             );
-            if (!otherFriends.includes(socket.userId)) {
+            if (!otherFriends.includes(myIdStr)) {
               socket.emit("error", {
                 message: "لا يمكنك إرسال رسائل بعد إلغاء الصداقة",
               });
@@ -273,9 +279,8 @@ const socketHandler = (io) => {
         }
 
         const message = await Message.create(messageData);
-        const otherParticipants = chat.participants.filter(
-          (p) => p.toString() !== socket.userId
-        );
+        // otherParticipants = IDs of everyone except sender (already normalized above)
+        const otherParticipants = otherParticipantIds;
 
         // إظهار الرسالة فوراً: populate ثم emit بدون انتظار تحديثات الدردشة/الإشعارات
         await message.populate([
