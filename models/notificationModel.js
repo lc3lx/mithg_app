@@ -1,5 +1,7 @@
 const mongoose = require("mongoose");
 const { sendPushToUser } = require("../utils/pushNotification");
+const sendEmail = require("../utils/sendEmail");
+const User = require("./userModel");
 
 const notificationSchema = new mongoose.Schema(
   {
@@ -134,20 +136,36 @@ notificationSchema.pre(/^find/, function (next) {
 });
 
 notificationSchema.post("save", async function (doc) {
+  // إرسال push notification
   try {
-    if (doc.pushSent) return;
-    await sendPushToUser(doc.user, doc);
-    await doc.constructor.updateOne(
-      { _id: doc._id },
-      { pushSent: true, pushSentAt: new Date() }
-    );
+    if (!doc.pushSent) {
+      await sendPushToUser(doc.user, doc);
+      await doc.constructor.updateOne(
+        { _id: doc._id },
+        { pushSent: true, pushSentAt: new Date() }
+      );
+    }
   } catch (error) {
-    // Avoid crashing on push failures
     await doc.constructor.updateOne(
       { _id: doc._id },
       { pushSent: true, pushSentAt: new Date() }
-    );
+    ).catch(() => {});
   }
+
+  // إرسال نسخة من الإشعار إلى بريد المستخدم (بدون انتظار لعدم تعطيل الحفظ)
+  (async () => {
+    try {
+      const user = await User.findById(doc.user).select("email").lean();
+      if (!user || !user.email) return;
+      await sendEmail({
+        email: user.email,
+        subject: `إشعار - ${doc.title}`,
+        message: `${doc.title}\n\n${doc.message}\n\n---\nتطبيق ميثاق`,
+      });
+    } catch (err) {
+      console.error("Notification email send error:", err.message);
+    }
+  })();
 });
 
 // Auto-delete old notifications (keep only last 100 per user)

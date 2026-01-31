@@ -1,28 +1,30 @@
-// const nodemailer = require('nodemailer');
+const nodemailer = require("nodemailer");
 
-// // Nodemailer
-// const sendEmail = async (options) => {
-//   // 1) Create transporter ( service that will send email like "gmail","Mailgun", "mialtrap", sendGrid)
-//   const transporter = nodemailer.createTransport({
-//     host: process.env.EMAIL_HOST,
-//     port: process.env.EMAIL_PORT, // if secure false port = 587, if true port= 465
-//     secure: true,
-//     auth: {
-//       user: process.env.EMAIL_USER,
-//       pass: process.env.EMAIL_PASSWORD,
-//     },
-//   });
+/**
+ * إرسال بريد إلكتروني (مثل رمز استعادة كلمة المرور)
+ * يتطلب في .env: EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASS
+ * Gmail: استخدم كلمة مرور التطبيق (App Password) وليس كلمة مرور الحساب
+ */
+const sendEmail = async (options) => {
+  const transporter = nodemailer.createTransport({
+    host: process.env.EMAIL_HOST || "smtp.gmail.com",
+    port: parseInt(process.env.EMAIL_PORT, 10) || 587,
+    secure: process.env.EMAIL_PORT === "465",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
 
-//   // 2) Define email options (like from, to, subject, email content)
-//   const mailOpts = {
-//     from: 'E-shop App <progahmedelsayed@gmail.com>',
-//     to: options.email,
-//     subject: options.subject,
-//     text: options.message,
-//   };
+  const mailOpts = {
+    from: process.env.EMAIL_FROM || `Mithaq <${process.env.EMAIL_USER}>`,
+    to: options.email,
+    subject: options.subject,
+    text: options.message,
+    html: options.html || options.message.replace(/\n/g, "<br>"),
+  };
 
-//   // 3) Send email
-//   await transporter.sendMail(mailOpts);
-// };
+  await transporter.sendMail(mailOpts);
+};
 
-// module.exports = sendEmail;
+module.exports = sendEmail;
