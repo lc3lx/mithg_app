@@ -283,11 +283,13 @@ exports.getUserProfile = asyncHandler(async (req, res, next) => {
     friendsCount: user.friends.length,
   };
 
+  // When friends are populated, each friend is an object with _id; when not, it's ObjectId
+  const friendIds = (user.friends || []).map((f) =>
+    f && typeof f === "object" && f._id ? f._id.toString() : (f && f.toString ? f.toString() : "")
+  );
   const isFriend =
     req.user._id.toString() === userId ||
-    user.friends
-      .map((friend) => friend.toString())
-      .includes(req.user._id.toString());
+    friendIds.includes(req.user._id.toString());
 
   if (req.user._id.toString() !== userId && !isFriend) {
     profileData.profileImg = null;
