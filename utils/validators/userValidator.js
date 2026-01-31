@@ -60,8 +60,14 @@ exports.createUserValidator = [
 
   check("phone")
     .optional()
-    .isMobilePhone(["ar-EG", "ar-SA"])
-    .withMessage("Invalid phone number only accepted Egy and SA Phone numbers"),
+    .custom((val) => {
+      if (!val || typeof val !== "string") return true;
+      const cleaned = val.replace(/\s+/g, "").replace(/^\+/, "");
+      if (!/^\d{9,15}$/.test(cleaned)) {
+        throw new Error("رقم الهاتف غير صالح. استخدم 9-15 رقمًا مع أو بدون +");
+      }
+      return true;
+    }),
 
   check("profileImg").optional(),
   check("role").optional(),
@@ -96,8 +102,14 @@ exports.updateUserValidator = [
     ),
   check("phone")
     .optional()
-    .isMobilePhone(["ar-EG", "ar-SA"])
-    .withMessage("Invalid phone number only accepted Egy and SA Phone numbers"),
+    .custom((val) => {
+      if (!val || typeof val !== "string") return true;
+      const cleaned = val.replace(/\s+/g, "").replace(/^\+/, "");
+      if (!/^\d{9,15}$/.test(cleaned)) {
+        throw new Error("رقم الهاتف غير صالح. استخدم 9-15 رقمًا مع أو بدون +");
+      }
+      return true;
+    }),
 
   check("profileImg").optional(),
   check("role").optional(),
@@ -178,8 +190,14 @@ exports.updateLoggedUserValidator = [
     }),
   body("phone")
     .optional()
-    .isMobilePhone(["ar-EG", "ar-SA"])
-    .withMessage("Invalid phone number only accepted Egy and SA Phone numbers"),
+    .custom((val) => {
+      if (!val || typeof val !== "string") return true;
+      const cleaned = val.replace(/\s+/g, "").replace(/^\+/, "");
+      if (!/^\d{9,15}$/.test(cleaned)) {
+        throw new Error("رقم الهاتف غير صالح. استخدم 9-15 رقمًا مع أو بدون +");
+      }
+      return true;
+    }),
 
   validatorMiddleware,
 ];
