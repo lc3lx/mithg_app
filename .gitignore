@@ -3,3 +3,4 @@ config.env
 *.log
 .DS_Store
 otp/auth_info_wa/
+.env
