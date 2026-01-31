@@ -53,7 +53,7 @@ exports.getChats = asyncHandler(async (req, res) => {
   const chats = await mongooseQuery;
 
   // Add unread count for each chat
-  const chatsWithUnread = await Promise.all(
+  let chatsWithUnread = await Promise.all(
     chats.map(async (chat) => {
       const unreadCount = chat.unreadCount.find(
         (count) => count.user.toString() === req.user._id.toString()
@@ -65,6 +65,34 @@ exports.getChats = asyncHandler(async (req, res) => {
       };
     })
   );
+
+  // استبعاد المحادثات التي حظرك فيها الطرف الآخر (لا تظهر في القائمة)
+  const otherParticipantIds = chatsWithUnread
+    .map((chat) => {
+      const other = (chat.participants || []).find(
+        (p) => (p._id || p).toString() !== req.user._id.toString()
+      );
+      return other ? (other._id || other) : null;
+    })
+    .filter(Boolean);
+
+  if (otherParticipantIds.length > 0) {
+    const usersWhoBlockedMe = await User.find(
+      { _id: { $in: otherParticipantIds }, blockedUsers: req.user._id },
+      { _id: 1 }
+    )
+      .lean()
+      .then((list) => list.map((u) => u._id.toString()));
+
+    chatsWithUnread = chatsWithUnread.filter((chat) => {
+      const other = (chat.participants || []).find(
+        (p) => (p._id || p).toString() !== req.user._id.toString()
+      );
+      if (!other) return true;
+      const otherId = (other._id || other).toString();
+      return !usersWhoBlockedMe.includes(otherId);
+    });
+  }
 
   res.status(200).json({
     results: chatsWithUnread.length,
