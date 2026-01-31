@@ -13,12 +13,12 @@ const AUTH_FOLDER = path.join(__dirname, "auth_info_wa");
 let sock = null;
 let isReady = false;
 let resolveReady = null;
-/** آخر رمز QR كـ Data URL (للعرض في المتصفح على الـ VPS) */
-let lastQRDataUrl = null;
-
-const readyPromise = new Promise((resolve) => {
+/** Promise تُحل عند اتصال واتساب (تُعاد إنشاؤها عند كل إعادة اتصال) */
+let readyPromise = new Promise((resolve) => {
   resolveReady = resolve;
 });
+/** آخر رمز QR كـ Data URL (للعرض في المتصفح على الـ VPS) */
+let lastQRDataUrl = null;
 
 /**
  * للحصول على رمز QR للعرض في صفحة ويب (مفيد عند التشغيل على VPS)
@@ -49,7 +49,9 @@ export async function sendWhatsAppMessage(phone, text) {
   if (!isReady) {
     await Promise.race([
       readyPromise,
-      new Promise((_, rej) => setTimeout(() => rej(new Error("WhatsApp connection timeout")), 30000)),
+      new Promise((_, rej) =>
+        setTimeout(() => rej(new Error("WhatsApp connection timeout (30s)")), 30000)
+      ),
     ]);
   }
   const jid = phoneToJid(phone);
@@ -65,6 +67,9 @@ export function isWhatsAppReady() {
 }
 
 async function connect() {
+  readyPromise = new Promise((resolve) => {
+    resolveReady = resolve;
+  });
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
 
   sock = makeWASocket({
@@ -93,12 +98,19 @@ async function connect() {
 
     if (connection === "close") {
       const statusCode = lastDisconnect?.error?.output?.statusCode ?? null;
-      const shouldReconnect = statusCode === DisconnectReason.restartRequired;
+      const isLoggedOut = statusCode === DisconnectReason.loggedOut;
+      const isForbidden = statusCode === 403;
+      const shouldReconnect =
+        statusCode === DisconnectReason.restartRequired ||
+        statusCode === DisconnectReason.connectionLost ||
+        statusCode === DisconnectReason.connectionClosed ||
+        statusCode === 408 ||
+        statusCode === 428;
       isReady = false;
-      if (shouldReconnect) {
-        console.log("🔄 إعادة الاتصال بواتساب...");
+      if (shouldReconnect && !isLoggedOut && !isForbidden) {
+        console.log("🔄 انقطع الاتصال بواتساب (", statusCode, "). إعادة الاتصال...");
         connect();
-      } else if (statusCode !== DisconnectReason.loggedOut) {
+      } else if (!isLoggedOut) {
         console.log("❌ انقطع الاتصال بواتساب:", lastDisconnect?.error?.message || statusCode);
       }
       return;
