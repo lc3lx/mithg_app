@@ -14,6 +14,10 @@ const {
   getUserPaymentRequests,
   createSubscriptionCode,
   getSubscriptionCodes,
+  createReferralCode,
+  getReferralCodes,
+  updateReferralCode,
+  deleteReferralCode,
 } = require("../services/subscriptionService");
 
 const {
@@ -24,6 +28,8 @@ const {
   approvePaymentRequestValidator,
   rejectPaymentRequestValidator,
   createSubscriptionCodeValidator,
+  createReferralCodeValidator,
+  updateReferralCodeValidator,
 } = require("../utils/validators/subscriptionValidator");
 
 const authService = require("../services/authService");
@@ -66,6 +72,17 @@ router
   .route("/admin/codes")
   .get(getSubscriptionCodes)
   .post(createSubscriptionCodeValidator, createSubscriptionCode);
+
+// Referral codes (كود إحالة) management
+router
+  .route("/admin/referral-codes")
+  .get(getReferralCodes)
+  .post(createReferralCodeValidator, createReferralCode);
+
+router
+  .route("/admin/referral-codes/:id")
+  .put(updateReferralCodeValidator, updateReferralCode)
+  .delete(deleteReferralCode);
 
 // Protected user routes
 router.use(authService.protect);

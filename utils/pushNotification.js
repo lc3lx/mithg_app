@@ -45,12 +45,16 @@ const buildPayload = (notification, playerIds) => ({
   include_player_ids: playerIds,
   headings: { en: notification.title },
   contents: { en: notification.message },
+  // صوت الإشعار عند وصوله (التطبيق مغلق أو في الخلفية)
+  ios_sound: "default",
+  android_sound: "default",
+  priority: 10,
   data: {
-    notificationId: notification._id,
+    notificationId: notification._id?.toString(),
     type: notification.type,
-    relatedChat: notification.relatedChat,
-    relatedUser: notification.relatedUser,
-    relatedPost: notification.relatedPost,
+    relatedChat: notification.relatedChat?.toString(),
+    relatedUser: notification.relatedUser?.toString(),
+    relatedPost: notification.relatedPost?.toString(),
   },
 });
 

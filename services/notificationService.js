@@ -473,6 +473,31 @@ exports.createSecurityNotification = async (userId, title, message) => {
   }
 };
 
+// إشعار أشخاص بالقرب منك أو لديهم نفس الاهتمامات
+exports.createPeopleNearbyNotification = async (userId, matchCount) => {
+  try {
+    const existing = await Notification.findOne({
+      user: userId,
+      type: 'people_nearby',
+      createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+    });
+    if (existing) return null;
+    const notification = await Notification.createNotification({
+      user: userId,
+      type: 'people_nearby',
+      title: 'أشخاص قد يهمك التعرف عليهم',
+      message:
+        matchCount > 1
+          ? `لديك ${matchCount} أشخاص بالقرب منك أو يشتركون معك في الاهتمامات`
+          : 'شخص واحد بالقرب منك أو لديه نفس اهتماماتك',
+    });
+    return notification;
+  } catch (error) {
+    console.error('Error creating people nearby notification:', error);
+    return null;
+  }
+};
+
 // @desc    Create test notifications for development
 // @route   POST /api/v1/notifications/test
 // @access  Private/Admin

@@ -200,6 +200,12 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ["basic", "premium"],
     },
+    usedReferralCode: {
+      type: mongoose.Schema.ObjectId,
+      ref: "ReferralCode",
+      default: null,
+      // كود الإحالة المستخدم عند الاشتراك (مرة واحدة فقط لكل مستخدم)
+    },
 
     // Message Statistics
     messageCount: {

@@ -54,6 +54,15 @@ const paymentRequestSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    referralCode: {
+      type: mongoose.Schema.ObjectId,
+      ref: "ReferralCode",
+    },
+    originalAmount: {
+      type: Number,
+      min: [0, "Original amount cannot be negative"],
+      // السعر قبل تطبيق خصم كود الإحالة
+    },
   },
   { timestamps: true }
 );
@@ -80,6 +89,10 @@ paymentRequestSchema.pre(/^find/, function (next) {
     .populate({
       path: "reviewedBy",
       select: "name email adminType",
+    })
+    .populate({
+      path: "referralCode",
+      select: "code discountPercent",
     });
   next();
 });

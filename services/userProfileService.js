@@ -5,6 +5,9 @@ const { v4: uuidv4 } = require("uuid");
 const asyncHandler = require("express-async-handler");
 const ApiError = require("../utils/apiError");
 const User = require("../models/userModel");
+const {
+  createProfileViewNotification,
+} = require("./notificationService");
 
 // @desc    Update user about section
 // @route   PUT /api/v1/users/about
@@ -324,6 +327,11 @@ exports.getUserProfile = asyncHandler(async (req, res, next) => {
   }
 
   profileData.isFriend = isFriend;
+
+  // إشعار زيارة البروفايل: عندما يشاهد أحدهم بروفايلك (غير نفسك)
+  if (req.user._id.toString() !== userId) {
+    createProfileViewNotification(req.user._id, userId).catch(() => {});
+  }
 
   res.status(200).json({
     data: profileData,

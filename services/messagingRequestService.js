@@ -122,12 +122,13 @@ exports.sendMessagingRequest = asyncHandler(async (req, res, next) => {
     },
   ]);
 
-  // Create notification for receiver
+  // إشعار طلب التواصل أو عرض الصورة للمستقبل
+  const senderName = req.user.name || "شخص";
   await Notification.createNotification({
     user: receiverId,
     type: "messaging_request",
-    title: "New Messaging Request",
-    message: `${req.user.name} wants to start a conversation with you`,
+    title: "طلب تواصل جديد",
+    message: `${senderName} يريد بدء محادثة معك`,
     relatedUser: senderId,
     data: { requestId: messagingRequest._id },
   });

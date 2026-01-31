@@ -6,6 +6,7 @@ const Subscription = require("../models/subscriptionModel");
 const User = require("../models/userModel");
 const PaymentRequest = require("../models/paymentRequestModel");
 const SubscriptionCode = require("../models/subscriptionCodeModel");
+const ReferralCode = require("../models/referralCodeModel");
 const Wallet = require("../models/walletModel");
 const Transaction = require("../models/transactionModel");
 const rechargeService = require("./rechargeService");
@@ -160,6 +161,7 @@ exports.subscribeWithPaymentRequest = asyncHandler(async (req, res, next) => {
     paymentInstructions,
     paymentMethod,
     transactionReference,
+    referralCode: referralCodeInput,
   } = req.body;
   const userId = req.user._id;
 
@@ -187,15 +189,53 @@ exports.subscribeWithPaymentRequest = asyncHandler(async (req, res, next) => {
     );
   }
 
+  let amount = subscription.price;
+  let originalAmount = null;
+  let referralCodeId = null;
+
+  if (referralCodeInput && String(referralCodeInput).trim()) {
+    const codeStr = String(referralCodeInput).trim().toUpperCase();
+    const referralCode = await ReferralCode.findOne({ code: codeStr });
+
+    if (!referralCode) {
+      return next(
+        new ApiError("كود الإحالة غير صحيح أو منتهي الصلاحية", 400)
+      );
+    }
+    if (!referralCode.canBeUsed()) {
+      if (!referralCode.isActive) {
+        return next(new ApiError("كود الإحالة غير مفعّل", 400));
+      }
+      if (referralCode.isExpired()) {
+        return next(new ApiError("كود الإحالة منتهي الصلاحية", 400));
+      }
+      return next(new ApiError("كود الإحالة استُنفد عدد مرات الاستخدام", 400));
+    }
+
+    const user = await User.findById(userId).select("usedReferralCode");
+    if (user.usedReferralCode) {
+      return next(
+        new ApiError("لقد استخدمت كود إحالة مسبقاً. الخصم متاح لمرة واحدة فقط.", 400)
+      );
+    }
+
+    originalAmount = subscription.price;
+    const discount = (originalAmount * referralCode.discountPercent) / 100;
+    amount = Math.max(0, originalAmount - discount);
+    referralCodeId = referralCode._id;
+  }
+
   // Create payment request
   const paymentRequest = await PaymentRequest.create({
     user: userId,
     subscription: subscriptionId,
-    amount: subscription.price,
+    amount,
     currency: subscription.currency,
     paymentInstructions,
     paymentMethod: paymentMethod || "bank_transfer",
     transactionReference,
+    referralCode: referralCodeId,
+    originalAmount: originalAmount ?? undefined,
   });
 
   res.status(201).json({
@@ -388,11 +428,18 @@ exports.approvePaymentRequest = asyncHandler(async (req, res, next) => {
   endDate.setDate(endDate.getDate() + subscription.durationDays);
 
   // Update user subscription
-  await User.findByIdAndUpdate(paymentRequest.user, {
+  const updateUser = {
     isSubscribed: true,
     subscriptionEndDate: endDate,
     subscriptionPackage: subscription.packageType,
-  });
+  };
+  if (paymentRequest.referralCode) {
+    updateUser.usedReferralCode = paymentRequest.referralCode;
+    await ReferralCode.findByIdAndUpdate(paymentRequest.referralCode, {
+      $inc: { currentUses: 1 },
+    });
+  }
+  await User.findByIdAndUpdate(paymentRequest.user, updateUser);
 
   // Update request status
   paymentRequest.status = "approved";
@@ -583,5 +630,102 @@ exports.getSubscriptionCodes = asyncHandler(async (req, res) => {
   res.status(200).json({
     results: codes.length,
     data: codes,
+  });
+});
+
+// ============== Referral Codes (كود إحالة) - Admin only ==============
+
+// @desc    Create referral code (Admin only)
+// @route   POST /api/v1/subscriptions/referral-codes
+// @access  Private/Admin
+exports.createReferralCode = asyncHandler(async (req, res, next) => {
+  const { code, discountPercent, expiresAt, maxUses, description } = req.body;
+  const { _id: adminId } = req.admin;
+
+  let finalCode = code
+    ? String(code).trim().toUpperCase()
+    : ReferralCode.generateCode(8);
+
+  const existing = await ReferralCode.findOne({ code: finalCode });
+  if (existing) {
+    return next(new ApiError("كود الإحالة موجود مسبقاً. اختر كوداً آخر.", 400));
+  }
+
+  const referralCode = await ReferralCode.create({
+    code: finalCode,
+    discountPercent,
+    createdBy: adminId,
+    expiresAt: expiresAt || null,
+    maxUses: maxUses ?? null,
+    description: description || undefined,
+  });
+
+  res.status(201).json({
+    message: "تم إنشاء كود الإحالة بنجاح",
+    data: referralCode,
+  });
+});
+
+// @desc    Get all referral codes (Admin only)
+// @route   GET /api/v1/subscriptions/referral-codes
+// @access  Private/Admin
+exports.getReferralCodes = asyncHandler(async (req, res) => {
+  const features = new ApiFeatures(
+    ReferralCode.find().sort({ createdAt: -1 }),
+    req.query
+  )
+    .filter()
+    .sort()
+    .limitFields()
+    .search();
+
+  const codes = await features.mongooseQuery;
+
+  res.status(200).json({
+    results: codes.length,
+    data: codes,
+  });
+});
+
+// @desc    Update referral code (Admin only)
+// @route   PUT /api/v1/subscriptions/referral-codes/:id
+// @access  Private/Admin
+exports.updateReferralCode = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+  const { isActive, expiresAt, maxUses, description } = req.body;
+
+  const referralCode = await ReferralCode.findById(id);
+  if (!referralCode) {
+    return next(new ApiError("كود الإحالة غير موجود", 404));
+  }
+
+  if (isActive !== undefined) referralCode.isActive = isActive;
+  if (expiresAt !== undefined) referralCode.expiresAt = expiresAt;
+  if (maxUses !== undefined) referralCode.maxUses = maxUses;
+  if (description !== undefined) referralCode.description = description;
+
+  await referralCode.save();
+
+  res.status(200).json({
+    message: "تم تحديث كود الإحالة بنجاح",
+    data: referralCode,
+  });
+});
+
+// @desc    Delete referral code (Admin only)
+// @route   DELETE /api/v1/subscriptions/referral-codes/:id
+// @access  Private/Admin
+exports.deleteReferralCode = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+
+  const referralCode = await ReferralCode.findById(id);
+  if (!referralCode) {
+    return next(new ApiError("كود الإحالة غير موجود", 404));
+  }
+
+  await ReferralCode.findByIdAndDelete(id);
+
+  res.status(200).json({
+    message: "تم حذف كود الإحالة بنجاح",
   });
 });

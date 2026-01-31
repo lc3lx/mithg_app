@@ -3,6 +3,9 @@ const ApiError = require("../utils/apiError");
 const User = require("../models/userModel");
 const MessagingRequest = require("../models/messagingRequestModel");
 const Notification = require("../models/notificationModel");
+const {
+  createPeopleNearbyNotification,
+} = require("./notificationService");
 
 // Calculate compatibility score between two users
 const calculateCompatibilityScore = (user1, user2) => {
@@ -123,6 +126,13 @@ exports.getMatches = asyncHandler(async (req, res) => {
     .filter((match) => match.compatibilityScore >= minScore)
     .sort((a, b) => b.compatibilityScore - a.compatibilityScore)
     .slice(0, limit);
+
+  // إشعار أشخاص بالقرب منك أو لديهم نفس الاهتمامات (مرة واحدة كل 24 ساعة)
+  if (matchesWithScores.length > 0) {
+    createPeopleNearbyNotification(userId, matchesWithScores.length).catch(
+      () => {}
+    );
+  }
 
   res.status(200).json({
     results: matchesWithScores.length,

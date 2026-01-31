@@ -104,6 +104,12 @@ exports.subscribeWithPaymentRequestValidator = [
     .isLength({ max: 100 })
     .withMessage("Transaction reference cannot exceed 100 characters"),
 
+  body("referralCode")
+    .optional()
+    .trim()
+    .isLength({ min: 4, max: 32 })
+    .withMessage("Referral code must be between 4 and 32 characters"),
+
   validatorMiddleware,
 ];
 
@@ -164,6 +170,63 @@ exports.createSubscriptionCodeValidator = [
     .optional()
     .isInt({ min: 1, max: 1000 })
     .withMessage("Max uses must be between 1 and 1000"),
+
+  body("description")
+    .optional()
+    .isLength({ max: 200 })
+    .withMessage("Description cannot exceed 200 characters"),
+
+  validatorMiddleware,
+];
+
+// ============== Referral Code validators ==============
+
+exports.createReferralCodeValidator = [
+  body("code")
+    .optional()
+    .trim()
+    .isLength({ min: 4, max: 32 })
+    .withMessage("Code must be between 4 and 32 characters"),
+
+  body("discountPercent")
+    .isFloat({ min: 1, max: 100 })
+    .withMessage("Discount percentage must be between 1 and 100"),
+
+  body("expiresAt")
+    .optional()
+    .isISO8601()
+    .withMessage("Invalid expiration date format"),
+
+  body("maxUses")
+    .optional()
+    .isInt({ min: 1, max: 100000 })
+    .withMessage("Max uses must be between 1 and 100000"),
+
+  body("description")
+    .optional()
+    .isLength({ max: 200 })
+    .withMessage("Description cannot exceed 200 characters"),
+
+  validatorMiddleware,
+];
+
+exports.updateReferralCodeValidator = [
+  param("id").isMongoId().withMessage("Invalid referral code ID format"),
+
+  body("isActive")
+    .optional()
+    .isBoolean()
+    .withMessage("isActive must be a boolean"),
+
+  body("expiresAt")
+    .optional()
+    .isISO8601()
+    .withMessage("Invalid expiration date format"),
+
+  body("maxUses")
+    .optional()
+    .isInt({ min: 1, max: 100000 })
+    .withMessage("Max uses must be between 1 and 100000"),
 
   body("description")
     .optional()

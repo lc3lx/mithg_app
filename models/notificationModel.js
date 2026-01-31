@@ -20,7 +20,12 @@ const notificationSchema = new mongoose.Schema(
         "post_comment",
         "profile_view",
         "match_suggestion",
+        "people_nearby",
         "security_update",
+        "messaging_request",
+        "messaging_request_accepted",
+        "messaging_request_rejected",
+        "gallery_view",
         // Admin broadcast notifications
         "update",
         "promotion",
