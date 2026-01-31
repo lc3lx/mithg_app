@@ -1,3 +1,5 @@
+const fs = require("fs");
+const path = require("path");
 const sharp = require("sharp");
 const { v4: uuidv4 } = require("uuid");
 const asyncHandler = require("express-async-handler");
@@ -69,7 +71,7 @@ exports.addToGallery = asyncHandler(async (req, res, next) => {
     )}`;
 
     // For now, just save the file as-is
-    require("fs").writeFileSync(
+    fs.writeFileSync(
       `uploads/users/gallery/${filename}`,
       req.file.buffer
     );
@@ -218,8 +220,7 @@ exports.deleteGalleryItem = asyncHandler(async (req, res, next) => {
   }
 
   // Remove the file from filesystem
-  const fs = require("fs");
-  const path = require("path");
+
   const filePath = path.join("uploads/users/gallery", galleryItem.url);
 
   try {
@@ -290,9 +291,10 @@ exports.getUserProfile = asyncHandler(async (req, res, next) => {
   };
 
   // When friends are populated, each friend is an object with _id; when not, it's ObjectId
-  const friendIds = (user.friends || []).map((f) =>
-    f && typeof f === "object" && f._id ? f._id.toString() : (f && f.toString ? f.toString() : "")
-  );
+  const friendIds = (user.friends || []).map((f) => {
+    if (f && typeof f === "object" && f._id) return f._id.toString();
+    return f && f.toString ? f.toString() : "";
+  });
   const isFriend =
     req.user._id.toString() === userId ||
     friendIds.includes(req.user._id.toString());
