@@ -31,8 +31,9 @@ const {
   changeUserPassword,
   getLoggedUserData,
   updateLoggedUserPassword,
-
   deleteLoggedUserData,
+  freezeAccount,
+  permanentDeleteAccount,
   addToFavorites,
   getFriends,
   removeFromFavorites,
@@ -67,6 +68,8 @@ router.put(
   updateLoggedUserProfileInfo
 );
 router.delete("/deleteMe", deleteLoggedUserData);
+router.put("/freezeAccount", freezeAccount);
+router.delete("/permanentDelete", permanentDeleteAccount);
 
 // Image upload routes
 router.post(

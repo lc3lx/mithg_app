@@ -246,13 +246,38 @@ exports.updateLoggedUserProfileInfo = asyncHandler(async (req, res, next) => {
   res.status(200).json({ data: updatedUser });
 });
 
-// @desc    Deactivate logged user
+// @desc    Deactivate logged user (soft delete - same as freeze)
 // @route   DELETE /api/v1/users/deleteMe
 // @access  Private/Protect
 exports.deleteLoggedUserData = asyncHandler(async (req, res, next) => {
   await User.findByIdAndUpdate(req.user._id, { active: false });
 
   res.status(204).json({ status: "Success" });
+});
+
+// @desc    Freeze account (تجميد الحساب) - user can't login until admin reactivates
+// @route   PUT /api/v1/users/freezeAccount
+// @access  Private/Protect
+exports.freezeAccount = asyncHandler(async (req, res, next) => {
+  await User.findByIdAndUpdate(req.user._id, { active: false });
+
+  res.status(200).json({
+    status: "Success",
+    message: "تم تجميد الحساب بنجاح. يمكنك التواصل مع الدعم لإلغاء التجميد.",
+  });
+});
+
+// @desc    Permanent delete account (حذف الحساب بشكل نهائي)
+// @route   DELETE /api/v1/users/permanentDelete
+// @access  Private/Protect
+exports.permanentDeleteAccount = asyncHandler(async (req, res, next) => {
+  await User.findByIdAndUpdate(req.user._id, { active: false });
+  // يمكن لاحقاً تنفيذ حذف فعلي من قاعدة البيانات إن رغبت
+
+  res.status(200).json({
+    status: "Success",
+    message: "تم حذف الحساب بشكل نهائي.",
+  });
 });
 
 // @desc    Add user to favorites

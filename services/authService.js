@@ -40,6 +40,11 @@ exports.login = asyncHandler(async (req, res, next) => {
   if (!user) {
     return next(new ApiError("Invalid email or user not registered", 401));
   }
+  if (user.active === false) {
+    return next(
+      new ApiError("الحساب معطّل أو محذوف. تواصل مع الدعم لاستعادته.", 403)
+    );
+  }
   if (!(await bcrypt.compare(req.body.password, user.password))) {
     return next(new ApiError("Incorrect password", 401));
   }
@@ -74,7 +79,7 @@ exports.protect = asyncHandler(async (req, res, next) => {
   // 2) Verify token (no change happens, expired token)
   const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
 
-  // 3) Check if user exists
+  // 3) Check if user exists and is active
   const currentUser = await User.findById(decoded.userId);
   if (!currentUser) {
     return next(
@@ -82,6 +87,11 @@ exports.protect = asyncHandler(async (req, res, next) => {
         "The user that belong to this token does no longer exist",
         401
       )
+    );
+  }
+  if (currentUser.active === false) {
+    return next(
+      new ApiError("الحساب معطّل أو محذوف. لا يمكنك الوصول لهذه الصفحة.", 403)
     );
   }
 
