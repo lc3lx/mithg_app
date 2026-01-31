@@ -20,6 +20,7 @@
   "license": "ISC",
   "dependencies": {
     "@paypal/paypal-server-sdk": "^1.0.0",
+    "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "bcryptjs": "^2.4.3",
     "colors": "^1.4.0",
     "compression": "^1.7.4",
@@ -37,10 +38,11 @@
     "morgan": "^1.10.0",
     "multer": "^1.4.4",
     "nodemailer": "^6.7.2",
+    "qrcode": "^1.5.4",
     "sharp": "^0.29.3",
     "slugify": "^1.6.3",
-    "uuid": "^8.3.2",
-    "socket.io": "^4.7.5"
+    "socket.io": "^4.7.5",
+    "uuid": "^8.3.2"
   },
   "devDependencies": {
     "cross-env": "^10.1.0",

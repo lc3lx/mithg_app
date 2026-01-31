@@ -218,33 +218,39 @@ app.use(
   })
 );
 
-// Mount Routes
-mountRoutes(app);
-
-app.all("*", (req, res, next) => {
-  next(new ApiError(`Can't find this route: ${req.originalUrl}`, 400));
-});
-
-// Global error handling middleware for express
-app.use(globalError);
-
-// Create default admin if not exists
-
-const PORT = process.env.PORT || 8000;
-server.listen(PORT, async () => {
-  console.log(`🚀 App running on port ${PORT}`);
-  console.log(`🔌 Socket.io server is running`);
-  console.log(`🔌 Socket.io CORS origin:`, process.env.CLIENT_URL || "*");
-  
-  // طباعة namespaces بعد التأكد من وجودها
-  if (io && io.nsps) {
-    console.log(`🔌 Socket.io namespaces:`, Object.keys(io.nsps));
-  } else {
-    console.log(`🔌 Socket.io namespaces: Not initialized yet`);
+// Mount Routes (OTP is ESM, loaded async; path from __dirname for reliability)
+const startServer = async () => {
+  try {
+    const otpModule = await import("./otp/otp.routes.mjs");
+    app.use("/api/v1/otp", otpModule.default);
+    console.log("✅ OTP routes mounted at /api/v1/otp");
+  } catch (err) {
+    console.warn("⚠️ OTP routes not loaded:", err.message);
   }
 
-  // Create default admin
-});
+  mountRoutes(app);
+
+  app.all("*", (req, res, next) => {
+    next(new ApiError(`Can't find this route: ${req.originalUrl}`, 400));
+  });
+
+  app.use(globalError);
+
+  const PORT = process.env.PORT || 8000;
+  server.listen(PORT, async () => {
+    console.log(`🚀 App running on port ${PORT}`);
+    console.log(`🔌 Socket.io server is running`);
+    console.log(`🔌 Socket.io CORS origin:`, process.env.CLIENT_URL || "*");
+
+    if (io && io.nsps) {
+      console.log(`🔌 Socket.io namespaces:`, Object.keys(io.nsps));
+    } else {
+      console.log(`🔌 Socket.io namespaces: Not initialized yet`);
+    }
+  });
+};
+
+startServer();
 
 // Handle rejection outside express
 process.on("unhandledRejection", (err) => {
