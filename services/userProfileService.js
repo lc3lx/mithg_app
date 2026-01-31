@@ -262,12 +262,18 @@ exports.getUserProfile = asyncHandler(async (req, res, next) => {
     ],
   })
     .select(
-      "name age gender bio location profileImg coverImg gallery about isOnline lastSeen friends profileViews"
+      "name age gender bio location profileImg coverImg gallery about isOnline lastSeen friends profileViews blockedUsers"
     )
     .populate("friends", "name profileImg isOnline");
 
   if (!user) {
     return next(new ApiError("User not found", 404));
+  }
+
+  // إذا حظرك صاحب البروفيل فلا يمكنك مشاهدته
+  const blockedIds = (user.blockedUsers || []).map((id) => id.toString());
+  if (blockedIds.includes(req.user._id.toString())) {
+    return next(new ApiError("لا يمكنك مشاهدة هذا البروفيل", 403));
   }
 
   // Sort gallery by primary first, then by creation date

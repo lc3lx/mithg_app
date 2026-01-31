@@ -101,6 +101,22 @@ exports.getChat = asyncHandler(async (req, res, next) => {
     return next(new ApiError("Chat not found or access denied", 404));
   }
 
+  // إذا حظرك الطرف الآخر فلا يمكنك فتح المحادثة
+  const otherParticipantId = chat.participants.find(
+    (p) => p._id.toString() !== req.user._id.toString()
+  );
+  if (otherParticipantId) {
+    const otherUser = await User.findById(otherParticipantId._id || otherParticipantId)
+      .select("blockedUsers")
+      .lean();
+    if (otherUser) {
+      const blockedIds = (otherUser.blockedUsers || []).map((id) => id.toString());
+      if (blockedIds.includes(req.user._id.toString())) {
+        return next(new ApiError("لا يمكنك فتح هذه المحادثة", 403));
+      }
+    }
+  }
+
   // Get messages with pagination
   const messagesQuery = Message.find({ chat: id })
     .populate({
@@ -148,9 +164,46 @@ exports.createChat = asyncHandler(async (req, res, next) => {
   const { participantId, chatType = "direct" } = req.body;
 
   // Check if participant exists
-  const participant = await User.findById(participantId);
+  const participant = await User.findById(participantId).select(
+    "friends blockedUsers"
+  );
   if (!participant) {
     return next(new ApiError("Participant not found", 404));
+  }
+
+  const currentUser = await User.findById(req.user._id).select(
+    "friends blockedUsers"
+  );
+  if (!currentUser) {
+    return next(new ApiError("User not found", 404));
+  }
+
+  // يجب أن تكونا أصدقاء لبدء المحادثة
+  const currentFriends = (currentUser.friends || []).map((id) => id.toString());
+  const participantFriends = (participant.friends || []).map((id) =>
+    id.toString()
+  );
+  if (
+    !currentFriends.includes(participantId) ||
+    !participantFriends.includes(req.user._id.toString())
+  ) {
+    return next(
+      new ApiError("يجب أن تكونا أصدقاء لبدء المحادثة", 403)
+    );
+  }
+
+  // لا يمكن المراسلة إذا حظر أحد الطرفين الآخر
+  const participantBlocked = (participant.blockedUsers || []).map((id) =>
+    id.toString()
+  );
+  const currentBlocked = (currentUser.blockedUsers || []).map((id) =>
+    id.toString()
+  );
+  if (participantBlocked.includes(req.user._id.toString())) {
+    return next(new ApiError("لا يمكنك مراسلة هذا المستخدم", 403));
+  }
+  if (currentBlocked.includes(participantId)) {
+    return next(new ApiError("لا يمكنك مراسلة هذا المستخدم", 403));
   }
 
   // Check if chat already exists for direct chats
@@ -219,6 +272,27 @@ exports.sendMessage = asyncHandler(async (req, res, next) => {
         403
       )
     );
+  }
+
+  // التحقق من أن الطرف الآخر لا يزال صديقاً ولم يحظر المرسل
+  const otherId = chat.participants.find(
+    (p) => (p._id ? p._id.toString() : p.toString()) !== req.user._id.toString()
+  );
+  if (otherId) {
+    const otherUserId = otherId._id ? otherId._id.toString() : otherId.toString();
+    const otherUser = await User.findById(otherUserId)
+      .select("friends blockedUsers")
+      .lean();
+    if (otherUser) {
+      const otherBlocked = (otherUser.blockedUsers || []).map((id) => id.toString());
+      if (otherBlocked.includes(req.user._id.toString())) {
+        return next(new ApiError("تم حظرك من قبل هذا المستخدم", 403));
+      }
+      const otherFriends = (otherUser.friends || []).map((id) => id.toString());
+      if (!otherFriends.includes(req.user._id.toString())) {
+        return next(new ApiError("لا يمكنك إرسال رسائل بعد إلغاء الصداقة", 403));
+      }
+    }
   }
 
   // Create message

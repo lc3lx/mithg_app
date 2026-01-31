@@ -209,6 +209,36 @@ const socketHandler = (io) => {
           return;
         }
 
+        // التحقق من أن الطرف الآخر لا يزال صديقاً ولم يحظر المرسل
+        const otherParticipantIds = chat.participants
+          .map((p) => p.toString())
+          .filter((id) => id !== socket.userId);
+        if (otherParticipantIds.length > 0) {
+          const otherUser = await User.findById(otherParticipantIds[0])
+            .select("friends blockedUsers")
+            .lean();
+          if (otherUser) {
+            const otherBlocked = (otherUser.blockedUsers || []).map((id) =>
+              id.toString()
+            );
+            if (otherBlocked.includes(socket.userId)) {
+              socket.emit("error", {
+                message: "تم حظرك من قبل هذا المستخدم",
+              });
+              return;
+            }
+            const otherFriends = (otherUser.friends || []).map((id) =>
+              id.toString()
+            );
+            if (!otherFriends.includes(socket.userId)) {
+              socket.emit("error", {
+                message: "لا يمكنك إرسال رسائل بعد إلغاء الصداقة",
+              });
+              return;
+            }
+          }
+        }
+
         // فحص الكلمات الممنوعة للرسائل النصية
         let warningResult = null;
         if (content && messageType === "text") {
