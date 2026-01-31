@@ -150,7 +150,7 @@ if (process.env.NODE_ENV === "development") {
 }
 
 // Middlewares
-app.use(express.json({ limit: "20kb" }));
+app.use(express.json({ limit: "200kb" }));
 
 if (process.env.NODE_ENV === "development") {
   app.use(morgan("dev"));
@@ -171,7 +171,7 @@ const limiter = rateLimit({
 // Stricter limiter for authentication routes (disabled for development)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 50, // Increased to 50 attempts per 15 minutes for development
+  max: 150, // Increased to 50 attempts per 15 minutes for development
   message: {
     error:
       "Too many authentication attempts, please try again after 15 minutes",
@@ -183,7 +183,7 @@ const authLimiter = rateLimit({
 // Limiter for chat/message sending
 const chatLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 20, // 20 messages per minute
+  max: 100, // 20 messages per minute
   message: {
     error: "Too many messages sent, please slow down",
   },
@@ -194,7 +194,7 @@ const chatLimiter = rateLimit({
 // Limiter for profile views and likes
 const interactionLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 10, // 10 interactions per minute
+  max: 1000, // 10 interactions per minute
   message: {
     error: "Too many interactions, please slow down",
   },
