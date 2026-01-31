@@ -38,22 +38,29 @@ export function phoneToJid(phone) {
   return `${digits}@s.whatsapp.net`;
 }
 
+const WA_READY_TIMEOUT_MS = 45000; // 45s (أطول من 20s AwaitingInitialSync)
+
 /**
  * Send a WhatsApp text message. Resolves when connection is ready and message is sent.
+ * If WhatsApp is still connecting, waits up to WA_READY_TIMEOUT_MS for it to become ready.
  * @param {string} phone - E.164 style e.g. +963912345678
  * @param {string} text - Message body (e.g. Arabic OTP text)
  * @returns {Promise<void>}
  */
 export async function sendWhatsAppMessage(phone, text) {
-  if (!sock) throw new Error("WhatsApp not initialized");
-  if (!isReady) {
+  if (!sock || !isReady) {
     await Promise.race([
       readyPromise,
       new Promise((_, rej) =>
-        setTimeout(() => rej(new Error("WhatsApp connection timeout (30s)")), 30000)
+        setTimeout(
+          () => rej(new Error("WhatsApp connection timeout (45s). حاول مرة أخرى.")),
+          WA_READY_TIMEOUT_MS
+        )
       ),
     ]);
   }
+  if (!sock) throw new Error("WhatsApp not initialized");
+  if (!isReady) throw new Error("WhatsApp not ready");
   const jid = phoneToJid(phone);
   if (!jid) throw new Error("Invalid phone number");
   await sock.sendMessage(jid, { text });
