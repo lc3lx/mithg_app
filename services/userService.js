@@ -9,6 +9,7 @@ const { uploadSingleImage } = require("../middlewares/uploadImageMiddleware");
 const createToken = require("../utils/createToken");
 const User = require("../models/userModel");
 const Chat = require("../models/chatModel");
+const DeviceToken = require("../models/deviceTokenModel");
 const UserReport = require("../models/userReportModel");
 const { createFriendRequestNotification, createFriendRequestAcceptedNotification } = require("./notificationService");
 
@@ -267,12 +268,17 @@ exports.freezeAccount = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Permanent delete account (حذف الحساب بشكل نهائي)
+// @desc    Permanent delete account (حذف الحساب بشكل نهائي من قاعدة البيانات)
 // @route   DELETE /api/v1/users/permanentDelete
 // @access  Private/Protect
 exports.permanentDeleteAccount = asyncHandler(async (req, res, next) => {
-  await User.findByIdAndUpdate(req.user._id, { active: false });
-  // يمكن لاحقاً تنفيذ حذف فعلي من قاعدة البيانات إن رغبت
+  const userId = req.user._id;
+  const deleted = await User.findByIdAndDelete(userId);
+  if (!deleted) {
+    return next(new ApiError("المستخدم غير موجود أو تم حذفه مسبقاً.", 404));
+  }
+  // حذف توكنات الجهاز لهذا المستخدم حتى لا تُرسل له إشعارات
+  await DeviceToken.deleteMany({ user: userId });
 
   res.status(200).json({
     status: "Success",
