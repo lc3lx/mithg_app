@@ -116,8 +116,9 @@ router.delete(
   cancelFriendRequestValidator,
   cancelFriendRequest
 );
-router.get("/friend-requests", getFriendRequests);
-router.get("/friends/list", getFriends);
+// عرض طلبات الصداقة وقائمة الأصدقاء يتطلب اشتراكاً وتوثيقاً (تحقق باك + فرونت)
+router.get("/friend-requests", requireSubscriptionAndVerification, getFriendRequests);
+router.get("/friends/list", requireSubscriptionAndVerification, getFriends);
 router.delete("/friends/:userId", removeFriendValidator, removeFriend);
 router.post("/block/:userId", blockUserValidator, blockUser);
 router.post("/report/:userId", reportUserValidator, reportUser);

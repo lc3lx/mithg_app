@@ -23,10 +23,10 @@ const {
 
 const authService = require("../services/authService");
 const uploadImageMiddleware = require("../middlewares/uploadImageMiddleware");
+const { requireSubscriptionAndVerification } = require("../middlewares/subscriptionMiddleware");
 
 const router = express.Router();
 
-// All routes require authentication
 router.use(authService.protect);
 
 // About section
@@ -56,10 +56,8 @@ router.delete(
   deleteGalleryItem
 );
 
-// User profile
-router.get("/:userId/profile", getUserProfileValidator, getUserProfile);
-
-// All profiles
-router.get("/profiles", getAllProfilesValidator, getAllProfiles);
+// عرض الملف الشخصي وقائمة الملفات متاح فقط للمشتركين الموثقين (تحقق باك + فرونت)
+router.get("/profiles", getAllProfilesValidator, requireSubscriptionAndVerification, getAllProfiles);
+router.get("/:userId/profile", getUserProfileValidator, requireSubscriptionAndVerification, getUserProfile);
 
 module.exports = router;

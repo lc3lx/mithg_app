@@ -31,23 +31,23 @@ const router = express.Router();
 // All routes require authentication
 router.use(authService.protect);
 
-// Chat routes
-router.get("/", getChats);
+// Chat routes — عرض المحادثات والرسائل يتطلب اشتراكاً وتوثيقاً (مثل الفرونت)
+router.get("/", requireSubscriptionAndVerification, getChats);
 router.post("/", requireSubscriptionAndVerification, createChatValidator, createChat);
 
 // Polling for new messages
-router.get("/poll", pollMessages);
+router.get("/poll", requireSubscriptionAndVerification, pollMessages);
 
 // Chat specific routes
-router.get("/:id", getChatValidator, getChat);
-router.delete("/:id", deleteChatValidator, deleteChat);
+router.get("/:id", getChatValidator, requireSubscriptionAndVerification, getChat);
+router.delete("/:id", deleteChatValidator, requireSubscriptionAndVerification, deleteChat);
 
 // Message routes
 router.post("/:id/messages", requireSubscriptionAndVerification, sendMessageValidator, sendMessage);
-router.get("/:id/messages", getChatValidator, getChatMessages);
+router.get("/:id/messages", getChatValidator, requireSubscriptionAndVerification, getChatMessages);
 
 // Mark as read
-router.put("/:id/read", markAsReadValidator, markAsRead);
+router.put("/:id/read", markAsReadValidator, requireSubscriptionAndVerification, markAsRead);
 
 // Friends
 router.get("/friends/list", getFriends);

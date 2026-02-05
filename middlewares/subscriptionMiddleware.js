@@ -121,3 +121,25 @@ exports.hasActiveSubscription = async (userId) => {
     return false;
   }
 };
+
+// اشتراك فعال + حساب موثق (للاستخدام في السوكت وغيره خارج الـ middleware)
+exports.hasActiveSubscriptionAndVerification = async (userId) => {
+  try {
+    const user = await User.findById(userId).select(
+      'isSubscribed subscriptionEndDate identityVerified'
+    );
+    if (!user) return { ok: false, reason: 'not_found' };
+
+    const hasSub =
+      user.isSubscribed &&
+      (!user.subscriptionEndDate || user.subscriptionEndDate > new Date());
+    if (!hasSub) return { ok: false, reason: 'subscription' };
+
+    if (!user.identityVerified) return { ok: false, reason: 'verification' };
+
+    return { ok: true };
+  } catch (error) {
+    console.error('Error checking subscription and verification:', error);
+    return { ok: false, reason: 'error' };
+  }
+};

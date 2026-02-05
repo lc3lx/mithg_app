@@ -14,21 +14,22 @@ const {
 } = require("../utils/validators/matchingValidator");
 
 const authService = require("../services/authService");
+const { requireSubscriptionAndVerification } = require("../middlewares/subscriptionMiddleware");
 
 const router = express.Router();
 
-// All routes require authentication
 router.use(authService.protect);
 
-// Routes
-router.get("/", getMatches);
-router.get("/likes", getProfileLikes);
-router.post("/:userId/like", likeProfileValidator, likeProfile);
+// التطابقات والإعجابات متاحة فقط للمشتركين الموثقين (تحقق باك + فرونت)
+router.get("/", requireSubscriptionAndVerification, getMatches);
+router.get("/likes", requireSubscriptionAndVerification, getProfileLikes);
+router.post("/:userId/like", requireSubscriptionAndVerification, likeProfileValidator, likeProfile);
 router.get(
   "/:userId/mutual-friends",
+  requireSubscriptionAndVerification,
   getMutualFriendsValidator,
   getMutualFriends
 );
-router.get("/:userId", getMatchProfileValidator, getMatchProfile);
+router.get("/:userId", requireSubscriptionAndVerification, getMatchProfileValidator, getMatchProfile);
 
 module.exports = router;

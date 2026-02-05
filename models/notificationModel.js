@@ -135,7 +135,7 @@ notificationSchema.pre(/^find/, function (next) {
   next();
 });
 
-notificationSchema.post("save", async function (doc) {
+notificationSchema.post("save", async (doc) => {
   try {
     if (!doc.pushSent) {
       let relatedUserInfo = null;

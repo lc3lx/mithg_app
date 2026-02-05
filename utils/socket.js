@@ -5,6 +5,7 @@ const Chat = require("../models/chatModel");
 const Message = require("../models/messageModel");
 const Notification = require("../models/notificationModel");
 const { checkMessageAndWarn } = require("../services/userWarningsService");
+const { hasActiveSubscriptionAndVerification } = require("../middlewares/subscriptionMiddleware");
 
 // تخزين المستخدمين المتصلين
 const onlineUsers = new Map();
@@ -189,14 +190,19 @@ const socketHandler = (io) => {
           return;
         }
 
-        // التحقق من اشتراك المستخدم وحظره
-        const user = await User.findById(socket.userId);
-        if (!user.isSubscribed) {
+        // التحقق من اشتراك فعال + حساب موثق (باك + فرونت)
+        const check = await hasActiveSubscriptionAndVerification(socket.userId);
+        if (!check.ok) {
           socket.emit("error", {
-            message: "You must be subscribed to send messages",
+            message:
+              check.reason === "verification"
+                ? "هذه الميزة تتطلب توثيق الهوية. يرجى توثيق حسابك أولاً"
+                : "إرسال الرسائل متاح فقط للمستخدمين المشتركين. يرجى ترقية اشتراكك لإمكانية المراسلة",
           });
           return;
         }
+        const user = await User.findById(socket.userId);
+        if (!user) return;
 
         if (
           user.isBlocked &&
@@ -214,8 +220,13 @@ const socketHandler = (io) => {
         const myIdStr = (socket.userId && (socket.userId.toString ? socket.userId.toString() : socket.userId)) || "";
         const otherParticipantIds = chat.participants
           .map((p) => {
-            const id = p && (p._id !== undefined ? p._id : p.id !== undefined ? p.id : p);
-            return id ? (id.toString ? id.toString() : String(id)) : null;
+            if (!p) return null;
+            const { _id: pId, id: pIdAlt } = p;
+            let idVal = p;
+            if (pId !== undefined) idVal = pId;
+            else if (pIdAlt !== undefined) idVal = pIdAlt;
+            if (!idVal) return null;
+            return typeof idVal.toString === "function" ? idVal.toString() : String(idVal);
           })
           .filter(Boolean)
           .filter((id) => id !== myIdStr);
@@ -315,21 +326,27 @@ const socketHandler = (io) => {
               lastMessageTime: new Date(),
             });
 
-            for (const participantId of otherParticipants) {
-              await Chat.findByIdAndUpdate(
-                chatId,
-                { $inc: { "unreadCount.$[elem].count": 1 } },
-                { arrayFilters: [{ "elem.user": participantId }], upsert: true }
-              );
-              const participantSocketId = onlineUsers.get(participantId.toString());
-              if (participantSocketId) {
+            await Promise.all(
+              otherParticipants.map(async (participantId) => {
+                await Chat.findByIdAndUpdate(
+                  chatId,
+                  { $inc: { "unreadCount.$[elem].count": 1 } },
+                  {
+                    arrayFilters: [{ "elem.user": participantId }],
+                    upsert: true,
+                  }
+                );
+                const participantSocketId = onlineUsers.get(
+                  participantId.toString()
+                );
+                if (!participantSocketId) return;
                 const count = await getUnreadCount(chatId, participantId);
                 chatNamespace.to(participantSocketId).emit("chat_unread_count", {
                   chatId,
                   count,
                 });
-              }
-            }
+              })
+            );
 
             await Promise.all(
               otherParticipants.map((participantId) =>
@@ -346,9 +363,12 @@ const socketHandler = (io) => {
               )
             );
 
-            for (const participantId of otherParticipants) {
-              const participantSocketId = onlineUsers.get(participantId.toString());
-              if (participantSocketId) {
+            await Promise.all(
+              otherParticipants.map(async (participantId) => {
+                const participantSocketId = onlineUsers.get(
+                  participantId.toString()
+                );
+                if (!participantSocketId) return;
                 const unreadCount = await Notification.countDocuments({
                   user: participantId,
                   isRead: false,
@@ -359,8 +379,8 @@ const socketHandler = (io) => {
                   message: `${socket.user.name} sent you a message`,
                   unreadCount,
                 });
-              }
-            }
+              })
+            );
           } catch (err) {
             console.error("Chat background update error:", err);
           }
@@ -376,6 +396,16 @@ const socketHandler = (io) => {
       try {
         if (socket.role === "admin") return;
         const userId = socket.userId;
+        const check = await hasActiveSubscriptionAndVerification(userId);
+        if (!check.ok) {
+          socket.emit("error", {
+            message:
+              check.reason === "verification"
+                ? "هذه الميزة تتطلب توثيق الهوية. يرجى توثيق حسابك أولاً"
+                : "هذه الميزة متاحة فقط للمستخدمين المشتركين. يرجى ترقية اشتراكك للوصول إلى هذه الخدمة",
+          });
+          return;
+        }
 
         const chats = await Chat.find({
           participants: userId,
@@ -463,6 +493,16 @@ const socketHandler = (io) => {
           socket.emit("error", { message: "Chat id required" });
           return;
         }
+        const check = await hasActiveSubscriptionAndVerification(userId);
+        if (!check.ok) {
+          socket.emit("error", {
+            message:
+              check.reason === "verification"
+                ? "هذه الميزة تتطلب توثيق الهوية. يرجى توثيق حسابك أولاً"
+                : "هذه الميزة متاحة فقط للمستخدمين المشتركين. يرجى ترقية اشتراكك للوصول إلى هذه الخدمة",
+          });
+          return;
+        }
 
         const chat = await Chat.findOne({
           _id: chatId,
@@ -491,10 +531,11 @@ const socketHandler = (io) => {
           (p) => (p._id || p).toString() !== userId.toString()
         );
         if (otherParticipantId) {
-          const otherUser = await User.findById(
+          const otherId = (
             otherParticipantId._id || otherParticipantId
-          )
-            .select("blockedUsers")
+          ).toString();
+          const otherUser = await User.findById(otherId)
+            .select("blockedUsers friends")
             .lean();
           if (otherUser) {
             const blockedIds = (otherUser.blockedUsers || []).map((id) =>
@@ -503,6 +544,24 @@ const socketHandler = (io) => {
             if (blockedIds.includes(userId.toString())) {
               socket.emit("error", {
                 message: "لا يمكنك فتح هذه المحادثة",
+              });
+              return;
+            }
+            const currentUser = await User.findById(userId)
+              .select("friends")
+              .lean();
+            const myFriendIds = (currentUser?.friends || []).map((id) =>
+              id.toString()
+            );
+            const otherFriendIds = (otherUser.friends || []).map((id) =>
+              id.toString()
+            );
+            if (
+              !myFriendIds.includes(otherId) ||
+              !otherFriendIds.includes(userId.toString())
+            ) {
+              socket.emit("error", {
+                message: "يجب أن تكونا أصدقاء لفتح المحادثة",
               });
               return;
             }
@@ -545,6 +604,8 @@ const socketHandler = (io) => {
         if (socket.role === "admin") return;
         const { chatId } = data;
         if (!chatId) return;
+        const check = await hasActiveSubscriptionAndVerification(socket.userId);
+        if (!check.ok) return;
         const chat = await Chat.findOne({
           _id: chatId,
           isActive: true,
@@ -569,6 +630,8 @@ const socketHandler = (io) => {
           return;
         }
         const { chatId } = data;
+        const check = await hasActiveSubscriptionAndVerification(socket.userId);
+        if (!check.ok) return;
 
         // التحقق من أن المستخدم مشارك في الدردشة أو ولي أمر
         const chat = await Chat.findOne({

@@ -144,18 +144,28 @@ exports.getChat = asyncHandler(async (req, res, next) => {
     return next(new ApiError("Chat not found or access denied", 404));
   }
 
-  // إذا حظرك الطرف الآخر فلا يمكنك فتح المحادثة
+  // التحقق: الطرف الآخر لم يحظرك وأنكما لا تزالان صديقين
   const otherParticipantId = chat.participants.find(
     (p) => p._id.toString() !== req.user._id.toString()
   );
   if (otherParticipantId) {
-    const otherUser = await User.findById(otherParticipantId._id || otherParticipantId)
-      .select("blockedUsers")
+    const otherId = (otherParticipantId._id || otherParticipantId).toString();
+    const otherUser = await User.findById(otherId)
+      .select("blockedUsers friends")
       .lean();
     if (otherUser) {
       const blockedIds = (otherUser.blockedUsers || []).map((id) => id.toString());
       if (blockedIds.includes(req.user._id.toString())) {
         return next(new ApiError("لا يمكنك فتح هذه المحادثة", 403));
+      }
+      const myFriends = await User.findById(req.user._id).select("friends").lean();
+      const myFriendIds = (myFriends?.friends || []).map((id) => id.toString());
+      const otherFriendIds = (otherUser.friends || []).map((id) => id.toString());
+      if (
+        !myFriendIds.includes(otherId) ||
+        !otherFriendIds.includes(req.user._id.toString())
+      ) {
+        return next(new ApiError("يجب أن تكونا أصدقاء لفتح المحادثة", 403));
       }
     }
   }
@@ -369,7 +379,6 @@ exports.sendMessage = asyncHandler(async (req, res, next) => {
 exports.getChatMessages = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
 
-  // Check if user is participant in chat
   const chat = await Chat.findOne({
     _id: id,
     isActive: true,
@@ -377,10 +386,36 @@ exports.getChatMessages = asyncHandler(async (req, res, next) => {
       { participants: req.user._id },
       { guardians: req.user._id },
     ],
-  });
+  })
+    .populate({ path: "participants", select: "_id" });
 
   if (!chat) {
     return next(new ApiError("Chat not found or access denied", 404));
+  }
+
+  const otherParticipant = (chat.participants || []).find(
+    (p) => (p._id || p).toString() !== req.user._id.toString()
+  );
+  if (otherParticipant) {
+    const otherId = (otherParticipant._id || otherParticipant).toString();
+    const otherUser = await User.findById(otherId)
+      .select("blockedUsers friends")
+      .lean();
+    if (otherUser) {
+      const blockedIds = (otherUser.blockedUsers || []).map((id) => id.toString());
+      if (blockedIds.includes(req.user._id.toString())) {
+        return next(new ApiError("لا يمكنك فتح هذه المحادثة", 403));
+      }
+      const myFriends = await User.findById(req.user._id).select("friends").lean();
+      const myFriendIds = (myFriends?.friends || []).map((id) => id.toString());
+      const otherFriendIds = (otherUser.friends || []).map((id) => id.toString());
+      if (
+        !myFriendIds.includes(otherId) ||
+        !otherFriendIds.includes(req.user._id.toString())
+      ) {
+        return next(new ApiError("يجب أن تكونا أصدقاء لفتح المحادثة", 403));
+      }
+    }
   }
 
   const apiFeatures = new ApiFeatures(
@@ -413,7 +448,6 @@ exports.getChatMessages = asyncHandler(async (req, res, next) => {
 exports.markAsRead = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
 
-  // Check if user is participant in chat
   const chat = await Chat.findOne({
     _id: id,
     isActive: true,
@@ -421,10 +455,36 @@ exports.markAsRead = asyncHandler(async (req, res, next) => {
       { participants: req.user._id },
       { guardians: req.user._id },
     ],
-  });
+  })
+    .populate({ path: "participants", select: "_id" });
 
   if (!chat) {
     return next(new ApiError("Chat not found or access denied", 404));
+  }
+
+  const otherParticipant = (chat.participants || []).find(
+    (p) => (p._id || p).toString() !== req.user._id.toString()
+  );
+  if (otherParticipant) {
+    const otherId = (otherParticipant._id || otherParticipant).toString();
+    const otherUser = await User.findById(otherId)
+      .select("blockedUsers friends")
+      .lean();
+    if (otherUser) {
+      const blockedIds = (otherUser.blockedUsers || []).map((id) => id.toString());
+      if (blockedIds.includes(req.user._id.toString())) {
+        return next(new ApiError("لا يمكنك فتح هذه المحادثة", 403));
+      }
+      const myFriends = await User.findById(req.user._id).select("friends").lean();
+      const myFriendIds = (myFriends?.friends || []).map((id) => id.toString());
+      const otherFriendIds = (otherUser.friends || []).map((id) => id.toString());
+      if (
+        !myFriendIds.includes(otherId) ||
+        !otherFriendIds.includes(req.user._id.toString())
+      ) {
+        return next(new ApiError("يجب أن تكونا أصدقاء لفتح المحادثة", 403));
+      }
+    }
   }
 
   // Mark messages as read
