@@ -1,9 +1,7 @@
 const https = require("https");
 const DeviceToken = require("../models/deviceTokenModel");
 
-const { ONESIGNAL_APP_ID, ONESIGNAL_REST_API_KEY } = process.env;
-
-const sendOneSignalRequest = (payload) =>
+const sendOneSignalRequest = (payload, restApiKey) =>
   new Promise((resolve, reject) => {
     const body = JSON.stringify(payload);
     const req = https.request(
@@ -13,7 +11,7 @@ const sendOneSignalRequest = (payload) =>
         headers: {
           "Content-Type": "application/json",
           "Content-Length": Buffer.byteLength(body),
-          Authorization: `Basic ${ONESIGNAL_REST_API_KEY}`,
+          Authorization: `Basic ${restApiKey}`,
         },
       },
       (res) => {
@@ -39,8 +37,8 @@ const sendOneSignalRequest = (payload) =>
     req.end();
   });
 
-const buildPayload = (notification, playerIds) => ({
-  app_id: ONESIGNAL_APP_ID,
+const buildPayload = (notification, playerIds, appId) => ({
+  app_id: appId,
   include_player_ids: playerIds,
   headings: { en: notification.title },
   contents: { en: notification.message },
@@ -58,7 +56,9 @@ const buildPayload = (notification, playerIds) => ({
 });
 
 exports.sendPushToUser = async (userId, notification) => {
-  if (!ONESIGNAL_APP_ID || !ONESIGNAL_REST_API_KEY) {
+  const appId = process.env.ONESIGNAL_APP_ID;
+  const restApiKey = process.env.ONESIGNAL_REST_API_KEY;
+  if (!appId || !restApiKey) {
     console.warn(
       "[Push] OneSignal not configured: set ONESIGNAL_APP_ID and ONESIGNAL_REST_API_KEY in .env"
     );
@@ -81,8 +81,8 @@ exports.sendPushToUser = async (userId, notification) => {
   }
 
   try {
-    const payload = buildPayload(notification, playerIds);
-    await sendOneSignalRequest(payload);
+    const payload = buildPayload(notification, playerIds, appId);
+    await sendOneSignalRequest(payload, restApiKey);
     return true;
   } catch (err) {
     console.error("[Push] OneSignal send failed:", err.message);
