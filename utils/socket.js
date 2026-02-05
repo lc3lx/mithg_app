@@ -371,6 +371,174 @@ const socketHandler = (io) => {
       }
     });
 
+    // جلب قائمة المحادثات عبر السوكت (بديل REST)
+    socket.on("get_chats", async () => {
+      try {
+        if (socket.role === "admin") return;
+        const userId = socket.userId;
+
+        const chats = await Chat.find({
+          participants: userId,
+          isActive: true,
+        })
+          .populate({
+            path: "participants",
+            select: "name profileImg isOnline lastSeen",
+          })
+          .populate({
+            path: "lastMessage",
+            select: "content sender messageType createdAt isRead",
+            populate: { path: "sender", select: "name" },
+          })
+          .sort({ lastMessageTime: -1 })
+          .lean();
+
+        let chatsWithUnread = await Promise.all(
+          chats.map(async (chat) => {
+            const unreadEntry = (chat.unreadCount || []).find(
+              (c) => c.user && c.user.toString() === userId.toString()
+            );
+            return {
+              ...chat,
+              unreadCount: unreadEntry ? unreadEntry.count : 0,
+            };
+          })
+        );
+
+        const otherParticipantIds = chatsWithUnread
+          .map((c) => {
+            const other = (c.participants || []).find(
+              (p) => (p._id || p).toString() !== userId.toString()
+            );
+            return other ? (other._id || other).toString() : null;
+          })
+          .filter(Boolean);
+
+        if (otherParticipantIds.length > 0) {
+          const usersWhoBlockedMe = await User.find(
+            { _id: { $in: otherParticipantIds }, blockedUsers: userId },
+            { _id: 1 }
+          )
+            .lean()
+            .then((list) => list.map((u) => u._id.toString()));
+
+          chatsWithUnread = chatsWithUnread.filter((c) => {
+            const other = (c.participants || []).find(
+              (p) => (p._id || p).toString() !== userId.toString()
+            );
+            if (!other) return true;
+            const otherId = (other._id || other).toString();
+            return !usersWhoBlockedMe.includes(otherId);
+          });
+        }
+
+        const currentUser = await User.findById(userId).select("friends").lean();
+        const friendIds = (currentUser?.friends || []).map((id) => id.toString());
+
+        chatsWithUnread = chatsWithUnread.filter((c) => {
+          const participants = c.participants || [];
+          if (participants.length !== 2) return true;
+          const other = participants.find(
+            (p) => (p._id || p).toString() !== userId.toString()
+          );
+          if (!other) return true;
+          const otherId = (other._id || other).toString();
+          return friendIds.includes(otherId);
+        });
+
+        socket.emit("chats_list", { data: chatsWithUnread });
+      } catch (err) {
+        console.error("get_chats error:", err);
+        socket.emit("error", { message: "Failed to load chats" });
+      }
+    });
+
+    // جلب تفاصيل محادثة + رسائل عبر السوكت (بديل REST، بدون تحديد كمقروءة)
+    socket.on("get_chat", async (data) => {
+      try {
+        if (socket.role === "admin") return;
+        const { chatId } = data;
+        const userId = socket.userId;
+        if (!chatId) {
+          socket.emit("error", { message: "Chat id required" });
+          return;
+        }
+
+        const chat = await Chat.findOne({
+          _id: chatId,
+          isActive: true,
+          $or: [
+            { participants: userId },
+            { guardians: userId },
+          ],
+        })
+          .populate({
+            path: "participants",
+            select: "name profileImg isOnline lastSeen",
+          })
+          .populate({
+            path: "lastMessage",
+            select: "content sender messageType createdAt",
+          })
+          .lean();
+
+        if (!chat) {
+          socket.emit("error", { message: "Chat not found or access denied" });
+          return;
+        }
+
+        const otherParticipantId = (chat.participants || []).find(
+          (p) => (p._id || p).toString() !== userId.toString()
+        );
+        if (otherParticipantId) {
+          const otherUser = await User.findById(
+            otherParticipantId._id || otherParticipantId
+          )
+            .select("blockedUsers")
+            .lean();
+          if (otherUser) {
+            const blockedIds = (otherUser.blockedUsers || []).map((id) =>
+              id.toString()
+            );
+            if (blockedIds.includes(userId.toString())) {
+              socket.emit("error", {
+                message: "لا يمكنك فتح هذه المحادثة",
+              });
+              return;
+            }
+          }
+        }
+
+        const messages = await Message.find({ chat: chatId })
+          .populate({
+            path: "sender",
+            select: "name profileImg isOnline",
+          })
+          .populate({
+            path: "replyTo",
+            select: "content sender messageType",
+          })
+          .sort({ createdAt: 1 })
+          .limit(100)
+          .lean();
+
+        const unreadEntry = (chat.unreadCount || []).find(
+          (c) => c.user && c.user.toString() === userId.toString()
+        );
+        const chatWithUnread = {
+          ...chat,
+          unreadCount: unreadEntry ? unreadEntry.count : 0,
+        };
+
+        socket.emit("chat_detail", {
+          data: { chat: chatWithUnread, messages },
+        });
+      } catch (err) {
+        console.error("get_chat error:", err);
+        socket.emit("error", { message: "Failed to load chat" });
+      }
+    });
+
     // الانضمام لغرفة دردشة (للمحادثات الجديدة أو عند فتح محادثة)
     socket.on("join_chat", async (data) => {
       try {
