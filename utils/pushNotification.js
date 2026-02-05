@@ -60,6 +60,9 @@ const buildPayload = (notification, playerIds) => ({
 
 exports.sendPushToUser = async (userId, notification) => {
   if (!ONESIGNAL_APP_ID || !ONESIGNAL_REST_API_KEY) {
+    console.warn(
+      "[Push] OneSignal not configured: set ONESIGNAL_APP_ID and ONESIGNAL_REST_API_KEY in .env"
+    );
     return false;
   }
 
@@ -70,11 +73,21 @@ exports.sendPushToUser = async (userId, notification) => {
 
   const playerIds = tokens.map((token) => token.playerId).filter(Boolean);
   if (playerIds.length === 0) {
+    if (process.env.NODE_ENV === "development") {
+      console.warn(
+        `[Push] No device tokens for user ${userId}; user must open app and log in to register device.`
+      );
+    }
     return false;
   }
 
-  const payload = buildPayload(notification, playerIds);
-  await sendOneSignalRequest(payload);
-  return true;
+  try {
+    const payload = buildPayload(notification, playerIds);
+    await sendOneSignalRequest(payload);
+    return true;
+  } catch (err) {
+    console.error("[Push] OneSignal send failed:", err.message);
+    return false;
+  }
 };
 

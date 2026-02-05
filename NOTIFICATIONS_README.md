@@ -212,6 +212,21 @@ class NotificationCubit extends Cubit<NotificationState> {
 4. **الحالة**: إدارة حالة الإشعارات بشكل صحيح (مقروء/غير مقروء)
 5. **الإشعارات الدفعية**: مُفعّلة عبر OneSignal (بدون Firebase). تأكد من تسجيل الجهاز بعد تسجيل الدخول (POST /api/v1/device-tokens) حتى تصل الإشعارات عندما التطبيق مغلق.
 
+## استكشاف أخطاء الإشعارات الدفعية (Push)
+
+### الإشعار لا يصل أبداً (لا داخل التطبيق ولا خارجه)
+1. **الـ Backend (.env):** تأكد من وجود القيم:
+   - `ONESIGNAL_APP_ID` = نفس App ID في تطبيق Flutter (OneSignal Dashboard)
+   - `ONESIGNAL_REST_API_KEY` = من OneSignal Dashboard → Settings → Keys & IDs (REST API Key)
+2. **تسجيل الجهاز:** بعد تسجيل الدخول يجب أن يُستدعى `POST /api/v1/device-tokens` بـ `playerId` و `platform`. تحقق من جدول `device_tokens` أن للشخص سجلات بـ `isActive: true`.
+3. **Android:** إذا كان التطبيق على Android فقط، تأكد من:
+   - إعداد مشروع Firebase وإضافة `google-services.json` في `android/app` إذا طلبه OneSignal في لوحة التحكم.
+   - عدم منع التطبيق من التشغيل في الخلفية (إعدادات البطارية / تحسين الطاقة).
+4. **OneSignal Dashboard:** من "Delivery" أو "Sent Messages" تحقق أن الإشعارات تُرسل ولا تظهر أخطاء.
+
+### النقر على الإشعار لا يفتح صفحة الإشعارات
+- تم إعداد OneSignal في Flutter مع `addClickListener`: عند النقر على أي إشعار (التطبيق مفتوح أو في الخلفية أو مغلق) يتم التوجيه إلى صفحة الإشعارات تلقائياً. تأكد أنك تشغّل تطبيق المستخدم (user flavor) وليس تطبيق الأدمن.
+
 ## اختبار النظام
 
 1. قم بتشغيل seed script لإنشاء بيانات تجريبية
