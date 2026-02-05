@@ -371,6 +371,28 @@ const socketHandler = (io) => {
       }
     });
 
+    // الانضمام لغرفة دردشة (للمحادثات الجديدة أو عند فتح محادثة)
+    socket.on("join_chat", async (data) => {
+      try {
+        if (socket.role === "admin") return;
+        const { chatId } = data;
+        if (!chatId) return;
+        const chat = await Chat.findOne({
+          _id: chatId,
+          isActive: true,
+          $or: [
+            { participants: socket.userId },
+            { guardians: socket.userId },
+          ],
+        });
+        if (chat) {
+          socket.join(chatId.toString());
+        }
+      } catch (err) {
+        console.error("join_chat error:", err);
+      }
+    });
+
     // تحديد الرسائل كمقروءة
     socket.on("mark_as_read", async (data) => {
       try {
