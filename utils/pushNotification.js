@@ -1,8 +1,7 @@
 const https = require("https");
 const DeviceToken = require("../models/deviceTokenModel");
 
-const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID;
-const ONESIGNAL_REST_API_KEY = process.env.ONESIGNAL_REST_API_KEY;
+const { ONESIGNAL_APP_ID, ONESIGNAL_REST_API_KEY } = process.env;
 
 const sendOneSignalRequest = (payload) =>
   new Promise((resolve, reject) => {
