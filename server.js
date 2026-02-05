@@ -14,7 +14,9 @@ const { Server } = require("socket.io");
 const supportSocket = require("./utils/supportSocket");
 const chatSocket = require("./utils/socket");
 
-dotenv.config();
+// تحميل المتغيرات من مجلد backend (غضّ النظر عن cwd عند تشغيل pm2 أو غيره)
+
+dotenv.config({ path: path.join(__dirname, ".env") });
 const ApiError = require("./utils/apiError");
 const globalError = require("./middlewares/errorMiddleware");
 const dbConnection = require("./config/database");
