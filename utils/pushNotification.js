@@ -37,25 +37,33 @@ const sendOneSignalRequest = (payload, restApiKey) =>
     req.end();
   });
 
-const buildPayload = (notification, playerIds, appId) => ({
-  app_id: appId,
-  include_player_ids: playerIds,
-  headings: { en: notification.title },
-  contents: { en: notification.message },
-  // صوت الإشعار عند وصوله (التطبيق مغلق أو في الخلفية)
-  ios_sound: "default",
-  android_sound: "default",
-  priority: 10,
-  data: {
+const buildPayload = (notification, playerIds, appId, relatedUserInfo = null) => {
+  const data = {
     notificationId: notification._id?.toString(),
     type: notification.type,
     relatedChat: notification.relatedChat?.toString(),
     relatedUser: notification.relatedUser?.toString(),
     relatedPost: notification.relatedPost?.toString(),
-  },
-});
+  };
+  if (relatedUserInfo) {
+    if (relatedUserInfo.relatedUserName != null)
+      data.relatedUserName = String(relatedUserInfo.relatedUserName);
+    if (relatedUserInfo.relatedUserProfileImg != null)
+      data.relatedUserProfileImg = String(relatedUserInfo.relatedUserProfileImg);
+  }
+  return {
+    app_id: appId,
+    include_player_ids: playerIds,
+    headings: { en: notification.title },
+    contents: { en: notification.message },
+    ios_sound: "default",
+    android_sound: "default",
+    priority: 10,
+    data,
+  };
+};
 
-exports.sendPushToUser = async (userId, notification) => {
+exports.sendPushToUser = async (userId, notification, relatedUserInfo = null) => {
   const appId = process.env.ONESIGNAL_APP_ID;
   const restApiKey = process.env.ONESIGNAL_REST_API_KEY;
   if (!appId || !restApiKey) {
@@ -81,7 +89,12 @@ exports.sendPushToUser = async (userId, notification) => {
   }
 
   try {
-    const payload = buildPayload(notification, playerIds, appId);
+    const payload = buildPayload(
+      notification,
+      playerIds,
+      appId,
+      relatedUserInfo
+    );
     await sendOneSignalRequest(payload, restApiKey);
     return true;
   } catch (err) {

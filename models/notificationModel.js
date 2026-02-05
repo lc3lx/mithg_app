@@ -136,10 +136,25 @@ notificationSchema.pre(/^find/, function (next) {
 });
 
 notificationSchema.post("save", async function (doc) {
-  // إرسال push notification
   try {
     if (!doc.pushSent) {
-      await sendPushToUser(doc.user, doc);
+      let relatedUserInfo = null;
+      if (doc.relatedUser) {
+        const u = await User.findById(doc.relatedUser)
+          .select("name profileImg")
+          .lean();
+        if (u) {
+          const profileImg =
+            u.profileImg && !u.profileImg.startsWith("http")
+              ? `${process.env.BASE_URL || ""}/uploads/users/${u.profileImg}`
+              : u.profileImg;
+          relatedUserInfo = {
+            relatedUserName: u.name,
+            relatedUserProfileImg: profileImg || undefined,
+          };
+        }
+      }
+      await sendPushToUser(doc.user, doc, relatedUserInfo);
       await doc.constructor.updateOne(
         { _id: doc._id },
         { pushSent: true, pushSentAt: new Date() }
