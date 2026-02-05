@@ -82,37 +82,46 @@ messageSchema.index({ sender: 1, createdAt: -1 });
 messageSchema.index({ isArchived: 1, archivedAt: 1 });
 messageSchema.index({ createdAt: 1, isArchived: 1 });
 
-// Update chat's last message when a new message is created
+// Update chat's last message when a new message is created (بدون استدعاء chat.save() لتجنب خطأ التحقق من عدد المشاركين)
 messageSchema.post("save", async function () {
-  await mongoose.model("Chat").findByIdAndUpdate(this.chat, {
+  const Chat = mongoose.model("Chat");
+
+  await Chat.findByIdAndUpdate(this.chat, {
     lastMessage: this._id,
     lastMessageTime: this.createdAt,
   });
 
-  // Update unread count for other participants
-  const chat = await mongoose.model("Chat").findById(this.chat);
-  if (chat) {
-    const otherParticipants = chat.participants.filter(
-      (p) => p.toString() !== this.sender.toString()
-    );
+  // تحديث عداد غير المقروءة عبر findByIdAndUpdate فقط (لا تحميل المستند ولا .save())
+  const chatDoc = await Chat.findById(this.chat)
+    .select("participants unreadCount")
+    .lean();
+  if (chatDoc && chatDoc.participants && chatDoc.participants.length) {
+    const senderStr = this.sender.toString();
+    const otherIds = chatDoc.participants
+      .map((p) => (p && p._id ? p._id.toString() : p.toString()))
+      .filter((id) => id !== senderStr);
 
-    // Increment unread count for each other participant
-    otherParticipants.forEach((participant) => {
-      const existingUnread = chat.unreadCount.find(
-        (uc) => uc.user.toString() === participant.toString()
+    for (const otherId of otherIds) {
+      const otherOid = mongoose.Types.ObjectId.isValid(otherId)
+        ? new mongoose.Types.ObjectId(otherId)
+        : otherId;
+      const hasEntry = (chatDoc.unreadCount || []).some(
+        (uc) => (uc.user && uc.user.toString()) === otherId
       );
-
-      if (existingUnread) {
-        existingUnread.count += 1;
+      if (hasEntry) {
+        await Chat.findByIdAndUpdate(
+          this.chat,
+          { $inc: { "unreadCount.$[elem].count": 1 } },
+          { arrayFilters: [{ "elem.user": otherOid }] }
+        );
       } else {
-        chat.unreadCount.push({ user: participant, count: 1 });
+        await Chat.findByIdAndUpdate(this.chat, {
+          $push: { unreadCount: { user: otherOid, count: 1 } },
+        });
       }
-    });
-
-    await chat.save();
+    }
   }
 
-  // Increment user's message count
   await mongoose.model("User").findByIdAndUpdate(this.sender, {
     $inc: { messageCount: 1 },
   });
