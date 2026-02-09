@@ -6,14 +6,20 @@ exports.blockUserValidator = [
   param("id").isMongoId().withMessage("Invalid user ID format"),
 
   body("blockReason")
+    .optional()
     .trim()
-    .isLength({ min: 5, max: 200 })
-    .withMessage("Block reason must be between 5 and 200 characters"),
+    .isLength({ min: 0, max: 200 })
+    .withMessage("Block reason must be at most 200 characters"),
 
   body("blockDurationHours")
     .optional()
-    .isInt({ min: 1, max: 168 })
-    .withMessage("Block duration must be between 1 and 168 hours"),
+    .isInt({ min: 1 })
+    .withMessage("Block duration must be a positive number of hours"),
+
+  body("fullBlock")
+    .optional()
+    .isBoolean()
+    .withMessage("fullBlock must be true or false"),
 
   validatorMiddleware,
 ];

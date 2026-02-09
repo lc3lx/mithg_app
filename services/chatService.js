@@ -611,24 +611,11 @@ exports.deleteChat = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get all chats for admin monitoring
+// @desc    Get all chats for admin monitoring — جميع المحادثات بدون فلتر جنس
 // @route   GET /api/v1/admins/chats
 // @access  Private/Admin
 exports.getAllChats = asyncHandler(async (req, res) => {
-  const { adminType } = req.admin;
-
-  // Build filter based on admin type
-  let filter = { isActive: true };
-  
-  // Filter by gender if not super admin
-  if (adminType !== "super") {
-    // Get all users of the admin's gender type
-    const usersOfGender = await User.find({ gender: adminType }).select("_id");
-    const userIds = usersOfGender.map(u => u._id);
-    
-    // Filter chats where at least one participant matches admin's gender
-    filter.participants = { $in: userIds };
-  }
+  const filter = { isActive: true };
 
   const documentsCounts = await Chat.countDocuments(filter);
 
@@ -780,25 +767,11 @@ exports.cleanupChatMessages = asyncHandler(async (req, res) => {
 // @access  Private/Admin
 exports.getChatMessagesForAdmin = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
-  const { adminType } = req.admin;
 
   // Get chat
   const chat = await Chat.findById(id);
   if (!chat) {
     return next(new ApiError("Chat not found", 404));
-  }
-
-  // Check admin permissions based on admin type
-  if (adminType !== "super") {
-    // Check if any participant matches admin's gender
-    const participants = await User.find({ _id: { $in: chat.participants } });
-    const hasMatchingGender = participants.some(p => p.gender === adminType);
-    
-    if (!hasMatchingGender) {
-      return next(
-        new ApiError("You do not have permission to view this chat", 403)
-      );
-    }
   }
 
   const apiFeatures = new ApiFeatures(
@@ -825,12 +798,11 @@ exports.getChatMessagesForAdmin = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get single chat for admin monitoring
+// @desc    Get single chat for admin monitoring — يمكن فتح أي محادثة بين أي اثنين
 // @route   GET /api/v1/admins/chats/:id
 // @access  Private/Admin
 exports.getChatForAdmin = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
-  const { adminType } = req.admin;
 
   const chat = await Chat.findById(id)
     .populate({
@@ -850,19 +822,6 @@ exports.getChatForAdmin = asyncHandler(async (req, res, next) => {
     return next(new ApiError("Chat not found", 404));
   }
 
-  // Check admin permissions based on admin type
-  if (adminType !== "super") {
-    // Check if any participant matches admin's gender
-    const participants = await User.find({ _id: { $in: chat.participants } });
-    const hasMatchingGender = participants.some(p => p.gender === adminType);
-    
-    if (!hasMatchingGender) {
-      return next(
-        new ApiError("You do not have permission to view this chat", 403)
-      );
-    }
-  }
-
   // Get message counts
   const totalMessages = await Message.countDocuments({ chat: id });
   const unreadMessages = await Message.countDocuments({
@@ -879,21 +838,11 @@ exports.getChatForAdmin = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get chats with banned words violations
+// @desc    Get chats with banned words violations — جميع المحادثات المخالفة
 // @route   GET /api/v1/admins/chats/violations
 // @access  Private/Admin
 exports.getChatViolations = asyncHandler(async (req, res) => {
-  const { adminType } = req.admin;
-
-  // Build filter based on admin type
-  let filter = { isActive: true };
-  
-  // Filter by gender if not super admin
-  if (adminType !== "super") {
-    const usersOfGender = await User.find({ gender: adminType }).select("_id");
-    const userIds = usersOfGender.map(u => u._id);
-    filter.participants = { $in: userIds };
-  }
+  const filter = { isActive: true };
 
   // Get all warnings related to chats
   const warnings = await UserWarnings.find({

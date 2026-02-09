@@ -48,6 +48,60 @@ exports.login = asyncHandler(async (req, res, next) => {
   if (!(await bcrypt.compare(req.body.password, user.password))) {
     return next(new ApiError("Incorrect password", 401));
   }
+
+  // التحقق من الحظر (حساب أو حظر شامل: جوال / IP / جهاز)
+  if (user.isBlocked && user.blockedUntil && user.blockedUntil > new Date()) {
+    return next(
+      new ApiError(
+        `الحساب محظور حتى ${user.blockedUntil.toLocaleString('ar-SA')}. تواصل مع الدعم.`,
+        403
+      )
+    );
+  }
+  const clientIp = (req.headers["x-forwarded-for"] || req.ip || "").toString().split(",")[0].trim();
+  const clientDeviceId = req.body.deviceId || req.body.device_id || null;
+  const blockedByPhone = await User.findOne({
+    isBlocked: true,
+    blockedUntil: { $gt: new Date() },
+    "blockedIdentifiers.phone": user.phone,
+  }).select("_id");
+  if (blockedByPhone) {
+    return next(
+      new ApiError("رقم الجوال أو الجهاز أو العنوان مرتبط بحساب محظور. تواصل مع الدعم.", 403)
+    );
+  }
+  if (clientIp) {
+    const blockedByIp = await User.findOne({
+      isBlocked: true,
+      blockedUntil: { $gt: new Date() },
+      blockedIdentifiers: { $exists: true, $ne: null },
+      "blockedIdentifiers.ips": clientIp,
+    }).select("_id");
+    if (blockedByIp) {
+      return next(
+        new ApiError("رقم الجوال أو الجهاز أو العنوان مرتبط بحساب محظور. تواصل مع الدعم.", 403)
+      );
+    }
+  }
+  if (clientDeviceId) {
+    const blockedByDevice = await User.findOne({
+      isBlocked: true,
+      blockedUntil: { $gt: new Date() },
+      blockedIdentifiers: { $exists: true, $ne: null },
+      "blockedIdentifiers.deviceIds": clientDeviceId,
+    }).select("_id");
+    if (blockedByDevice) {
+      return next(
+        new ApiError("رقم الجوال أو الجهاز أو العنوان مرتبط بحساب محظور. تواصل مع الدعم.", 403)
+      );
+    }
+  }
+
+  // حفظ آخر IP و deviceId لتستخدم عند الحظر الشامل
+  user.lastLoginIp = clientIp || user.lastLoginIp;
+  if (clientDeviceId) user.lastDeviceId = clientDeviceId;
+  await user.save({ validateBeforeSave: false });
+
   // 3) generate token
   const token = createToken(user._id);
 

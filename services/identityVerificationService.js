@@ -209,9 +209,27 @@ exports.getAllVerificationRequests = asyncHandler(async (req, res) => {
     filter.status = req.query.status;
   }
 
+  // فلترة بالتاريخ: من تاريخ / إلى تاريخ
+  if (req.query.fromDate) {
+    const from = new Date(req.query.fromDate);
+    from.setHours(0, 0, 0, 0);
+    filter.createdAt = filter.createdAt || {};
+    filter.createdAt.$gte = from;
+  }
+  if (req.query.toDate) {
+    const to = new Date(req.query.toDate);
+    to.setHours(23, 59, 59, 999);
+    filter.createdAt = filter.createdAt || {};
+    filter.createdAt.$lte = to;
+  }
+
+  const queryForApiFeatures = { ...req.query };
+  delete queryForApiFeatures.fromDate;
+  delete queryForApiFeatures.toDate;
+
   const features = new ApiFeatures(
     IdentityVerification.find(filter).sort({ createdAt: -1 }),
-    req.query
+    queryForApiFeatures
   )
     .filter()
     .sort()

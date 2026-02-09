@@ -311,6 +311,14 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.ObjectId,
       ref: "Admin",
     },
+    // حظر شامل: عند الإلغاء تُرفع كلها (IP + جهاز + جوال)
+    blockedIdentifiers: {
+      phone: { type: String, trim: true },
+      ips: [{ type: String, trim: true }],
+      deviceIds: [{ type: String, trim: true }],
+    },
+    lastLoginIp: { type: String, trim: true },
+    lastDeviceId: { type: String, trim: true },
     warningCount: {
       type: Number,
       default: 0,

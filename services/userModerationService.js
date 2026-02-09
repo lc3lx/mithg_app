@@ -10,7 +10,7 @@ const UserWarnings = require("../models/userWarningsModel");
 // @access  Private/Admin
 exports.blockUser = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
-  const { blockReason, blockDurationHours } = req.body;
+  const { blockReason, blockDurationHours, fullBlock } = req.body;
   const adminId = req.admin._id;
 
   const user = await User.findById(id);
@@ -39,6 +39,18 @@ exports.blockUser = asyncHandler(async (req, res, next) => {
   user.blockedUntil = blockedUntil;
   user.blockReason = blockReason || "Manual block by admin";
   user.blockedBy = adminId;
+
+  // حظر شامل: IP + جهاز + جوال — عند إلغاء الحظر تُرفع كلها
+  if (fullBlock) {
+    const ips = [].concat(user.lastLoginIp).filter(Boolean);
+    const deviceIds = [].concat(user.lastDeviceId).filter(Boolean);
+    user.blockedIdentifiers = {
+      phone: user.phone || undefined,
+      ips,
+      deviceIds,
+    };
+  }
+
   await user.save();
 
   // Populate admin info
@@ -79,11 +91,12 @@ exports.unblockUser = asyncHandler(async (req, res, next) => {
     return next(new ApiError("User is not blocked", 400));
   }
 
-  // Update user
+  // Update user — إزالة الحظر والحظر الشامل (IP + جهاز + جوال)
   user.isBlocked = false;
   user.blockedUntil = null;
   user.blockReason = null;
   user.blockedBy = null;
+  user.blockedIdentifiers = undefined;
   await user.save();
 
   res.status(200).json({
@@ -249,6 +262,7 @@ exports.resetUserWarnings = asyncHandler(async (req, res, next) => {
     user.blockedUntil = null;
     user.blockReason = null;
     user.blockedBy = null;
+    user.blockedIdentifiers = undefined;
   }
 
   await user.save();
