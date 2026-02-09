@@ -39,6 +39,13 @@ const userSchema = new mongoose.Schema(
     },
     phoneVerificationCode: String,
     phoneVerificationExpires: Date,
+    /** خطوة التسجيل: 0=أنشئ الحساب فقط، 1-5=أكمل الصفحات، 6=تحقق OTP وتم الإكمال */
+    registrationStep: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 6,
+    },
 
     // Profile Info
     age: {

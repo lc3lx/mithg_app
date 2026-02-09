@@ -2,7 +2,11 @@
  * REST routes for OTP: POST /send, POST /verify, GET /qr (لربط واتساب على VPS)
  */
 import express from "express";
+import { createRequire } from "module";
 import { sendOTP, verifyOTP } from "./otp.service.mjs";
+
+const require = createRequire(import.meta.url);
+const User = require("../models/userModel.js");
 
 const router = express.Router();
 
@@ -96,8 +100,9 @@ router.post("/send", async (req, res) => {
 /**
  * POST /api/otp/verify
  * Body: { "phone": "+9639xxxxxxxx", "code": "123456" }
+ * على النجاح: تحديث المستخدم المرتبط بهذا الرقم إلى phoneVerified: true حتى يُسمح له بتسجيل الدخول.
  */
-router.post("/verify", (req, res) => {
+router.post("/verify", async (req, res) => {
   const phone = req.body?.phone;
   const code = req.body?.code;
   if (!phone || typeof phone !== "string") {
@@ -119,6 +124,10 @@ router.post("/verify", (req, res) => {
       message: result.message,
     });
   }
+  await User.findOneAndUpdate(
+    { phone: phone.trim() },
+    { $set: { phoneVerified: true, registrationStep: 6 } }
+  );
   return res.status(200).json({
     success: true,
     message: "تم التحقق بنجاح.",

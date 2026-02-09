@@ -644,7 +644,20 @@ exports.getAdminUsers = asyncHandler(async (req, res) => {
     filter.isBlocked = req.query.isBlocked === "true";
   }
   if (req.query.isActive !== undefined) {
-    filter.isActive = req.query.isActive === "true";
+    filter.active = req.query.isActive === "true";
+  }
+
+  // بحث بالاسم / البريد / الهاتف / اسم المستخدم
+  const searchTerm = (req.query.search || req.query.keyword || "").toString().trim();
+  if (searchTerm.length > 0) {
+    const escaped = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const searchRegex = new RegExp(escaped, "i");
+    filter.$or = [
+      { name: searchRegex },
+      { email: searchRegex },
+      { phone: searchRegex },
+      { username: searchRegex },
+    ];
   }
 
   // Build query with ApiFeatures
@@ -688,18 +701,17 @@ exports.toggleUserSubscription = asyncHandler(async (req, res, next) => {
   const newIsSubscribed =
     isSubscribed !== undefined ? isSubscribed : !user.isSubscribed;
 
-  // Prepare update object
-  const updateData = { isSubscribed: newIsSubscribed };
+  const updateOps = { $set: { isSubscribed: newIsSubscribed } };
 
   if (newIsSubscribed && subscriptionEndDate) {
-    updateData.subscriptionEndDate = new Date(subscriptionEndDate);
+    updateOps.$set.subscriptionEndDate = new Date(subscriptionEndDate);
   } else if (!newIsSubscribed) {
-    updateData.subscriptionEndDate = null;
-    updateData.subscriptionPackage = null;
+    updateOps.$set.subscriptionEndDate = null;
+    // إزالة الحقل بدل null لتجنب رفض enum في الموديل
+    updateOps.$unset = { subscriptionPackage: 1 };
   }
 
-  // Use updateOne to update only subscription fields, avoiding validation issues with other fields
-  await User.updateOne({ _id: id }, { $set: updateData });
+  await User.updateOne({ _id: id }, updateOps);
 
   // Fetch updated user
   const updatedUser = await User.findById(id).select(
@@ -742,26 +754,25 @@ exports.toggleUserActive = asyncHandler(async (req, res, next) => {
     );
   }
 
-  const newIsActive = isActive !== undefined ? isActive : !user.isActive;
+  // الحقل في الموديل هو active (تجميد الحساب يضع active: false)
+  const newActive = isActive !== undefined ? isActive : !user.active;
 
-  // Use updateOne to update only isActive field, avoiding validation issues with other fields
-  await User.updateOne({ _id: id }, { $set: { isActive: newIsActive } });
+  await User.updateOne({ _id: id }, { $set: { active: newActive } });
 
-  // Fetch updated user
-  const updatedUser = await User.findById(id).select("_id isActive");
+  const updatedUser = await User.findById(id).select("_id active");
 
   res.status(200).json({
     message: `User account ${
-      newIsActive ? "activated" : "deactivated"
+      newActive ? "activated" : "deactivated"
     } successfully`,
     data: {
       userId: updatedUser._id,
-      isActive: updatedUser.isActive,
+      isActive: updatedUser.active,
     },
   });
 
   await logAdminAction(req.admin?._id, "toggle_user_active", "user", id, {
-    isActive: newIsActive,
+    isActive: newActive,
   });
 });
 

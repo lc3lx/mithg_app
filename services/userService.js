@@ -233,6 +233,10 @@ exports.updateLoggedUserProfileInfo = asyncHandler(async (req, res, next) => {
   if (req.body.weight !== undefined) user.weight = req.body.weight;
   if (req.body.bodyShape !== undefined) user.bodyShape = req.body.bodyShape;
   if (req.body.healthProblems !== undefined) user.healthProblems = req.body.healthProblems;
+  if (req.body.registrationStep !== undefined) {
+    const step = Number(req.body.registrationStep);
+    if (!Number.isNaN(step) && step >= 0 && step <= 6) user.registrationStep = step;
+  }
 
   // Save to trigger post("save") hooks
   const updatedUser = await user.save();
