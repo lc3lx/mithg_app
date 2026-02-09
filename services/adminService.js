@@ -41,6 +41,24 @@ const getDefaultPermissions = (adminType) => {
   };
 };
 
+function _getMonthName(monthNumber) {
+  const months = [
+    "يناير",
+    "فبراير",
+    "مارس",
+    "أبريل",
+    "مايو",
+    "يونيو",
+    "يوليو",
+    "أغسطس",
+    "سبتمبر",
+    "أكتوبر",
+    "نوفمبر",
+    "ديسمبر",
+  ];
+  return months[monthNumber - 1] || "غير معروف";
+}
+
 const logAdminAction = async (
   adminId,
   action,
@@ -526,25 +544,6 @@ exports.getRevenueGrowthChart = asyncHandler(async (req, res) => {
   });
 });
 
-// Helper function to get month name in Arabic
-function _getMonthName(monthNumber) {
-  const months = [
-    "يناير",
-    "فبراير",
-    "مارس",
-    "أبريل",
-    "مايو",
-    "يونيو",
-    "يوليو",
-    "أغسطس",
-    "سبتمبر",
-    "أكتوبر",
-    "نوفمبر",
-    "ديسمبر",
-  ];
-  return months[monthNumber - 1] || "غير معروف";
-}
-
 // @desc    Protect admin routes
 // @access  Private/Admin
 exports.protectAdmin = asyncHandler(async (req, res, next) => {
@@ -625,7 +624,7 @@ exports.getAdminUsers = asyncHandler(async (req, res) => {
   const { adminType } = req.admin;
 
   // Build filter based on admin type
-  let filter = {};
+  const filter = {};
   if (adminType === "male") {
     filter.gender = "male";
   } else if (adminType === "female") {
