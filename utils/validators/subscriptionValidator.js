@@ -35,9 +35,8 @@ exports.createSubscriptionPackageValidator = [
     .withMessage("Each feature cannot exceed 100 characters"),
 
   body("durationDays")
-    .optional()
     .isInt({ min: 1, max: 3650 })
-    .withMessage("Duration days must be between 1 and 3650"),
+    .withMessage("Duration in days is required (1–3650)"),
 
   validatorMiddleware,
 ];
@@ -79,6 +78,11 @@ exports.updateSubscriptionPackageValidator = [
     .optional()
     .isBoolean()
     .withMessage("isActive must be a boolean"),
+
+  body("durationDays")
+    .optional()
+    .isInt({ min: 1, max: 3650 })
+    .withMessage("Duration days must be between 1 and 3650"),
 
   validatorMiddleware,
 ];

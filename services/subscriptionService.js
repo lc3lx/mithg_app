@@ -56,28 +56,10 @@ exports.createSubscriptionPackage = asyncHandler(async (req, res, next) => {
     return next(new ApiError("Invalid package type", 400));
   }
 
-  // Check if package type already exists
-  const existingPackage = await Subscription.findOne({
-    packageType,
-    isActive: true,
-  });
-  if (existingPackage) {
-    return next(new ApiError("Package type already exists", 400));
-  }
-
-  // Calculate duration in days (allow override from request)
-  let resolvedDurationDays = durationDays;
-  if (!resolvedDurationDays) {
-    switch (packageType) {
-      case "basic":
-        resolvedDurationDays = 30; // Basic subscription for 30 days
-        break;
-      case "premium":
-        resolvedDurationDays = 365; // Premium subscription for 1 year
-        break;
-      default:
-        return next(new ApiError("Invalid package type", 400));
-    }
+  // المدة بالأيام إجبارية — يمكن للأدمن إضافة عدة باقات من نفس النوع (أساسي 15، أساسي 30، بريميوم 15، إلخ)
+  const resolvedDurationDays = durationDays;
+  if (!resolvedDurationDays || resolvedDurationDays < 1) {
+    return next(new ApiError("Duration in days is required (min 1)", 400));
   }
 
   const subscriptionPackage = await Subscription.create({
@@ -101,7 +83,7 @@ exports.createSubscriptionPackage = asyncHandler(async (req, res, next) => {
 // @access  Private/Admin
 exports.updateSubscriptionPackage = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
-  const { name, description, price, currency, features, isActive } = req.body;
+  const { name, description, price, currency, features, isActive, durationDays } = req.body;
 
   const subscriptionPackage = await Subscription.findById(id);
   if (!subscriptionPackage) {
@@ -115,6 +97,7 @@ exports.updateSubscriptionPackage = asyncHandler(async (req, res, next) => {
   if (currency) subscriptionPackage.currency = currency;
   if (features) subscriptionPackage.features = features;
   if (isActive !== undefined) subscriptionPackage.isActive = isActive;
+  if (durationDays != null && durationDays >= 1) subscriptionPackage.durationDays = durationDays;
 
   await subscriptionPackage.save();
 

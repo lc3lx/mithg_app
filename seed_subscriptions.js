@@ -22,12 +22,12 @@ const seedSubscriptions = async () => {
     await Subscription.deleteMany({});
     console.log('🗑️ Cleared existing subscription packages');
 
-    // Create Basic and Premium packages
+    // باقات بأيام — يمكن إضافة أي عدد (أساسي 15، أساسي 30، بريميوم 15، بريميوم 30، إلخ)
     const subscriptions = await Subscription.insertMany([
       {
         packageType: 'basic',
-        name: 'الأساسي',
-        description: 'حزمة الاشتراك الأساسية مع الميزات الأساسية',
+        name: 'أساسي 30 يوم',
+        description: 'حزمة الاشتراك الأساسية لمدة 30 يوماً',
         price: 9.99,
         currency: 'USD',
         durationDays: 30,
@@ -41,19 +41,48 @@ const seedSubscriptions = async () => {
         currentUsers: 0,
       },
       {
+        packageType: 'basic',
+        name: 'أساسي 15 يوم',
+        description: 'حزمة أساسية لمدة 15 يوماً',
+        price: 5.99,
+        currency: 'USD',
+        durationDays: 15,
+        features: [
+          'الوصول إلى التطابق الأساسي',
+          'المراسلة المحدودة'
+        ],
+        isActive: true,
+        maxUsers: null,
+        currentUsers: 0,
+      },
+      {
         packageType: 'premium',
-        name: 'المميز',
-        description: 'حزمة الاشتراك المميزة مع جميع الميزات',
+        name: 'بريميوم 30 يوم',
+        description: 'حزمة مميزة لمدة 30 يوماً',
         price: 19.99,
         currency: 'USD',
-        durationDays: 365,
+        durationDays: 30,
         features: [
           'خوارزميات التطابق المتقدمة',
           'المراسلة غير المحدودة',
           'أولوية ظهور الملف الشخصي',
-          'مكالمات الفيديو',
-          'عوامل التصفية المتقدمة',
-          'رؤية من شاهد ملفك الشخصي'
+          'عوامل التصفية المتقدمة'
+        ],
+        isActive: true,
+        maxUsers: null,
+        currentUsers: 0,
+      },
+      {
+        packageType: 'premium',
+        name: 'بريميوم 15 يوم',
+        description: 'حزمة مميزة لمدة 15 يوماً',
+        price: 9.99,
+        currency: 'USD',
+        durationDays: 15,
+        features: [
+          'خوارزميات التطابق المتقدمة',
+          'المراسلة غير المحدودة',
+          'أولوية ظهور الملف الشخصي'
         ],
         isActive: true,
         maxUsers: null,
