@@ -9,8 +9,8 @@ exports.addBannedWordValidator = [
     .withMessage("Word is required")
     .isLength({ min: 1, max: 50 })
     .withMessage("Word must be between 1 and 50 characters")
-    .matches(/^[a-zA-Z\u0600-\u06FF\s]+$/)
-    .withMessage("Word can only contain letters and spaces"),
+    .matches(/^[a-zA-Z\u0600-\u06FF0-9\s]+$/)
+    .withMessage("Word can only contain letters, numbers and spaces"),
 
   body("variations")
     .optional()
@@ -22,8 +22,8 @@ exports.addBannedWordValidator = [
     .trim()
     .isLength({ min: 1, max: 50 })
     .withMessage("Each variation must be between 1 and 50 characters")
-    .matches(/^[a-zA-Z\u0600-\u06FF\s]+$/)
-    .withMessage("Variations can only contain letters and spaces"),
+    .matches(/^[a-zA-Z\u0600-\u06FF0-9\s]+$/)
+    .withMessage("Variations can only contain letters, numbers and spaces"),
 
   body("category")
     .optional()
@@ -76,8 +76,8 @@ exports.updateBannedWordValidator = [
     .withMessage("Word cannot be empty")
     .isLength({ min: 1, max: 50 })
     .withMessage("Word must be between 1 and 50 characters")
-    .matches(/^[a-zA-Z\u0600-\u06FF\s]+$/)
-    .withMessage("Word can only contain letters and spaces"),
+    .matches(/^[a-zA-Z\u0600-\u06FF0-9\s]+$/)
+    .withMessage("Word can only contain letters, numbers and spaces"),
 
   body("variations")
     .optional()
@@ -89,8 +89,8 @@ exports.updateBannedWordValidator = [
     .trim()
     .isLength({ min: 1, max: 50 })
     .withMessage("Each variation must be between 1 and 50 characters")
-    .matches(/^[a-zA-Z\u0600-\u06FF\s]+$/)
-    .withMessage("Variations can only contain letters and spaces"),
+    .matches(/^[a-zA-Z\u0600-\u06FF0-9\s]+$/)
+    .withMessage("Variations can only contain letters, numbers and spaces"),
 
   body("category")
     .optional()
@@ -145,8 +145,8 @@ exports.bulkAddBannedWordsValidator = [
     .trim()
     .isLength({ min: 1, max: 50 })
     .withMessage("Word must be between 1 and 50 characters")
-    .matches(/^[a-zA-Z\u0600-\u06FF\s]+$/)
-    .withMessage("Word can only contain letters and spaces"),
+    .matches(/^[a-zA-Z\u0600-\u06FF0-9\s]+$/)
+    .withMessage("Word can only contain letters, numbers and spaces"),
 
   body("words.*").custom((wordData) => {
     // If wordData is a string, convert to object

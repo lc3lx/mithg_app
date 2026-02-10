@@ -119,6 +119,9 @@ bannedWordsSchema.pre("save", function (next) {
 // Helper to safely escape regex special characters in words
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+// هل النص يحتوي حروف عربية (للاستخدام في حدود الكلمة)
+const hasArabic = (str) => /[\u0600-\u06FF]/.test(str);
+
 // Static method to check if a message contains banned words
 bannedWordsSchema.statics.checkMessage = async function (message) {
   const bannedWords = await this.find({ isActive: true });
@@ -133,9 +136,12 @@ bannedWordsSchema.statics.checkMessage = async function (message) {
       if (!word) return false;
 
       const safeWord = escapeRegex(String(word).toLowerCase());
-      const regex = new RegExp(`\\b${safeWord}\\b`, "i");
+      // \b لا يعمل مع العربية في JS — نستخدم حدوداً تدعم العربي والإنجليزي
+      const boundaryRegex = hasArabic(word) || hasArabic(lowerMessage)
+        ? new RegExp(`(?:^|[\\s\\W])${safeWord}(?:[\\s\\W]|$)`, "i")
+        : new RegExp(`\\b${safeWord}\\b`, "i");
 
-      if (regex.test(lowerMessage)) {
+      if (boundaryRegex.test(lowerMessage)) {
         result = {
           found: true,
           bannedWord,
