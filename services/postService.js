@@ -115,6 +115,29 @@ exports.updatePost = updateOnePopulated(Post, [
 // @access  Private/Protect (user himself or admin)
 exports.deletePost = deleteOne(Post);
 
+// @desc    Toggle post status (active / paused) — أدمن فقط
+// @route   PATCH /api/v1/posts/:id/status
+// @access  Private/Admin
+exports.togglePostStatus = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+  const isActive = req.body.isActive === true || req.body.isActive === "true";
+
+  const post = await Post.findByIdAndUpdate(
+    id,
+    { isActive },
+    { new: true, runValidators: true }
+  );
+
+  if (!post) {
+    return next(new ApiError(`No post for this id ${id}`, 404));
+  }
+
+  res.status(200).json({
+    data: post,
+    message: isActive ? "تم تفعيل البوست" : "تم إيقاف البوست",
+  });
+});
+
 // @desc    Like/Unlike post
 // @route   POST /api/v1/posts/:id/like
 // @access  Private/Protect

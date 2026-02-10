@@ -23,7 +23,6 @@ const {
 
 const authService = require("../services/authService");
 const uploadImageMiddleware = require("../middlewares/uploadImageMiddleware");
-const { requireSubscriptionAndVerification } = require("../middlewares/subscriptionMiddleware");
 
 const router = express.Router();
 
@@ -56,8 +55,8 @@ router.delete(
   deleteGalleryItem
 );
 
-// عرض الملف الشخصي وقائمة الملفات متاح فقط للمشتركين الموثقين (تحقق باك + فرونت)
-router.get("/profiles", getAllProfilesValidator, requireSubscriptionAndVerification, getAllProfiles);
-router.get("/:userId/profile", getUserProfileValidator, requireSubscriptionAndVerification, getUserProfile);
+// عرض قائمة البروفايلات والبروفايل الفردي — متاح لأي مستخدم موقّع (بدون اشتراك/توثيق)
+router.get("/profiles", getAllProfilesValidator, getAllProfiles);
+router.get("/:userId/profile", getUserProfileValidator, getUserProfile);
 
 module.exports = router;

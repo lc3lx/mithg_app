@@ -7,10 +7,17 @@ const {
   createPost,
   updatePost,
   deletePost,
+  togglePostStatus,
   toggleLike,
   processPostMedia,
   createFilterObj,
 } = require("../services/postService");
+
+// للمستخدمين: إرجاع البوستات النشطة فقط (المتوقفة لا تظهر في الـ get)
+const setActivePostsOnly = (req, res, next) => {
+  req.query = { ...req.query, isActive: "true" };
+  next();
+};
 
 // Validators
 const {
@@ -34,8 +41,8 @@ const router = express.Router();
 // 📌 Routes
 // ===============================
 
-// GET all posts for regular users (with likes) - يوزرز عاديين فقط
-router.get("/user", authService.protect, createFilterObj, getPosts);
+// GET all posts for regular users — نشط فقط (المتوقف لا يظهر)
+router.get("/user", authService.protect, setActivePostsOnly, createFilterObj, getPosts);
 
 // GET all admin posts (admin only)
 router.get("/", adminService.protectAdmin, createFilterObj, getPosts);
@@ -69,6 +76,13 @@ router.delete(
   adminService.protectAdmin,
   deletePostValidator,
   deletePost
+);
+
+// PATCH post status نشط/متوقف (admin only)
+router.patch(
+  "/:id/status",
+  adminService.protectAdmin,
+  togglePostStatus
 );
 
 // Like / Unlike (users only - not admins)

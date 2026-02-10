@@ -20,16 +20,13 @@ const router = express.Router();
 
 router.use(authService.protect);
 
-// التطابقات والإعجابات متاحة فقط للمشتركين الموثقين (تحقق باك + فرونت)
-router.get("/", requireSubscriptionAndVerification, getMatches);
-router.get("/likes", requireSubscriptionAndVerification, getProfileLikes);
+// عرض قائمة التطابقات والبروفايل والإعجابات — متاح لأي مستخدم موقّع
+router.get("/", getMatches);
+router.get("/likes", getProfileLikes);
+router.get("/:userId/mutual-friends", getMutualFriendsValidator, getMutualFriends);
+router.get("/:userId", getMatchProfileValidator, getMatchProfile);
+
+// إرسال طلب تعارف (لايك) — يتطلب اشتراكاً وتوثيقاً فقط
 router.post("/:userId/like", requireSubscriptionAndVerification, likeProfileValidator, likeProfile);
-router.get(
-  "/:userId/mutual-friends",
-  requireSubscriptionAndVerification,
-  getMutualFriendsValidator,
-  getMutualFriends
-);
-router.get("/:userId", requireSubscriptionAndVerification, getMatchProfileValidator, getMatchProfile);
 
 module.exports = router;
