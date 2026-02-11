@@ -7,6 +7,18 @@ import QRCode from "qrcode";
 import path from "path";
 import { fileURLToPath } from "url";
 
+/** تخفيف لوقات Baileys (لا نعرض JSON و stack trace)، نعتمد على connection.update للرسائل */
+const noop = () => {};
+const baileysLogger = {
+  trace: noop,
+  debug: noop,
+  info: noop,
+  warn: noop,
+  error: noop,
+  fatal: noop,
+  child: () => baileysLogger,
+};
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const AUTH_FOLDER = path.join(__dirname, "auth_info_wa");
 
@@ -39,7 +51,9 @@ export function phoneToJid(phone) {
 }
 
 const WA_READY_TIMEOUT_MS = 45000; // 45s (أطول من 20s AwaitingInitialSync)
-const RECONNECT_DELAY_MS = 5000;  // تأخير قبل إعادة الاتصال بعد فشل
+const RECONNECT_DELAY_MS = 5000;  // تأخير أساسي قبل إعادة الاتصال
+const RECONNECT_MAX_DELAY_MS = 60000; // أقصى تأخير (دقيقة)
+let reconnectAttempts = 0; // يُصفّر عند اتصال ناجح. إن استمر Connection Failure: احذف مجلد otp/auth_info_wa وامسح QR من جديد.
 
 /**
  * Send a WhatsApp text message. Resolves when connection is ready and message is sent.
@@ -75,6 +89,8 @@ export function isWhatsAppReady() {
 }
 
 async function connect() {
+  sock = null;
+  isReady = false;
   readyPromise = new Promise((resolve) => {
     resolveReady = resolve;
   });
@@ -83,6 +99,7 @@ async function connect() {
   sock = makeWASocket({
     auth: state,
     printQRInTerminal: false,
+    logger: baileysLogger,
   });
 
   sock.ev.on("creds.update", saveCreds);
@@ -109,34 +126,33 @@ async function connect() {
       const errMsg = lastDisconnect?.error?.message || "";
       const isLoggedOut = statusCode === DisconnectReason.loggedOut;
       const isForbidden = statusCode === 403;
-      // إعادة الاتصال عند فشل التوصيل أو خطأ Noise/WebSocket أو انقطاع عادي
-      const isConnectionFailure =
-        errMsg.includes("Connection Failure") || errMsg.includes("Buffer timeout");
-      const shouldReconnect =
-        isConnectionFailure ||
-        statusCode === DisconnectReason.restartRequired ||
-        statusCode === DisconnectReason.connectionLost ||
-        statusCode === DisconnectReason.connectionClosed ||
-        statusCode === 408 ||
-        statusCode === 428 ||
-        (statusCode == null && !isLoggedOut && !isForbidden);
+      // إعادة الاتصال لأي انقطاع ما عدا تسجيل خروج أو 403
+      const shouldReconnect = !isLoggedOut && !isForbidden;
       isReady = false;
-      if (shouldReconnect && !isLoggedOut && !isForbidden) {
+      if (shouldReconnect) {
+        const delay = Math.min(
+          RECONNECT_DELAY_MS * Math.pow(2, reconnectAttempts),
+          RECONNECT_MAX_DELAY_MS
+        );
+        reconnectAttempts += 1;
         console.log(
           "🔄 انقطع الاتصال بواتساب (",
-          errMsg || statusCode,
+          errMsg || statusCode || "Connection Failure",
           "). إعادة المحاولة بعد",
-          RECONNECT_DELAY_MS / 1000,
-          "ثانية..."
+          delay / 1000,
+          "ثانية (محاولة",
+          reconnectAttempts,
+          ")."
         );
-        setTimeout(() => connect(), RECONNECT_DELAY_MS);
-      } else if (!isLoggedOut) {
+        setTimeout(() => connect(), delay);
+      } else {
         console.log("❌ انقطع الاتصال بواتساب:", errMsg || statusCode);
       }
       return;
     }
 
     if (connection === "open") {
+      reconnectAttempts = 0;
       isReady = true;
       lastQRDataUrl = null;
       if (resolveReady) resolveReady();
