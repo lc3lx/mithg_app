@@ -1,12 +1,12 @@
 /**
  * OTP service: generate, store, verify, rate limit.
- * In-memory store (Map). OTP 6 digits, 2 min expiry. Max 3 OTP per phone per hour.
+ * In-memory store (Map). OTP 6 digits, 2 min expiry. Max 100 OTP per phone per hour.
  * WhatsApp is lazy-loaded so server starts even if Baileys fails.
  */
 
 const OTP_EXPIRY_MS = 2 * 60 * 1000; // 2 minutes
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
-const RATE_LIMIT_MAX = 1000;
+const RATE_LIMIT_MAX = 100; // 100 OTP per phone per hour
 
 /** phone -> { code, expiresAt } */
 const store = new Map();
@@ -48,7 +48,7 @@ export async function sendOTP(phone) {
     return {
       success: false,
       message:
-        "تم تجاوز الحد المسموح. حاول بعد ساعة (3 طلبات كحد أقصى لكل رقم في الساعة).",
+        "تم تجاوز الحد المسموح. حاول بعد ساعة (100 طلب كحد أقصى لكل رقم في الساعة).",
     };
   }
 

@@ -39,6 +39,7 @@ export function phoneToJid(phone) {
 }
 
 const WA_READY_TIMEOUT_MS = 45000; // 45s (أطول من 20s AwaitingInitialSync)
+const RECONNECT_DELAY_MS = 5000;  // تأخير قبل إعادة الاتصال بعد فشل
 
 /**
  * Send a WhatsApp text message. Resolves when connection is ready and message is sent.
@@ -105,20 +106,32 @@ async function connect() {
 
     if (connection === "close") {
       const statusCode = lastDisconnect?.error?.output?.statusCode ?? null;
+      const errMsg = lastDisconnect?.error?.message || "";
       const isLoggedOut = statusCode === DisconnectReason.loggedOut;
       const isForbidden = statusCode === 403;
+      // إعادة الاتصال عند فشل التوصيل أو خطأ Noise/WebSocket أو انقطاع عادي
+      const isConnectionFailure =
+        errMsg.includes("Connection Failure") || errMsg.includes("Buffer timeout");
       const shouldReconnect =
+        isConnectionFailure ||
         statusCode === DisconnectReason.restartRequired ||
         statusCode === DisconnectReason.connectionLost ||
         statusCode === DisconnectReason.connectionClosed ||
         statusCode === 408 ||
-        statusCode === 428;
+        statusCode === 428 ||
+        (statusCode == null && !isLoggedOut && !isForbidden);
       isReady = false;
       if (shouldReconnect && !isLoggedOut && !isForbidden) {
-        console.log("🔄 انقطع الاتصال بواتساب (", statusCode, "). إعادة الاتصال...");
-        connect();
+        console.log(
+          "🔄 انقطع الاتصال بواتساب (",
+          errMsg || statusCode,
+          "). إعادة المحاولة بعد",
+          RECONNECT_DELAY_MS / 1000,
+          "ثانية..."
+        );
+        setTimeout(() => connect(), RECONNECT_DELAY_MS);
       } else if (!isLoggedOut) {
-        console.log("❌ انقطع الاتصال بواتساب:", lastDisconnect?.error?.message || statusCode);
+        console.log("❌ انقطع الاتصال بواتساب:", errMsg || statusCode);
       }
       return;
     }
