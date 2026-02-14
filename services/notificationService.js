@@ -11,6 +11,16 @@ const {
 const Notification = require("../models/notificationModel");
 const User = require("../models/userModel");
 
+// إشعارات لوحة التحكم فقط (البث من الأدمن)، وليس كل إشعارات التطبيق
+const ADMIN_BROADCAST_TYPES = [
+  "update",
+  "promotion",
+  "security",
+  "welcome",
+  "maintenance",
+  "general",
+];
+
 // @desc    Get user notifications
 // @route   GET /api/v1/notifications
 // @access  Private/Protect
@@ -199,10 +209,29 @@ exports.createNotification = asyncHandler(async (req, res) => {
 // Admin specific handlers
 // ===============================
 
-// @desc    Get all notifications (admin)
+// @desc    Get all notifications (admin) — فقط إشعارات البث من لوحة التحكم
 // @route   GET /api/v1/notifications/admin
 // @access  Private/Admin
-exports.getAllNotificationsAdmin = getAll(Notification, "Notification");
+exports.getAllNotificationsAdmin = asyncHandler(async (req, res) => {
+  const filter = { type: { $in: ADMIN_BROADCAST_TYPES } };
+  const documentsCounts = await Notification.countDocuments(filter);
+  const apiFeatures = new ApiFeatures(
+    Notification.find(filter),
+    req.query
+  )
+    .paginate(documentsCounts)
+    .filter()
+    .search("Notification")
+    .limitFields()
+    .sort();
+
+  const { mongooseQuery, paginationResult } = apiFeatures;
+  const documents = await mongooseQuery;
+
+  res
+    .status(200)
+    .json({ results: documents.length, paginationResult, data: documents });
+});
 
 // @desc    Get single notification (admin)
 // @route   GET /api/v1/notifications/admin/:id
@@ -223,18 +252,23 @@ exports.deleteNotificationAdmin = deleteOne(Notification);
 // @route   GET /api/v1/notifications/admin/stats
 // @access  Private/Admin
 exports.getNotificationStatsAdmin = asyncHandler(async (req, res) => {
-  const totalNotifications = await Notification.countDocuments();
+  const filter = { type: { $in: ADMIN_BROADCAST_TYPES } };
+  const totalNotifications = await Notification.countDocuments(filter);
   const scheduledNotifications = await Notification.countDocuments({
+    ...filter,
     status: "scheduled",
   });
   const draftedNotifications = await Notification.countDocuments({
+    ...filter,
     status: "draft",
   });
   const sentNotifications = await Notification.countDocuments({
+    ...filter,
     status: "sent",
   });
 
   const statsByType = await Notification.aggregate([
+    { $match: { type: { $in: ADMIN_BROADCAST_TYPES } } },
     {
       $group: {
         _id: "$type",

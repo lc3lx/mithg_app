@@ -266,7 +266,10 @@ exports.getUserProfile = asyncHandler(async (req, res, next) => {
     ],
   })
     .select(
-      "name age gender bio location profileImg coverImg gallery about isOnline lastSeen friends profileViews blockedUsers"
+      "name username age gender bio about profileImg coverImg gallery country city nationality " +
+        "educationalLevel fieldOfWork socialStatus religion hijab havingChildren desire polygamy smoking " +
+        "hairColor height weight bodyShape isOnline lastSeen friends profileViews likesReceived blockedUsers " +
+        "isSubscribed identityVerified createdAt"
     )
     .populate("friends", "name profileImg isOnline");
 

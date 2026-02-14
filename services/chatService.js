@@ -348,6 +348,12 @@ exports.sendMessage = asyncHandler(async (req, res, next) => {
     }
   }
 
+  // استبدال الكلمات المحظورة بـ **** حتى لا تظهر في المحادثة
+  let contentToStore = content;
+  if (content && typeof content === "string") {
+    contentToStore = await BannedWords.maskMessage(content);
+  }
+
   // Create message
   const messageData = {
     chat: id,
@@ -355,7 +361,7 @@ exports.sendMessage = asyncHandler(async (req, res, next) => {
     messageType,
   };
 
-  if (content) messageData.content = content;
+  if (contentToStore) messageData.content = contentToStore;
   if (mediaUrl) messageData.mediaUrl = mediaUrl;
   if (mediaName) messageData.mediaName = mediaName;
   if (mediaSize) messageData.mediaSize = mediaSize;
@@ -366,6 +372,25 @@ exports.sendMessage = asyncHandler(async (req, res, next) => {
     path: "sender",
     select: "name profileImg isOnline",
   });
+
+  // فحص الكلمات الممنوعة للتحذير (بعد الرد حتى لا نؤخر الاستجابة)
+  if (content && typeof content === "string") {
+    setImmediate(() => {
+      const { checkMessageAndWarn } = require("./userWarningsService");
+      const mockReq = {
+        body: {
+          message: content,
+          userId: req.user._id.toString(),
+          chatId: id,
+          messageId: message._id.toString(),
+        },
+      };
+      const mockRes = {
+        status: () => ({ json: () => ({}) }),
+      };
+      checkMessageAndWarn(mockReq, mockRes, () => {}).catch(() => {});
+    });
+  }
 
   res.status(201).json({
     message: "Message sent successfully",

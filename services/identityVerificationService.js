@@ -293,16 +293,16 @@ exports.reviewVerificationRequest = asyncHandler(async (req, res, next) => {
       identityVerificationStatus: "approved",
     });
 
-    // Create notification for user
+    // Create notification for user (يُرسل push تلقائياً عبر post-save في Notification)
     await Notification.createNotification({
       user: userId,
       type: "identity_verification_approved",
-      title: "Identity Verification Approved",
-      message: "Your identity has been verified successfully!",
+      title: "تمت الموافقة على طلب التوثيق",
+      message: "تم توثيق هويتك بنجاح. استمتع بمزايا الحساب الموثق!",
       data: { verificationId: id },
     });
 
-    // Send real-time notification
+    // Send real-time notification (للمستخدمين المتصلين عبر Socket)
     if (req.app && req.app.get("io")) {
       const io = req.app.get("io");
       const onlineUsers = req.app.get("onlineUsers") || new Map();
@@ -311,8 +311,8 @@ exports.reviewVerificationRequest = asyncHandler(async (req, res, next) => {
       if (socketId) {
         io.to(socketId).emit("notification", {
           type: "identity_verification_approved",
-          title: "Identity Verification Approved",
-          message: "Your identity has been verified successfully!",
+          title: "تمت الموافقة على طلب التوثيق",
+          message: "تم توثيق هويتك بنجاح. استمتع بمزايا الحساب الموثق!",
           verificationId: id,
         });
       }
@@ -340,16 +340,18 @@ exports.reviewVerificationRequest = asyncHandler(async (req, res, next) => {
       identityVerificationStatus: "rejected",
     });
 
-    // Create notification for user
+    // Create notification for user (يُرسل push تلقائياً عبر post-save في Notification)
     await Notification.createNotification({
       user: userId,
       type: "identity_verification_rejected",
-      title: "Identity Verification Rejected",
-      message: `Your identity verification was rejected: ${rejectionReason}`,
+      title: "تم رفض طلب التوثيق",
+      message: rejectionReason
+        ? `تم رفض طلب التوثيق: ${rejectionReason}`
+        : "تم رفض طلب التوثيق. يمكنك إعادة التقديم أو التواصل مع الدعم.",
       data: { verificationId: id, reason: rejectionReason },
     });
 
-    // Send real-time notification
+    // Send real-time notification (للمستخدمين المتصلين عبر Socket)
     if (req.app && req.app.get("io")) {
       const io = req.app.get("io");
       const onlineUsers = req.app.get("onlineUsers") || new Map();
@@ -358,8 +360,10 @@ exports.reviewVerificationRequest = asyncHandler(async (req, res, next) => {
       if (socketId) {
         io.to(socketId).emit("notification", {
           type: "identity_verification_rejected",
-          title: "Identity Verification Rejected",
-          message: `Your identity verification was rejected: ${rejectionReason}`,
+          title: "تم رفض طلب التوثيق",
+          message: rejectionReason
+            ? `تم رفض طلب التوثيق: ${rejectionReason}`
+            : "تم رفض طلب التوثيق. يمكنك إعادة التقديم أو التواصل مع الدعم.",
           verificationId: id,
           reason: rejectionReason,
         });

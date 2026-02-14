@@ -67,6 +67,7 @@ exports.approveRechargeRequest = asyncHandler(async (req, res, next) => {
 
   // set subscription (30 days) and mark subscribed
   user.isSubscribed = true;
+  user.subscriptionPackage = user.subscriptionPackage || "premium";
   const now = new Date();
   const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
   user.subscriptionEndDate = thirtyDays;

@@ -157,6 +157,39 @@ bannedWordsSchema.statics.checkMessage = async function (message) {
   return result;
 };
 
+// استبدال الكلمات المحظورة في النص بـ **** (لإخفائها في المحادثة)
+bannedWordsSchema.statics.maskMessage = async function (message) {
+  if (!message || typeof message !== "string") return message;
+  const bannedWords = await this.find({ isActive: true });
+  const allWordsList = [];
+  for (const bannedWord of bannedWords) {
+    const list = bannedWord.allWords || [];
+    for (const w of list) {
+      if (w && typeof w === "string") allWordsList.push(w);
+    }
+  }
+  // استبدال الأطول أولاً لتجنب استبدال جزء من كلمة
+  allWordsList.sort((a, b) => (b.length || 0) - (a.length || 0));
+  let result = message;
+  const seen = new Set();
+  for (const word of allWordsList) {
+    const key = word.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const safeWord = escapeRegex(String(word).toLowerCase());
+    const boundaryRegex =
+      hasArabic(word) || hasArabic(message)
+        ? new RegExp(`(^|[\\s\\W])(${safeWord})([\\s\\W]|$)`, "gi")
+        : new RegExp(`(^|[\\s\\W])(${safeWord})([\\s\\W]|$)`, "gi");
+    result = result.replace(
+      boundaryRegex,
+      (match, before, matchedWord, after) =>
+        (before || "") + "****" + (after || "")
+    );
+  }
+  return result;
+};
+
 // Static method to get all active banned words
 bannedWordsSchema.statics.getActiveWords = function () {
   return this.find({ isActive: true }).select(

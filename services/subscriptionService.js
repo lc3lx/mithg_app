@@ -9,6 +9,7 @@ const SubscriptionCode = require("../models/subscriptionCodeModel");
 const ReferralCode = require("../models/referralCodeModel");
 const Wallet = require("../models/walletModel");
 const Transaction = require("../models/transactionModel");
+const Notification = require("../models/notificationModel");
 const rechargeService = require("./rechargeService");
 
 // @desc    Get all active subscription packages
@@ -465,6 +466,15 @@ exports.approvePaymentRequest = asyncHandler(async (req, res, next) => {
     admin: req.admin._id,
   });
 
+  // إشعار للمستخدم (يُرسل push تلقائياً عبر post-save في Notification)
+  await Notification.createNotification({
+    user: paymentRequest.user,
+    type: "subscription_request_approved",
+    title: "تمت الموافقة على طلب الاشتراك",
+    message: "تم تفعيل اشتراكك بنجاح. استمتع بمزايا التطبيق!",
+    data: { paymentRequestId: id },
+  });
+
   res.status(200).json({
     message: "Payment request approved and subscription activated",
     data: paymentRequest,
@@ -495,6 +505,17 @@ exports.rejectPaymentRequest = asyncHandler(async (req, res, next) => {
   paymentRequest.rejectionReason = rejectionReason;
   paymentRequest.reviewedAt = new Date();
   await paymentRequest.save();
+
+  // إشعار للمستخدم (يُرسل push تلقائياً عبر post-save في Notification)
+  await Notification.createNotification({
+    user: paymentRequest.user,
+    type: "subscription_request_rejected",
+    title: "تم رفض طلب الاشتراك",
+    message: rejectionReason
+      ? `تم رفض طلب الاشتراك: ${rejectionReason}`
+      : "تم رفض طلب الاشتراك. يرجى التواصل مع الدعم إن كان لديك استفسار.",
+    data: { paymentRequestId: id, reason: rejectionReason },
+  });
 
   res.status(200).json({
     message: "Payment request rejected",

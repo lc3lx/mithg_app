@@ -4,6 +4,7 @@ const Admin = require("../models/adminModel");
 const Chat = require("../models/chatModel");
 const Message = require("../models/messageModel");
 const Notification = require("../models/notificationModel");
+const BannedWords = require("../models/bannedWordsModel");
 const { checkMessageAndWarn } = require("../services/userWarningsService");
 const { hasActiveSubscriptionAndVerification } = require("../middlewares/subscriptionMiddleware");
 
@@ -256,7 +257,7 @@ const socketHandler = (io) => {
           }
         }
 
-        // فحص الكلمات الممنوعة للرسائل النصية
+        // فحص الكلمات الممنوعة للرسائل النصية (للتحذير)
         let warningResult = null;
         if (content && messageType === "text") {
           try {
@@ -278,6 +279,12 @@ const socketHandler = (io) => {
           }
         }
 
+        // استبدال الكلمات المحظورة بـ **** حتى لا تظهر في المحادثة
+        let contentToStore = content;
+        if (content && typeof content === "string") {
+          contentToStore = await BannedWords.maskMessage(content);
+        }
+
         // إنشاء الرسالة
         const messageData = {
           chat: chatId,
@@ -285,8 +292,8 @@ const socketHandler = (io) => {
           messageType,
         };
 
-        if (content) {
-          messageData.content = content;
+        if (contentToStore) {
+          messageData.content = contentToStore;
         }
 
         const message = await Message.create(messageData);

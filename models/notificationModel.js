@@ -28,6 +28,10 @@ const notificationSchema = new mongoose.Schema(
         "messaging_request_accepted",
         "messaging_request_rejected",
         "gallery_view",
+        "identity_verification_approved",
+        "identity_verification_rejected",
+        "subscription_request_approved",
+        "subscription_request_rejected",
         // Admin broadcast notifications
         "update",
         "promotion",
