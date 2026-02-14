@@ -15,13 +15,11 @@ const {
   resetUserWarningsValidator,
 } = require("../utils/validators/userModerationValidator");
 
-const authService = require("../services/authService");
 const adminService = require("../services/adminService");
 
 const router = express.Router();
 
-// All routes require admin authentication
-router.use(authService.protect);
+// مسار الـ moderation للأدمن فقط — نستخدم protectAdmin فقط (توكن الأدمن فيه adminId وليس userId، فـ authService.protect كان يرجّع 401)
 router.use(adminService.protectAdmin);
 
 // Check for moderateContent permission
