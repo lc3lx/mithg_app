@@ -18,8 +18,9 @@ router.get("/admin/threads", getAdminThreads);
 router.get("/admin/messages/:userId", getAdminMessages);
 router.post("/admin/messages/:userId", sendAdminMessage);
 
-// User support messages
+// User support messages (تحقق الهاتف مطلوب)
 router.use(authService.protect);
+router.use(authService.requirePhoneVerified);
 router.route("/messages").get(getUserMessages).post(sendUserMessage);
 
 module.exports = router;

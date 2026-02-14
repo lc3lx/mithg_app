@@ -37,10 +37,11 @@ const mountRoutes = (app) => {
   app.use("/api/v1/support", supportRoute);
   app.use("/api/v1/device-tokens", deviceTokenRoute);
 
-  // Recharge codes for users (authenticated users can use codes)
+  // Recharge codes for users (authenticated + phone verified)
   app.post(
     "/api/v1/recharge-codes/use",
     authService.protect,
+    authService.requirePhoneVerified,
     rechargeService.useRechargeCode
   );
 };

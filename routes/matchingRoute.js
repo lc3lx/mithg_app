@@ -19,6 +19,7 @@ const { requireSubscriptionAndVerification } = require("../middlewares/subscript
 const router = express.Router();
 
 router.use(authService.protect);
+router.use(authService.requirePhoneVerified);
 
 // عرض قائمة التطابقات والبروفايل والإعجابات — متاح لأي مستخدم موقّع
 router.get("/", getMatches);

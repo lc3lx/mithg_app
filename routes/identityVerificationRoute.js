@@ -21,10 +21,11 @@ const adminService = require("../services/adminService");
 
 const router = express.Router();
 
-// User routes - require user authentication
+// User routes - require user authentication and phone verification
 router.post(
   "/submit",
   authService.protect,
+  authService.requirePhoneVerified,
   uploadImageMiddleware.uploadMixOfImages([
     { name: 'documents[0][url]', maxCount: 1 },
     { name: 'documents[1][url]', maxCount: 1 },
@@ -33,8 +34,8 @@ router.post(
   submitIdentityVerificationValidator,
   submitIdentityVerification
 );
-router.get("/status", authService.protect, getUserVerificationStatus);
-router.get("/history", authService.protect, getUserVerificationHistory);
+router.get("/status", authService.protect, authService.requirePhoneVerified, getUserVerificationStatus);
+router.get("/history", authService.protect, authService.requirePhoneVerified, getUserVerificationHistory);
 
 // Admin only routes - require admin authentication only
 router.get("/requests", adminService.protectAdmin, getPendingVerificationRequests);

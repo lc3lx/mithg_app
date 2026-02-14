@@ -170,6 +170,19 @@ exports.protect = asyncHandler(async (req, res, next) => {
   next();
 });
 
+// @desc   منع الدخول لمسارات التطبيق حتى إكمال التحقق من الهاتف (OTP)
+// @use    بعد protect على مسارات المستخدم (ما عدا getMe)
+exports.requirePhoneVerified = asyncHandler(async (req, res, next) => {
+  if (req.user.phoneVerified === true) {
+    return next();
+  }
+  return res.status(403).json({
+    code: "PHONE_NOT_VERIFIED",
+    message: "يجب التحقق من رقم الهاتف أولاً",
+    phone: req.user.phone || null,
+  });
+});
+
 // @desc    Authorization (User Permissions)
 // ["admin", "manager"]
 exports.allowedTo = (...roles) =>

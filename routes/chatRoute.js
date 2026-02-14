@@ -28,8 +28,9 @@ const {
 
 const router = express.Router();
 
-// All routes require authentication
+// All routes require authentication and phone verification (OTP)
 router.use(authService.protect);
+router.use(authService.requirePhoneVerified);
 
 // Chat routes — عرض المحادثات والرسائل يتطلب اشتراكاً وتوثيقاً (مثل الفرونت)
 router.get("/", requireSubscriptionAndVerification, getChats);

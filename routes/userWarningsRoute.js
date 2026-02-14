@@ -66,8 +66,9 @@ adminRouter.get(
   getUserWarningsById
 );
 
-// User routes (require user authentication)
+// User routes (require user authentication and phone verification)
 router.use(authService.protect);
+router.use(authService.requirePhoneVerified);
 
 // User can appeal their warnings and view their own warnings
 router.get("/my-warnings", getMyWarnings);

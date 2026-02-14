@@ -21,8 +21,9 @@ const {
 
 const router = express.Router();
 
-// All routes require authentication
+// All routes require authentication and phone verification
 router.use(authService.protect);
+router.use(authService.requirePhoneVerified);
 
 // Messaging requests management
 router

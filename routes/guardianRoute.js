@@ -31,8 +31,9 @@ const adminService = require("../services/adminService");
 
 const router = express.Router();
 
-// All routes require authentication
+// All routes require authentication and phone verification
 router.use(authService.protect);
+router.use(authService.requirePhoneVerified);
 
 // User routes for managing their own guardians
 router.route("/").get(getUserGuardians).post(addGuardianValidator, addGuardian);

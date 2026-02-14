@@ -8,6 +8,7 @@ const {
 const router = express.Router();
 
 router.use(authService.protect);
+router.use(authService.requirePhoneVerified);
 
 router.post("/", registerDeviceToken);
 router.delete("/:playerId", removeDeviceToken);

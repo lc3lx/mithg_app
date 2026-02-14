@@ -27,6 +27,7 @@ const uploadImageMiddleware = require("../middlewares/uploadImageMiddleware");
 const router = express.Router();
 
 router.use(authService.protect);
+router.use(authService.requirePhoneVerified);
 
 // About section
 router.put("/about", updateAboutValidator, updateAbout);

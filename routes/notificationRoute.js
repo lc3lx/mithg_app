@@ -49,8 +49,9 @@ adminRouter
 
 router.use("/admin", adminService.protectAdmin, adminRouter);
 
-// All user routes require user authentication
+// All user routes require user authentication and phone verification
 router.use(authService.protect);
+router.use(authService.requirePhoneVerified);
 
 // User notification routes
 router.route("/").get(getNotifications);

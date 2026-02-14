@@ -42,7 +42,7 @@ const router = express.Router();
 // ===============================
 
 // GET all posts for regular users — نشط فقط (المتوقف لا يظهر)
-router.get("/user", authService.protect, setActivePostsOnly, createFilterObj, getPosts);
+router.get("/user", authService.protect, authService.requirePhoneVerified, setActivePostsOnly, createFilterObj, getPosts);
 
 // GET all admin posts (admin only)
 router.get("/", adminService.protectAdmin, createFilterObj, getPosts);
@@ -58,7 +58,7 @@ router.post(
 );
 
 // GET single post (public - all authenticated users can view)
-router.get("/:id", authService.protect, getPostValidator, getPost);
+router.get("/:id", authService.protect, authService.requirePhoneVerified, getPostValidator, getPost);
 
 // PUT update post (admin only)
 router.put(
@@ -86,6 +86,6 @@ router.patch(
 );
 
 // Like / Unlike (users only - not admins)
-router.post("/:id/like", authService.protect, toggleLikeValidator, toggleLike);
+router.post("/:id/like", authService.protect, authService.requirePhoneVerified, toggleLikeValidator, toggleLike);
 
 module.exports = router;
