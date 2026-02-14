@@ -755,20 +755,27 @@ const socketHandler = (io) => {
 
     // عند قطع الاتصال
     socket.on("disconnect", async (reason) => {
-      console.log(`🔌 [Chat Socket] User ${socket.userId} disconnected`);
+      const userId = socket.userId;
+      console.log(`🔌 [Chat Socket] User ${userId ?? "anonymous"} disconnected`);
       console.log(`🔌 [Chat Socket] Disconnect reason:`, reason);
 
+      if (!userId) return;
+
       // إزالة المستخدم من القائمة المتصلة
-      onlineUsers.delete(socket.userId);
+      onlineUsers.delete(userId);
 
       // تحديث حالة المستخدم لتصبح غير متصل
-      await User.findByIdAndUpdate(socket.userId, {
-        isOnline: false,
-        lastSeen: new Date(),
-      });
+      try {
+        await User.findByIdAndUpdate(userId, {
+          isOnline: false,
+          lastSeen: new Date(),
+        });
+      } catch (err) {
+        console.error("Disconnect: update user offline failed:", err.message);
+      }
 
       // إرسال تحديث للجميع
-      io.emit("user_offline", { userId: socket.userId });
+      io.emit("user_offline", { userId });
     });
 
     // ping للحفاظ على الاتصال
