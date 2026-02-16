@@ -385,6 +385,7 @@ const socketHandler = (io) => {
               return true;
             };
 
+            // إشعار واحد فقط: إنشاء إشعار في DB (يرسل push واحد) دون إرسال حدث notification بالسوكت لتفادي تكرار الإشعار
             await Promise.all(
               otherParticipants.map((participantId) => {
                 if (!shouldSendNotification(participantId)) return null;
@@ -406,20 +407,7 @@ const socketHandler = (io) => {
                 if (!shouldSendNotification(participantId)) return;
                 const key = `${participantId}:${chatId}`;
                 lastMessageNotificationAt.set(key, Date.now());
-                const participantSocketId = onlineUsers.get(
-                  participantId.toString()
-                );
-                if (!participantSocketId) return;
-                const unreadCount = await Notification.countDocuments({
-                  user: participantId,
-                  isRead: false,
-                });
-                chatNamespace.to(participantSocketId).emit("notification", {
-                  type: "new_message",
-                  title: "New Message",
-                  message: `${socket.user.name} sent you a message`,
-                  unreadCount,
-                });
+                // لا نرسل حدث notification بالسوكت لرسائل المحادثة — الإشعار الوحيد هو الـ push من createNotification
               })
             );
           } catch (err) {

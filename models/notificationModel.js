@@ -171,20 +171,22 @@ notificationSchema.post("save", async (doc) => {
     ).catch(() => {});
   }
 
-  // إرسال نسخة من الإشعار إلى بريد المستخدم (بدون انتظار لعدم تعطيل الحفظ)
-  (async () => {
-    try {
-      const user = await User.findById(doc.user).select("email").lean();
-      if (!user || !user.email) return;
-      await sendEmail({
-        email: user.email,
-        subject: `إشعار - ${doc.title}`,
-        message: `${doc.title}\n\n${doc.message}\n\n---\nتطبيق ميثاق`,
-      });
-    } catch (err) {
-      console.error("Notification email send error:", err.message);
-    }
-  })();
+  // إرسال نسخة من الإشعار إلى بريد المستخدم (ما عدا رسائل المحادثة لئلا يصل المستخدم أكثر من إشعار)
+  if (doc.type !== "new_message") {
+    (async () => {
+      try {
+        const user = await User.findById(doc.user).select("email").lean();
+        if (!user || !user.email) return;
+        await sendEmail({
+          email: user.email,
+          subject: `إشعار - ${doc.title}`,
+          message: `${doc.title}\n\n${doc.message}\n\n---\nتطبيق ميثاق`,
+        });
+      } catch (err) {
+        console.error("Notification email send error:", err.message);
+      }
+    })();
+  }
 });
 
 // Auto-delete old notifications (keep only last 100 per user)
