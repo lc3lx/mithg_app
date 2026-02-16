@@ -262,18 +262,20 @@ exports.sendAdminMessage = asyncHandler(async (req, res, next) => {
     });
     await conversation.save();
 
+    const lastMsgDoc = conversation.messages[conversation.messages.length - 1];
     const payload = {
       conversationId,
       senderType: "admin",
       message: message.trim(),
-      createdAt: conversation.messages[conversation.messages.length - 1].createdAt,
+      createdAt: lastMsgDoc.createdAt,
+      _id: lastMsgDoc._id,
     };
     emitGuestSupport(req, "support_message", payload);
 
     return res.status(201).json({
       message: "Support message sent",
       data: {
-        _id: conversation.messages[conversation.messages.length - 1]._id,
+        _id: lastMsgDoc._id,
         senderType: "admin",
         message: message.trim(),
         createdAt: payload.createdAt,

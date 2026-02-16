@@ -1,4 +1,3 @@
-const express = require("express");
 const userRoute = require("./userRoute");
 const authRoute = require("./authRoute");
 const postRoute = require("./postRoute");
@@ -16,18 +15,9 @@ const userWarningsRoute = require("./userWarningsRoute");
 const userModerationRoute = require("./userModerationRoute");
 
 const supportRoute = require("./supportRoute");
-const supportService = require("../services/supportService");
 const deviceTokenRoute = require("./deviceTokenRoute");
 const rechargeService = require("../services/rechargeService");
 const authService = require("../services/authService");
-
-// مسارات ضيف الدعم (بدون تسجيل دخول) — تُركَّب أولاً حتى لا تمرّ بأي protect
-const guestSupportRouter = express.Router();
-guestSupportRouter.post("/contact", supportService.createGuestConversation);
-guestSupportRouter.get(
-  "/messages/:conversationId",
-  supportService.getGuestMessages,
-);
 
 const mountRoutes = (app) => {
   app.use("/api/v1/users", userRoute);
@@ -45,7 +35,6 @@ const mountRoutes = (app) => {
   app.use("/api/v1/guardians", guardianRoute);
   app.use("/api/v1/warnings", userWarningsRoute);
   app.use("/api/v1/moderation", userModerationRoute);
-  app.use("/api/v1/support/guest", guestSupportRouter);
   app.use("/api/v1/support", supportRoute);
   app.use("/api/v1/device-tokens", deviceTokenRoute);
 
