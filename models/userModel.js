@@ -115,14 +115,22 @@ const userSchema = new mongoose.Schema(
       trim: true,
     },
     height: {
-      type: Number, // in cm
-      min: 100,
-      max: 250,
+      type: Number, // in cm (optional)
+      validate: {
+        validator(v) {
+          return v == null || (typeof v === "number" && v >= 100 && v <= 250);
+        },
+        message: "الطول يجب أن يكون بين 100 و 250 سم أو غير مدخل",
+      },
     },
     weight: {
-      type: Number, // in kg
-      min: 30,
-      max: 200,
+      type: Number, // in kg (optional)
+      validate: {
+        validator(v) {
+          return v == null || (typeof v === "number" && v >= 30 && v <= 200);
+        },
+        message: "الوزن يجب أن يكون بين 30 و 200 كغ أو غير مدخل",
+      },
     },
     bodyShape: {
       type: String,
