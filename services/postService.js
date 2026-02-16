@@ -47,6 +47,7 @@ exports.getPosts = asyncHandler(async (req, res) => {
   const posts = await mongooseQuery.populate([
     { path: "admin", select: "name email adminType" },
     { path: "likes", select: "name profileImg" },
+    { path: "dislikes", select: "name profileImg" },
   ]);
 
   console.log(`🎬 Posts fetched: ${posts.length}`);
@@ -58,6 +59,7 @@ exports.getPosts = asyncHandler(async (req, res) => {
   const data = posts.map((p) => {
     const po = p.toObject ? p.toObject() : { ...p };
     po.isLiked = !!userId && (p.likes || []).some((l) => (l._id || l).toString() === userId);
+    po.isDisliked = !!userId && (p.dislikes || []).some((l) => (l._id || l).toString() === userId);
     return po;
   });
 
@@ -165,26 +167,28 @@ exports.toggleLike = asyncHandler(async (req, res, next) => {
   }
 
   const isLiked = post.likes.includes(userId);
+  const isDisliked = (post.dislikes || []).some((d) => d.toString() === userId.toString());
 
   if (isLiked) {
-    // Unlike
     await Post.findByIdAndUpdate(id, {
       $pull: { likes: userId },
       $inc: { likesCount: -1 },
     });
-
     res.status(200).json({
       message: "Post unliked successfully",
       liked: false,
     });
   } else {
-    // Like
-    await Post.findByIdAndUpdate(id, {
+    const update = {
       $push: { likes: userId },
       $inc: { likesCount: 1 },
-    });
+    };
+    if (isDisliked) {
+      update.$pull = { dislikes: userId };
+      update.$inc.dislikesCount = -1;
+    }
+    await Post.findByIdAndUpdate(id, update);
 
-    // Create notification for post owner if not liking own post
     if (post.admin.toString() !== userId.toString()) {
       await Notification.createNotification({
         user: post.admin,
@@ -200,6 +204,48 @@ exports.toggleLike = asyncHandler(async (req, res, next) => {
     res.status(200).json({
       message: "Post liked successfully",
       liked: true,
+    });
+  }
+});
+
+// @desc    Dislike/Undislike post
+// @route   POST /api/v1/posts/:id/dislike
+// @access  Private/Protect
+exports.toggleDislike = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+  const userId = req.user._id;
+
+  const post = await Post.findById(id);
+  if (!post) {
+    return next(new ApiError(`No post for this id ${id}`, 404));
+  }
+
+  const isDisliked = (post.dislikes || []).some((d) => d.toString() === userId.toString());
+  const isLiked = post.likes.includes(userId);
+
+  if (isDisliked) {
+    await Post.findByIdAndUpdate(id, {
+      $pull: { dislikes: userId },
+      $inc: { dislikesCount: -1 },
+    });
+    res.status(200).json({
+      message: "Post undisliked successfully",
+      disliked: false,
+    });
+  } else {
+    const update = {
+      $push: { dislikes: userId },
+      $inc: { dislikesCount: 1 },
+    };
+    if (isLiked) {
+      update.$pull = { likes: userId };
+      update.$inc.likesCount = -1;
+    }
+    await Post.findByIdAndUpdate(id, update);
+
+    res.status(200).json({
+      message: "Post disliked successfully",
+      disliked: true,
     });
   }
 });

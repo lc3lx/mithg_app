@@ -9,6 +9,7 @@ const {
   deletePost,
   togglePostStatus,
   toggleLike,
+  toggleDislike,
   processPostMedia,
   createFilterObj,
 } = require("../services/postService");
@@ -87,5 +88,8 @@ router.patch(
 
 // Like / Unlike (users only - not admins)
 router.post("/:id/like", authService.protect, authService.requirePhoneVerified, toggleLikeValidator, toggleLike);
+
+// Dislike / Undislike (users only - not admins)
+router.post("/:id/dislike", authService.protect, authService.requirePhoneVerified, toggleLikeValidator, toggleDislike);
 
 module.exports = router;

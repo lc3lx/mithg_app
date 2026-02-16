@@ -49,6 +49,16 @@ const postSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    dislikes: [
+      {
+        type: mongoose.Schema.ObjectId,
+        ref: "User",
+      },
+    ],
+    dislikesCount: {
+      type: Number,
+      default: 0,
+    },
     views: {
       type: Number,
       default: 0,
