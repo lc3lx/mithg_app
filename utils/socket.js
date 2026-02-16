@@ -333,8 +333,23 @@ const socketHandler = (io) => {
               lastMessageTime: new Date(),
             });
 
+            const roomChatId = chatId.toString();
+            const socketsInChatRoom = chatNamespace.adapter.rooms?.get(roomChatId);
+
+            const isParticipantViewingChat = (participantId) => {
+              const participantSocketId = onlineUsers.get(
+                participantId.toString()
+              );
+              return !!(
+                participantSocketId &&
+                socketsInChatRoom &&
+                socketsInChatRoom.has(participantSocketId)
+              );
+            };
+
             await Promise.all(
               otherParticipants.map(async (participantId) => {
+                if (isParticipantViewingChat(participantId)) return;
                 await Chat.findByIdAndUpdate(
                   chatId,
                   { $inc: { "unreadCount.$[elem].count": 1 } },
@@ -356,8 +371,9 @@ const socketHandler = (io) => {
             );
 
             await Promise.all(
-              otherParticipants.map((participantId) =>
-                Notification.createNotification({
+              otherParticipants.map((participantId) => {
+                if (isParticipantViewingChat(participantId)) return null;
+                return Notification.createNotification({
                   user: participantId,
                   type: "new_message",
                   title: "New Message",
@@ -366,12 +382,13 @@ const socketHandler = (io) => {
                   relatedChat: chatId,
                   relatedMessage: message._id,
                   data: { chatId, messageId: message._id },
-                })
-              )
+                });
+              })
             );
 
             await Promise.all(
               otherParticipants.map(async (participantId) => {
+                if (isParticipantViewingChat(participantId)) return;
                 const participantSocketId = onlineUsers.get(
                   participantId.toString()
                 );
