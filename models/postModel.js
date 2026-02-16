@@ -8,14 +8,22 @@ const postSchema = new mongoose.Schema(
       required: [true, "Post must belong to Admin"],
     },
 
-    // نوع البوست
-    postType: {
+    // النص (اختياري — يمكن بوست نص فقط أو نص فوق الميديا)
+    content: {
       type: String,
-      enum: ["image", "video"],
-      default: "image",
+      default: "",
+      trim: true,
+      maxlength: [2000, "Content must be at most 2000 characters"],
     },
 
-    // الميديا (صور + فيديو)
+    // نوع البوست: text = نص فقط، image/video = ميديا (مع أو بدون نص فوق)
+    postType: {
+      type: String,
+      enum: ["text", "image", "video"],
+      default: "text",
+    },
+
+    // الميديا (اختياري — يمكن أن تكون فارغة للبوست النصي)
     media: [
       {
         url: {

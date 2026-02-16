@@ -90,12 +90,19 @@ exports.getPost = asyncHandler(async (req, res, next) => {
   res.status(200).json({ data: post });
 });
 
-// @desc    Create admin post
+// @desc    Create admin post (نص فقط، أو نص + صور/فيديو)
 // @route   POST  /api/v1/posts
 // @access  Private/Admin
 exports.createPost = asyncHandler(async (req, res) => {
-  // Add user to req.body and mark as admin post
   req.body.admin = req.admin._id;
+  req.body.media = req.body.media || [];
+  // إذا لا ميديا ونص موجود → نوع البوست نص
+  if (req.body.media.length === 0 && req.body.content) {
+    req.body.postType = "text";
+  } else if (req.body.media.length > 0) {
+    const hasVideo = req.body.media.some((m) => m.type === "video");
+    req.body.postType = hasVideo ? "video" : "image";
+  }
 
   const post = await Post.create(req.body);
 

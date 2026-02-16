@@ -7,7 +7,14 @@ exports.getPostValidator = [
   validatorMiddleware,
 ];
 
-exports.createPostValidator = [validatorMiddleware];
+exports.createPostValidator = [
+  body("content")
+    .optional()
+    .trim()
+    .isLength({ max: 2000 })
+    .withMessage("Content must be at most 2000 characters"),
+  validatorMiddleware,
+];
 
 exports.updatePostValidator = [
   param("id").isMongoId().withMessage("Invalid post ID format"),
