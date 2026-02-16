@@ -2,9 +2,11 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/userModel");
 const Admin = require("../models/adminModel");
 const SupportMessage = require("../models/supportMessageModel");
+const GuestSupportConversation = require("../models/guestSupportModel");
 
 const supportSocket = (io, onlineUsers, onlineAdmins) => {
   const supportNamespace = io.of("/support");
+  const guestNamespace = io.of("/support-guest");
 
   supportNamespace.use(async (socket, next) => {
     try {
@@ -74,6 +76,34 @@ const supportSocket = (io, onlineUsers, onlineAdmins) => {
 
         if (socket.role === "admin") {
           if (!userId) return;
+
+          if (userId.startsWith("guest:")) {
+            const conversationId = userId.replace("guest:", "");
+            const conversation = await GuestSupportConversation.findById(conversationId);
+            if (!conversation) {
+              socket.emit("support_error", { message: "المحادثة غير موجودة" });
+              return;
+            }
+            conversation.messages.push({
+              senderType: "admin",
+              message: message.trim(),
+              admin: socket.adminId,
+            });
+            await conversation.save();
+            const lastMsg = conversation.messages[conversation.messages.length - 1];
+            const payload = {
+              conversationId,
+              senderType: "admin",
+              message: lastMsg.message,
+              createdAt: lastMsg.createdAt,
+              _id: lastMsg._id,
+            };
+            guestNamespace.to(`guest:${conversationId}`).emit("support_message", payload);
+            supportNamespace.to("admins").emit("support_message", { ...payload, user: userId });
+            socket.emit("support_sent", { messageId: lastMsg._id });
+            return;
+          }
+
           const supportMessage = await SupportMessage.create({
             user: userId,
             admin: socket.adminId,
