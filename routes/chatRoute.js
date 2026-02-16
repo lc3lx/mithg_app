@@ -28,7 +28,7 @@ const {
 
 const router = express.Router();
 
-// All routes require authentication and phone verification (OTP)
+// All routes require authentication + OTP verified
 router.use(authService.protect);
 router.use(authService.requirePhoneVerified);
 

@@ -126,7 +126,7 @@ router.post("/verify", async (req, res) => {
   }
   await User.findOneAndUpdate(
     { phone: phone.trim() },
-    { $set: { phoneVerified: true, registrationStep: 6 } }
+    { $set: { phoneVerified: true, registrationStep: 6 } },
   );
   return res.status(200).json({
     success: true,

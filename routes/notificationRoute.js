@@ -49,7 +49,7 @@ adminRouter
 
 router.use("/admin", adminService.protectAdmin, adminRouter);
 
-// All user routes require user authentication and phone verification
+// All user routes require user authentication + OTP verified
 router.use(authService.protect);
 router.use(authService.requirePhoneVerified);
 

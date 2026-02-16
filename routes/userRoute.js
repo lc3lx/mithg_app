@@ -58,13 +58,9 @@ const {
 const router = express.Router();
 
 router.use(authService.protect);
-
-// getMe فقط يُستثنى — لمعرفة حالة التحقق وتوجيه المستخدم لشاشة OTP إن لزم
-router.get("/getMe", getLoggedUserData, getUser);
-
-// منع الدخول لبقية مسارات المستخدم دون إكمال التحقق من الهاتف (OTP)
 router.use(authService.requirePhoneVerified);
 
+router.get("/getMe", getLoggedUserData, getUser);
 router.put("/changeMyPassword", updateLoggedUserPassword);
 router.put("/updateMe", updateLoggedUserValidator, updateLoggedUserData);
 router.put(

@@ -31,7 +31,7 @@ const adminService = require("../services/adminService");
 
 const router = express.Router();
 
-// All routes require authentication and phone verification
+// All routes require authentication + OTP verified
 router.use(authService.protect);
 router.use(authService.requirePhoneVerified);
 

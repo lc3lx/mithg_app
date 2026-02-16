@@ -84,7 +84,7 @@ router
   .put(updateReferralCodeValidator, updateReferralCode)
   .delete(deleteReferralCode);
 
-// Protected user routes (تحقق الهاتف مطلوب)
+// Protected user routes (OTP verified required)
 router.use(authService.protect);
 router.use(authService.requirePhoneVerified);
 router.get("/status", getUserSubscriptionStatus);

@@ -170,9 +170,14 @@ exports.protect = asyncHandler(async (req, res, next) => {
   next();
 });
 
-// @desc   منع الدخول لمسارات التطبيق حتى إكمال التحقق من الهاتف (OTP)
-// @use    بعد protect على مسارات المستخدم (ما عدا getMe)
-exports.requirePhoneVerified = asyncHandler(async (req, res, next) => {
+// @desc    يمنع دخول المستخدم للتطبيق حتى يتحقق من OTP (رقم الهاتف)
+// @use     بعد protect على مسارات المستخدم فقط (ليس الأدمن أو Auth)
+exports.requirePhoneVerified = (req, res, next) => {
+  if (!req.user) {
+    return next(
+      new ApiError("You are not logged in. Please log in to get access.", 401)
+    );
+  }
   if (req.user.phoneVerified === true) {
     return next();
   }
@@ -181,7 +186,7 @@ exports.requirePhoneVerified = asyncHandler(async (req, res, next) => {
     message: "يجب التحقق من رقم الهاتف أولاً",
     phone: req.user.phone || null,
   });
-});
+};
 
 // @desc    Authorization (User Permissions)
 // ["admin", "manager"]
