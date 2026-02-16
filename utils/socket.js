@@ -11,6 +11,11 @@ const { hasActiveSubscriptionAndVerification } = require("../middlewares/subscri
 // تخزين المستخدمين المتصلين
 const onlineUsers = new Map();
 
+// تجميع إشعارات الرسائل: إشعار واحد لكل مجموعة رسائل متتالية حتى يفتح المستقبل المحادثة
+// مفتاح: `${userId}:${chatId}` ، القيمة: timestamp
+const lastOpenedChatAt = new Map();
+const lastMessageNotificationAt = new Map();
+
 // دالة مساعدة للحصول على عدد الرسائل غير المقروءة
 const getUnreadCount = async (chatId, userId) => {
   try {
@@ -370,9 +375,19 @@ const socketHandler = (io) => {
               })
             );
 
+            // إشعار واحد لكل مجموعة رسائل: لا نرسل إشعاراً جديداً إذا أرسلنا بالفعل ولم يفتح المستقبل المحادثة
+            const shouldSendNotification = (participantId) => {
+              if (isParticipantViewingChat(participantId)) return false;
+              const key = `${participantId}:${chatId}`;
+              const lastNotif = lastMessageNotificationAt.get(key);
+              const lastOpened = lastOpenedChatAt.get(key);
+              if (lastNotif != null && (lastOpened == null || lastOpened < lastNotif)) return false;
+              return true;
+            };
+
             await Promise.all(
               otherParticipants.map((participantId) => {
-                if (isParticipantViewingChat(participantId)) return null;
+                if (!shouldSendNotification(participantId)) return null;
                 return Notification.createNotification({
                   user: participantId,
                   type: "new_message",
@@ -388,7 +403,9 @@ const socketHandler = (io) => {
 
             await Promise.all(
               otherParticipants.map(async (participantId) => {
-                if (isParticipantViewingChat(participantId)) return;
+                if (!shouldSendNotification(participantId)) return;
+                const key = `${participantId}:${chatId}`;
+                lastMessageNotificationAt.set(key, Date.now());
                 const participantSocketId = onlineUsers.get(
                   participantId.toString()
                 );
@@ -640,6 +657,8 @@ const socketHandler = (io) => {
         });
         if (chat) {
           socket.join(chatId.toString());
+          const key = `${socket.userId}:${chatId}`;
+          lastOpenedChatAt.set(key, Date.now());
         }
       } catch (err) {
         console.error("join_chat error:", err);
@@ -671,6 +690,9 @@ const socketHandler = (io) => {
           socket.emit("error", { message: "Chat not found or access denied" });
           return;
         }
+
+        const key = `${socket.userId}:${chatId}`;
+        lastOpenedChatAt.set(key, Date.now());
 
         // تحديد الرسائل كمقروءة
         await Message.updateMany(

@@ -189,15 +189,27 @@ exports.useRechargeCode = asyncHandler(async (req, res, next) => {
     return next(new ApiError("الباقة غير موجودة أو غير متاحة.", 400));
   }
 
+  // الاشتراك بالكود: القيمة بالدولار (USD) فقط
   const codeAmount = Number(rechargeCode.amount);
-  const codeCurrency = (rechargeCode.currency || "USD").toUpperCase();
+  const codeCurrency = (rechargeCode.currency || "").toUpperCase();
   const packagePrice = Number(subscription.price);
-  const packageCurrency = (subscription.currency || "USD").toUpperCase();
+  const packageCurrency = (subscription.currency || "").toUpperCase();
 
-  if (codeAmount !== packagePrice || codeCurrency !== packageCurrency) {
+  if (codeCurrency !== "USD" || packageCurrency !== "USD") {
     return next(
       new ApiError(
-        "قيمة الكود لا تطابق سعر الباقة المختارة. يرجى استخدام كود مساوٍ لقيمة الباقة أو مراسلة الدعم.",
+        "قيمة الكود وسعر الباقة يجب أن يكونا بالدولار (USD).",
+        400
+      )
+    );
+  }
+
+  // قيمة الكود يجب أن تساوي سعر الباقة التي اختارها المستخدم (مقارنة متسامحة للأرقام العشرية)
+  const priceDiff = Math.abs(codeAmount - packagePrice);
+  if (priceDiff > 0.001) {
+    return next(
+      new ApiError(
+        "قيمة الكود لا تكفي لشحن الباقة. قم بمراسلة الدعم.",
         400
       )
     );
