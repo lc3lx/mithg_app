@@ -59,23 +59,13 @@ const router = express.Router();
 
 router.use(authService.protect);
 
-// getMe و updateProfileInfo بدون اشتراط التحقق من الهاتف — لاستخدامهما في خطوات التسجيل (signup1→5) قبل OTP
+// getMe، updateProfileInfo، رفع الصور — بدون اشتراط التحقق من الهاتف (خطوات التسجيل signup1→5 قبل OTP)
 router.get("/getMe", getLoggedUserData, getUser);
 router.put(
   "/updateProfileInfo",
   updateLoggedUserValidator,
   updateLoggedUserProfileInfo
 );
-
-router.use(authService.requirePhoneVerified);
-
-router.put("/changeMyPassword", updateLoggedUserPassword);
-router.put("/updateMe", updateLoggedUserValidator, updateLoggedUserData);
-router.delete("/deleteMe", deleteLoggedUserData);
-router.put("/freezeAccount", freezeAccount);
-router.delete("/permanentDelete", permanentDeleteAccount);
-
-// Image upload routes
 router.post(
   "/uploadProfileImage",
   uploadUserImage,
@@ -88,6 +78,14 @@ router.post(
   resizeImage,
   updateLoggedUserData
 );
+
+router.use(authService.requirePhoneVerified);
+
+router.put("/changeMyPassword", updateLoggedUserPassword);
+router.put("/updateMe", updateLoggedUserValidator, updateLoggedUserData);
+router.delete("/deleteMe", deleteLoggedUserData);
+router.put("/freezeAccount", freezeAccount);
+router.delete("/permanentDelete", permanentDeleteAccount);
 
 // Favorites
 router.post("/favorites/:userId", addToFavoritesValidator, addToFavorites);
