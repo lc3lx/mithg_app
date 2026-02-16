@@ -233,6 +233,16 @@ exports.updateLoggedUserProfileInfo = asyncHandler(async (req, res, next) => {
   if (req.body.weight !== undefined) user.weight = req.body.weight;
   if (req.body.bodyShape !== undefined) user.bodyShape = req.body.bodyShape;
   if (req.body.healthProblems !== undefined) user.healthProblems = req.body.healthProblems;
+  // صفحة 4.5 - تفضيلات الشريك
+  if (req.body.religiousCommitment !== undefined) user.religiousCommitment = req.body.religiousCommitment;
+  if (req.body.prayerObservance !== undefined) user.prayerObservance = req.body.prayerObservance;
+  if (req.body.preferredPartnerAgeMin !== undefined) user.preferredPartnerAgeMin = req.body.preferredPartnerAgeMin;
+  if (req.body.preferredPartnerAgeMax !== undefined) user.preferredPartnerAgeMax = req.body.preferredPartnerAgeMax;
+  if (req.body.preferredPartnerCountry !== undefined) user.preferredPartnerCountry = req.body.preferredPartnerCountry;
+  if (req.body.hijabType !== undefined) user.hijabType = req.body.hijabType;
+  if (req.body.acceptPolygamy !== undefined) user.acceptPolygamy = req.body.acceptPolygamy;
+  if (req.body.partnerTraitsOrConditions !== undefined) user.partnerTraitsOrConditions = req.body.partnerTraitsOrConditions;
+  if (req.body.marriageType !== undefined) user.marriageType = req.body.marriageType;
   if (req.body.registrationStep !== undefined) {
     const step = Number(req.body.registrationStep);
     if (!Number.isNaN(step) && step >= 0 && step <= 6) user.registrationStep = step;

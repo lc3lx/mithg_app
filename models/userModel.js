@@ -140,6 +140,20 @@ const userSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+
+    // صفحة 4.5 - تفضيلات الشريك (مشتركة + خاصة بالبنت/الشاب)
+    religiousCommitment: { type: String, trim: true }, // درجة الالتزام الديني
+    prayerObservance: { type: String, trim: true }, // المحافظة على الصلاة
+    preferredPartnerAgeMin: { type: Number },
+    preferredPartnerAgeMax: { type: Number },
+    preferredPartnerCountry: { type: String, trim: true }, // البلد المفضل للشريك
+    // للبنت فقط
+    hijabType: { type: String, trim: true }, // محجبة / غير محجبة / نقاب
+    acceptPolygamy: { type: Boolean }, // تقبل التعدد
+    partnerTraitsOrConditions: { type: String, trim: true }, // صفات أو شروط الشريك
+    // للشاب فقط
+    marriageType: { type: String, trim: true }, // أول / تعدد (نوع الزواج)
+
     profileImg: String,
     coverImg: String,
 
