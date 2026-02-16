@@ -14,7 +14,9 @@ const { Server } = require("socket.io");
 const supportSocket = require("./utils/supportSocket");
 const supportGuestSocket = require("./utils/supportGuestSocket");
 const chatSocket = require("./utils/socket");
-const { processScheduledNotifications } = require("./services/notificationService");
+const {
+  processScheduledNotifications,
+} = require("./services/notificationService");
 
 // تحميل المتغيرات من مجلد backend (غضّ النظر عن cwd عند تشغيل pm2 أو غيره)
 
@@ -81,7 +83,7 @@ io.engine.on("connection", (rawSocket) => {
     const msg = err && err.message ? err.message : String(err);
     if (msg.includes("invalid payload")) {
       console.warn(
-        "⚠️ [Socket.IO] Invalid payload — تحقق من إعدادات WebSocket في البروكسي (nginx/Apache)."
+        "⚠️ [Socket.IO] Invalid payload — تحقق من إعدادات WebSocket في البروكسي (nginx/Apache).",
       );
     }
   });
@@ -106,7 +108,7 @@ app.use(
   cors({
     origin: process.env.CLIENT_URL || "http://localhost:3000",
     credentials: true,
-  })
+  }),
 );
 app.options("*", cors());
 
@@ -118,7 +120,7 @@ app.use(
   helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
     contentSecurityPolicy: false, // Disable CSP for API
-  })
+  }),
 );
 
 // Data sanitization against NoSQL query injection
@@ -132,7 +134,7 @@ app.use((req, res, next) => {
       if (typeof str !== "string") return str;
       return str.replace(
         /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
-        ""
+        "",
       );
     };
 
@@ -180,7 +182,7 @@ if (process.env.NODE_ENV === "development") {
 // General rate limiter - Limit each IP to 100 requests per 15 minutes
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
+  max: 1000,
   message: {
     error: "Too many requests from this IP, please try again after 15 minutes",
   },
@@ -191,7 +193,7 @@ const limiter = rateLimit({
 // Stricter limiter for authentication routes (disabled for development)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 150, // Increased to 50 attempts per 15 minutes for development
+  max: 1500, // Increased to 50 attempts per 15 minutes for development
   message: {
     error:
       "Too many authentication attempts, please try again after 15 minutes",
@@ -203,7 +205,7 @@ const authLimiter = rateLimit({
 // Limiter for chat/message sending
 const chatLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 100, // 20 messages per minute
+  max: 1000, // 20 messages per minute
   message: {
     error: "Too many messages sent, please slow down",
   },
@@ -235,7 +237,7 @@ app.use(
       "ratingsAverage",
       "ratingsQuantity",
     ],
-  })
+  }),
 );
 
 // Mount Routes (OTP is ESM, loaded async; path from __dirname for reliability)
