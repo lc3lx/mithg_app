@@ -59,18 +59,18 @@ const router = express.Router();
 
 router.use(authService.protect);
 
-// getMe بدون اشتراط التحقق من الهاتف — لاستخدامه في خطوات التسجيل (signup1→5) قبل OTP
+// getMe و updateProfileInfo بدون اشتراط التحقق من الهاتف — لاستخدامهما في خطوات التسجيل (signup1→5) قبل OTP
 router.get("/getMe", getLoggedUserData, getUser);
-
-router.use(authService.requirePhoneVerified);
-
-router.put("/changeMyPassword", updateLoggedUserPassword);
-router.put("/updateMe", updateLoggedUserValidator, updateLoggedUserData);
 router.put(
   "/updateProfileInfo",
   updateLoggedUserValidator,
   updateLoggedUserProfileInfo
 );
+
+router.use(authService.requirePhoneVerified);
+
+router.put("/changeMyPassword", updateLoggedUserPassword);
+router.put("/updateMe", updateLoggedUserValidator, updateLoggedUserData);
 router.delete("/deleteMe", deleteLoggedUserData);
 router.put("/freezeAccount", freezeAccount);
 router.delete("/permanentDelete", permanentDeleteAccount);
