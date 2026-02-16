@@ -354,8 +354,9 @@ exports.createAdminBroadcastNotification = asyncHandler(async (req, res, next) =
 
   const inserted = await Notification.insertMany(docs, { ordered: false });
 
-  // إرسال push لكل مستخدم حتى يصل الإشعار للتطبيق وهو مغلق
-  const pushPromises = inserted.map(async (doc) => {
+  // إرسال push فوراً للمرسلة فقط؛ المجدولة تُرسل لاحقاً عبر المهمة الدورية
+  const toSendNow = inserted.filter((doc) => doc.status === "sent");
+  const pushPromises = toSendNow.map(async (doc) => {
     try {
       const sent = await sendPushToUser(doc.user, doc, null);
       if (sent) {
@@ -376,6 +377,40 @@ exports.createAdminBroadcastNotification = asyncHandler(async (req, res, next) =
     data: inserted,
   });
 });
+
+/**
+ * معالجة الإشعارات المجدولة التي حان موعدها: إرسال push وتحديث الحالة إلى sent
+ * يُستدعى من مهمة دورية (كل دقيقة) في server.js
+ */
+exports.processScheduledNotifications = async () => {
+  const now = new Date();
+  const due = await Notification.find({
+    status: "scheduled",
+    scheduledAt: { $lte: now },
+  }).lean();
+
+  if (due.length === 0) return;
+
+  for (const doc of due) {
+    try {
+      await sendPushToUser(doc.user, doc, null);
+      await Notification.updateOne(
+        { _id: doc._id },
+        {
+          status: "sent",
+          sentAt: new Date(),
+          pushSent: true,
+          pushSentAt: new Date(),
+        }
+      );
+    } catch (err) {
+      console.error(
+        `[Scheduled notification] Failed for ${doc._id}:`,
+        err.message
+      );
+    }
+  }
+};
 
 // Helper functions for creating notifications
 exports.createFriendRequestNotification = async (senderId, receiverId) => {

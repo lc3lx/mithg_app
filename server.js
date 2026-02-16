@@ -14,6 +14,7 @@ const { Server } = require("socket.io");
 const supportSocket = require("./utils/supportSocket");
 const supportGuestSocket = require("./utils/supportGuestSocket");
 const chatSocket = require("./utils/socket");
+const { processScheduledNotifications } = require("./services/notificationService");
 
 // تحميل المتغيرات من مجلد backend (غضّ النظر عن cwd عند تشغيل pm2 أو غيره)
 
@@ -251,6 +252,14 @@ const startServer = async () => {
     } else {
       console.log(`🔌 Socket.io namespaces: Not initialized yet`);
     }
+
+    // جدولة الإشعارات: معالجة الإشعارات المجدولة كل دقيقة
+    setInterval(() => {
+      processScheduledNotifications().catch((err) => {
+        console.error("[Scheduled notifications] Error:", err.message);
+      });
+    }, 60 * 1000);
+    console.log("✅ Scheduled notifications job started (every 1 min)");
   });
 };
 
