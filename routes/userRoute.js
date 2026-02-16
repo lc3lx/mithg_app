@@ -58,9 +58,12 @@ const {
 const router = express.Router();
 
 router.use(authService.protect);
+
+// getMe بدون اشتراط التحقق من الهاتف — لاستخدامه في خطوات التسجيل (signup1→5) قبل OTP
+router.get("/getMe", getLoggedUserData, getUser);
+
 router.use(authService.requirePhoneVerified);
 
-router.get("/getMe", getLoggedUserData, getUser);
 router.put("/changeMyPassword", updateLoggedUserPassword);
 router.put("/updateMe", updateLoggedUserValidator, updateLoggedUserData);
 router.put(
