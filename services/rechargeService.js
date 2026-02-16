@@ -3,6 +3,7 @@ const ApiError = require("../utils/apiError");
 const ApiFeatures = require("../utils/apiFeatures");
 
 const RechargeCode = require("../models/rechargeCodeModel");
+const Subscription = require("../models/subscriptionModel");
 const Wallet = require("../models/walletModel");
 const Transaction = require("../models/transactionModel");
 const User = require("../models/userModel");
@@ -170,6 +171,22 @@ exports.useRechargeCode = asyncHandler(async (req, res, next) => {
     }
 
     return next(new ApiError(message, 400));
+  }
+
+  // التحقق: قيمة الكود يجب أن تكفي سعر أصغر باقة نشطة (نفس العملة أو أي باقة)
+  const activePackages = await Subscription.find({ isActive: true }).select("price currency").lean();
+  if (activePackages.length > 0) {
+    const sameCurrency = activePackages.filter((p) => (p.currency || "SAR") === (rechargeCode.currency || "SAR"));
+    const packagesToCheck = sameCurrency.length > 0 ? sameCurrency : activePackages;
+    const minPrice = Math.min(...packagesToCheck.map((p) => Number(p.price)));
+    if (Number(rechargeCode.amount) < minPrice) {
+      return next(
+        new ApiError(
+          "قيمة الكود لا تكفي لتفعيل الاشتراك. يرجى مراسلة الدعم.",
+          400
+        )
+      );
+    }
   }
 
   // Get or create user wallet
