@@ -72,6 +72,21 @@ const io = new Server(server, {
 });
 console.log("✅ [Socket.IO] Socket.IO server created successfully");
 
+// التقاط أخطاء المحرك والاتصالات (مثل invalid payload من البروكسي أو العميل)
+io.engine.on("connection_error", (err) => {
+  console.warn("⚠️ [Socket.IO] Engine connection_error:", err.message);
+});
+io.engine.on("connection", (rawSocket) => {
+  rawSocket.on("error", (err) => {
+    const msg = err && err.message ? err.message : String(err);
+    if (msg.includes("invalid payload")) {
+      console.warn(
+        "⚠️ [Socket.IO] Invalid payload — تحقق من إعدادات WebSocket في البروكسي (nginx/Apache)."
+      );
+    }
+  });
+});
+
 const onlineUsers = new Map();
 const onlineAdmins = new Map();
 app.set("io", io);

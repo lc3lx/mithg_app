@@ -97,11 +97,23 @@ const socketHandler = (io) => {
     console.log("🔌 [Chat Socket] Socket userId:", socket.userId);
     console.log("🔌 [Chat Socket] Socket adminId:", socket.adminId);
     
-    // إضافة event listeners للأخطاء
+    // معالجة أخطاء السوكت (مثل invalid payload: غالباً بروكسي أو عميل يرسل بيانات غير صالحة)
     socket.on("error", (error) => {
-      console.error("❌ [Chat Socket] Socket error:", error);
+      const msg = error && error.message ? error.message : String(error);
+      if (msg.includes("invalid payload")) {
+        console.warn(
+          "⚠️ [Chat Socket] Invalid payload from client — قد يكون بسبب البروكسي (nginx/Apache) أو تطبيق العميل. فصل السوكت للسماح بإعادة الاتصال."
+        );
+      } else {
+        console.error("❌ [Chat Socket] Socket error:", error);
+      }
+      try {
+        socket.disconnect(true);
+      } catch (e) {
+        // تجاهل إن كان السوكت مغلقاً أصلاً
+      }
     });
-    
+
     socket.on("connect_error", (error) => {
       console.error("❌ [Chat Socket] Connection error:", error);
     });
