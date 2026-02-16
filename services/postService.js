@@ -54,10 +54,17 @@ exports.getPosts = asyncHandler(async (req, res) => {
     console.log('📹 First post media:', JSON.stringify(posts[0].media, null, 2));
   }
 
+  const userId = req.user?._id?.toString();
+  const data = posts.map((p) => {
+    const po = p.toObject ? p.toObject() : { ...p };
+    po.isLiked = !!userId && (p.likes || []).some((l) => (l._id || l).toString() === userId);
+    return po;
+  });
+
   res.status(200).json({
     results: posts.length,
     paginationResult,
-    data: posts,
+    data,
   });
 });
 
