@@ -11,22 +11,36 @@ const createToken = require("../utils/createToken");
 const User = require("../models/userModel");
 
 // @desc    Signup
-// @route   GET /api/v1/auth/signup
+// @route   POST /api/v1/auth/signup
 // @access  Public
 exports.signup = asyncHandler(async (req, res, next) => {
-  // 1- Create user
-  const user = await User.create({
-    name: req.body.name,
-    username: req.body.username,
-    email: req.body.email,
-    phone: req.body.phone,
-    password: req.body.password,
-  });
+  try {
+    const user = await User.create({
+      name: req.body.name,
+      username: req.body.username,
+      email: req.body.email,
+      phone: req.body.phone,
+      password: req.body.password,
+    });
 
-  // 2- Generate token
-  const token = createToken(user._id);
-
-  res.status(201).json({ data: user, token });
+    const token = createToken(user._id);
+    res.status(201).json({ data: user, token });
+  } catch (err) {
+    if (err.code === 11000) {
+      const key = err.keyPattern ? Object.keys(err.keyPattern)[0] : (err.keyValue ? Object.keys(err.keyValue)[0] : null);
+      if (key === "phone") {
+        return next(new ApiError("الرقم مستخدم من قبل. سجّل الدخول أو استخدم رقماً آخر.", 400));
+      }
+      if (key === "email") {
+        return next(new ApiError("البريد الإلكتروني مستخدم من قبل. سجّل الدخول أو استخدم بريداً آخر.", 400));
+      }
+      if (key === "username") {
+        return next(new ApiError("اسم المستخدم مستخدم من قبل. اختر اسماً آخر.", 400));
+      }
+      return next(new ApiError("البيانات المدخلة مكررة. تحقق من الرقم أو البريد أو اسم المستخدم.", 400));
+    }
+    throw err;
+  }
 });
 
 // @desc    Login
