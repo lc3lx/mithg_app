@@ -367,7 +367,7 @@ exports.getAllProfiles = asyncHandler(async (req, res, next) => {
     filter.gender = targetGender;
   }
 
-  // فلترة بالبحث: مدينة، دولة، اسم، اسم حساب، مجال عمل، نبذة، أو وصف عام
+  // فلترة بالبحث: نفس حقول الفلتر النصية (اسم، مدينة، دولة، جنسية، مجال عمل، نبذة، لون شعر، دين)
   const searchTerm = (req.query.search && typeof req.query.search === "string")
     ? req.query.search.trim()
     : "";
@@ -383,6 +383,8 @@ exports.getAllProfiles = asyncHandler(async (req, res, next) => {
         { nationality: { $regex: searchRegex } },
         { fieldOfWork: { $regex: searchRegex } },
         { about: { $regex: searchRegex } },
+        { hairColor: { $regex: searchRegex } },
+        { religion: { $regex: searchRegex } },
       ],
     };
     filter.$and = filter.$and ? [...filter.$and, searchCondition] : [searchCondition];
