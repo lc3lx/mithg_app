@@ -61,5 +61,14 @@ exports.getAllProfilesValidator = [
     .trim()
     .isLength({ max: 100 })
     .withMessage("Search term must be at most 100 characters"),
+  query("city").optional().trim().isLength({ max: 80 }),
+  query("country").optional().trim().isLength({ max: 80 }),
+  query("nationality").optional().trim().isLength({ max: 80 }),
+  query("ageMin").optional().isInt({ min: 18, max: 80 }),
+  query("ageMax").optional().isInt({ min: 18, max: 80 }),
+  query("heightMin").optional().isInt({ min: 100, max: 250 }),
+  query("heightMax").optional().isInt({ min: 100, max: 250 }),
+  query("hairColor").optional().trim().isLength({ max: 50 }),
+  query("religion").optional().trim().isLength({ max: 50 }),
   validatorMiddleware,
 ];

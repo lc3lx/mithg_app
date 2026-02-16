@@ -374,19 +374,65 @@ exports.getAllProfiles = asyncHandler(async (req, res, next) => {
   if (searchTerm.length > 0) {
     const escaped = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const searchRegex = new RegExp(escaped, "i");
-    filter.$and = [
-      {
-        $or: [
-          { name: { $regex: searchRegex } },
-          { username: { $regex: searchRegex } },
-          { city: { $regex: searchRegex } },
-          { country: { $regex: searchRegex } },
-          { nationality: { $regex: searchRegex } },
-          { fieldOfWork: { $regex: searchRegex } },
-          { about: { $regex: searchRegex } },
-        ],
-      },
-    ];
+    const searchCondition = {
+      $or: [
+        { name: { $regex: searchRegex } },
+        { username: { $regex: searchRegex } },
+        { city: { $regex: searchRegex } },
+        { country: { $regex: searchRegex } },
+        { nationality: { $regex: searchRegex } },
+        { fieldOfWork: { $regex: searchRegex } },
+        { about: { $regex: searchRegex } },
+      ],
+    };
+    filter.$and = filter.$and ? [...filter.$and, searchCondition] : [searchCondition];
+  }
+
+  // فلاتر إضافية: مدينة، عمر، طول، لون شعر، دين، جنسية
+  const city = (req.query.city && typeof req.query.city === "string") ? req.query.city.trim() : "";
+  if (city.length > 0) {
+    const cityRegex = new RegExp(city.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    filter.city = { $regex: cityRegex };
+  }
+  const country = (req.query.country && typeof req.query.country === "string") ? req.query.country.trim() : "";
+  if (country.length > 0) {
+    const countryRegex = new RegExp(country.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    filter.country = { $regex: countryRegex };
+  }
+  const nationality = (req.query.nationality && typeof req.query.nationality === "string") ? req.query.nationality.trim() : "";
+  if (nationality.length > 0) {
+    const nationalityRegex = new RegExp(nationality.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    filter.nationality = { $regex: nationalityRegex };
+  }
+  const ageMin = req.query.ageMin != null ? parseInt(req.query.ageMin, 10) : NaN;
+  const ageMax = req.query.ageMax != null ? parseInt(req.query.ageMax, 10) : NaN;
+  if (!Number.isNaN(ageMin) && ageMin >= 18) {
+    filter.age = filter.age || {};
+    filter.age.$gte = ageMin;
+  }
+  if (!Number.isNaN(ageMax) && ageMax >= 18) {
+    filter.age = filter.age || {};
+    filter.age.$lte = ageMax;
+  }
+  const heightMin = req.query.heightMin != null ? parseInt(req.query.heightMin, 10) : NaN;
+  const heightMax = req.query.heightMax != null ? parseInt(req.query.heightMax, 10) : NaN;
+  if (!Number.isNaN(heightMin) && heightMin >= 100) {
+    filter.height = filter.height || {};
+    filter.height.$gte = heightMin;
+  }
+  if (!Number.isNaN(heightMax) && heightMax <= 250) {
+    filter.height = filter.height || {};
+    filter.height.$lte = heightMax;
+  }
+  const hairColor = (req.query.hairColor && typeof req.query.hairColor === "string") ? req.query.hairColor.trim() : "";
+  if (hairColor.length > 0) {
+    const hairRegex = new RegExp(hairColor.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    filter.hairColor = { $regex: hairRegex };
+  }
+  const religion = (req.query.religion && typeof req.query.religion === "string") ? req.query.religion.trim() : "";
+  if (religion.length > 0) {
+    const religionRegex = new RegExp(religion.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    filter.religion = { $regex: religionRegex };
   }
 
   const currentUser = await User.findById(req.user._id).select("friends");
@@ -396,7 +442,7 @@ exports.getAllProfiles = asyncHandler(async (req, res, next) => {
 
   const users = await User.find(filter)
     .select(
-      "name age gender bio location profileImg coverImg gallery about isOnline lastSeen profileViews friends isSubscribed identityVerified"
+      "name age gender bio city country nationality profileImg coverImg gallery about isOnline lastSeen profileViews friends isSubscribed identityVerified height hairColor religion"
     )
     .sort({ createdAt: -1 });
 
