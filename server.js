@@ -12,6 +12,7 @@ const mongoSanitize = require("express-mongo-sanitize");
 const http = require("http");
 const { Server } = require("socket.io");
 const supportSocket = require("./utils/supportSocket");
+const supportGuestSocket = require("./utils/supportGuestSocket");
 const chatSocket = require("./utils/socket");
 
 // تحميل المتغيرات من مجلد backend (غضّ النظر عن cwd عند تشغيل pm2 أو غيره)
@@ -77,6 +78,7 @@ app.set("onlineUsers", onlineUsers);
 
 console.log("🔌 [Socket.IO] Setting up support socket...");
 supportSocket(io, onlineUsers, onlineAdmins);
+supportGuestSocket(io);
 console.log("✅ [Socket.IO] Support socket setup complete");
 
 console.log("🔌 [Socket.IO] Setting up chat socket...");
