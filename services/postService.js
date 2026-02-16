@@ -63,6 +63,17 @@ exports.getPosts = asyncHandler(async (req, res) => {
     return po;
   });
 
+  // عند جلب البوستات للمستخدم (الفييد): زيادة المشاهدات لكل بوست ظاهر
+  if (req.user && data.length > 0) {
+    const postIds = data.map((p) => p._id).filter(Boolean);
+    if (postIds.length > 0) {
+      await Post.updateMany(
+        { _id: { $in: postIds } },
+        { $inc: { views: 1 } }
+      );
+    }
+  }
+
   res.status(200).json({
     results: posts.length,
     paginationResult,
