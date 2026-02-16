@@ -185,10 +185,16 @@ const userSchema = new mongoose.Schema(
       },
     ],
 
+    // النبذة: bio قصيرة و about أطول (كلاهما يُحفظان)
+    bio: {
+      type: String,
+      trim: true,
+      maxlength: [500, "Bio too long"],
+    },
     // About section - نبذة عن المستخدم
     about: {
       type: String,
-      maxlength: [100, "About section too long"],
+      maxlength: [1000, "About section too long"],
       trim: true,
     },
 
