@@ -18,6 +18,7 @@ const User = require("../models/userModel");
 const Message = require("../models/messageModel");
 const UserWarnings = require("../models/userWarningsModel");
 const BannedWords = require("../models/bannedWordsModel");
+const Notification = require("../models/notificationModel");
 
 // @desc    Get all chats for logged user
 // @route   GET /api/v1/chats
@@ -1100,6 +1101,71 @@ exports.blockBothParticipants = asyncHandler(async (req, res, next) => {
           blocked: adminType === "super" || user2.gender === adminType,
         },
       ],
+    },
+  });
+});
+
+// @desc    Send a warning to all participants in a chat (from chat monitoring)
+// @route   POST /api/v1/admins/chats/:id/warn-participants
+// @access  Private/Admin
+exports.warnChatParticipants = asyncHandler(async (req, res, next) => {
+  const { id: chatId } = req.params;
+  const warningMessage =
+    (req.body.warningMessage && String(req.body.warningMessage).trim()) ||
+    "تنبيه: يرجى الالتزام بسياسة التطبيق والحفاظ على المحادثة محترمة واحترام الخصوصية.";
+
+  const chat = await Chat.findById(chatId).populate({
+    path: "participants",
+    select: "name _id",
+  });
+  if (!chat) {
+    return next(new ApiError("Chat not found", 404));
+  }
+
+  const adminId = req.admin._id;
+  const participantIds = chat.participants
+    .map((p) => (p._id ? p._id.toString() : p.toString()))
+    .filter(Boolean);
+
+  if (participantIds.length === 0) {
+    return res.status(200).json({
+      message: "No participants to warn",
+      data: { warnedCount: 0 },
+    });
+  }
+
+  const results = { warned: [], notificationsSent: 0 };
+
+  for (const userId of participantIds) {
+    const currentCount = await UserWarnings.getWarningCount(userId, 30);
+    const warning = await UserWarnings.create({
+      user: userId,
+      warningType: "inappropriate_content",
+      severity: "medium",
+      chat: chatId,
+      warningMessage,
+      issuedBy: adminId,
+      isAutomatic: false,
+      userWarningCount: currentCount + 1,
+    });
+    results.warned.push({ userId, warningId: warning._id });
+
+    const notif = await Notification.createNotification({
+      user: userId,
+      type: "security",
+      title: "تنبيه بخصوص انتهاك الخصوصية",
+      message: warningMessage,
+      relatedChat: chatId,
+    });
+    if (notif) results.notificationsSent += 1;
+  }
+
+  res.status(200).json({
+    message: "تم إرسال التنبيه لجميع المشاركين في المحادثة",
+    data: {
+      warnedCount: results.warned.length,
+      notificationsSent: results.notificationsSent,
+      warned: results.warned,
     },
   });
 });

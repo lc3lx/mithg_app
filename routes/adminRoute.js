@@ -30,6 +30,7 @@ const {
   getChatViolations,
   blockChatParticipant,
   blockBothParticipants,
+  warnChatParticipants,
 } = require("../services/chatService");
 
 const {
@@ -40,6 +41,7 @@ const {
 
 const {
   cleanupChatMessagesValidator,
+  warnChatParticipantsValidator,
 } = require("../utils/validators/messageValidator");
 
 const adminService = require("../services/adminService");
@@ -373,6 +375,20 @@ router.post(
     next();
   },
   cleanupChatMessages
+);
+
+router.post(
+  "/chats/:id/warn-participants",
+  warnChatParticipantsValidator,
+  (req, res, next) => {
+    if (!req.admin.permissions.moderateContent) {
+      return res.status(403).json({
+        message: "You don't have permission to send warnings",
+      });
+    }
+    next();
+  },
+  warnChatParticipants
 );
 
 module.exports = router;
