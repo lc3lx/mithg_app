@@ -184,22 +184,10 @@ exports.protect = asyncHandler(async (req, res, next) => {
   next();
 });
 
-// @desc    يمنع دخول المستخدم للتطبيق حتى يتحقق من OTP (رقم الهاتف)
-// @use     بعد protect على مسارات المستخدم فقط (ليس الأدمن أو Auth)
+// @desc    كان يمنع الدخول حتى التحقق من OTP — تم تعطيله: لا يشترط التحقق من الهاتف
+// @use     ما زال يُستدعى في المسارات للتوافق؛ يمرر الطلب دائماً
 exports.requirePhoneVerified = (req, res, next) => {
-  if (!req.user) {
-    return next(
-      new ApiError("You are not logged in. Please log in to get access.", 401)
-    );
-  }
-  if (req.user.phoneVerified === true) {
-    return next();
-  }
-  return res.status(403).json({
-    code: "PHONE_NOT_VERIFIED",
-    message: "يجب التحقق من رقم الهاتف أولاً",
-    phone: req.user.phone || null,
-  });
+  next();
 };
 
 // @desc    Authorization (User Permissions)
