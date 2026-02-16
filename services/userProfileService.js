@@ -466,18 +466,16 @@ exports.getAllProfiles = asyncHandler(async (req, res, next) => {
       isFriend,
     };
 
-    if (isFriend) {
-      return null;
+    // غير الأصدقاء: إخفاء المعرض فقط؛ الصورة الشخصية تبقى لعرضها مغبشة في الواجهة
+    if (!isFriend) {
+      profileData.gallery = [];
     }
-    profileData.gallery = [];
 
     return profileData;
   });
 
-  const filteredProfiles = profiles.filter(Boolean);
-
   res.status(200).json({
-    results: filteredProfiles.length,
-    data: filteredProfiles,
+    results: profiles.length,
+    data: profiles,
   });
 });
