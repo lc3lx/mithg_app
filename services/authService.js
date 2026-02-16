@@ -27,17 +27,38 @@ exports.signup = asyncHandler(async (req, res, next) => {
     res.status(201).json({ data: user, token });
   } catch (err) {
     if (err.code === 11000) {
-      const key = err.keyPattern ? Object.keys(err.keyPattern)[0] : (err.keyValue ? Object.keys(err.keyValue)[0] : null);
+      const key = err.keyPattern
+        ? Object.keys(err.keyPattern)[0]
+        : err.keyValue
+        ? Object.keys(err.keyValue)[0]
+        : null;
       if (key === "phone") {
-        return next(new ApiError("الرقم مستخدم من قبل. سجّل الدخول أو استخدم رقماً آخر.", 400));
+        return next(
+          new ApiError(
+            "الرقم مستخدم من قبل. سجّل الدخول أو استخدم رقماً آخر.",
+            400,
+          ),
+        );
       }
       if (key === "email") {
-        return next(new ApiError("البريد الإلكتروني مستخدم من قبل. سجّل الدخول أو استخدم بريداً آخر.", 400));
+        return next(
+          new ApiError(
+            "البريد الإلكتروني مستخدم من قبل. سجّل الدخول أو استخدم بريداً آخر.",
+            400,
+          ),
+        );
       }
       if (key === "username") {
-        return next(new ApiError("اسم المستخدم مستخدم من قبل. اختر اسماً آخر.", 400));
+        return next(
+          new ApiError("اسم المستخدم مستخدم من قبل. اختر اسماً آخر.", 400),
+        );
       }
-      return next(new ApiError("البيانات المدخلة مكررة. تحقق من الرقم أو البريد أو اسم المستخدم.", 400));
+      return next(
+        new ApiError(
+          "البيانات المدخلة مكررة. تحقق من الرقم أو البريد أو اسم المستخدم.",
+          400,
+        ),
+      );
     }
     throw err;
   }
@@ -56,7 +77,7 @@ exports.login = asyncHandler(async (req, res, next) => {
   }
   if (user.active === false) {
     return next(
-      new ApiError("الحساب معطّل أو محذوف. تواصل مع الدعم لاستعادته.", 403)
+      new ApiError("الحساب معطّل أو محذوف. تواصل مع الدعم لاستعادته.", 403),
     );
   }
   if (!(await bcrypt.compare(req.body.password, user.password))) {
@@ -67,12 +88,17 @@ exports.login = asyncHandler(async (req, res, next) => {
   if (user.isBlocked && user.blockedUntil && user.blockedUntil > new Date()) {
     return next(
       new ApiError(
-        `الحساب محظور حتى ${user.blockedUntil.toLocaleString('ar-SA')}. تواصل مع الدعم.`,
-        403
-      )
+        `الحساب محظور حتى ${user.blockedUntil.toLocaleString(
+          "ar-SA",
+        )}. تواصل مع الدعم.`,
+        403,
+      ),
     );
   }
-  const clientIp = (req.headers["x-forwarded-for"] || req.ip || "").toString().split(",")[0].trim();
+  const clientIp = (req.headers["x-forwarded-for"] || req.ip || "")
+    .toString()
+    .split(",")[0]
+    .trim();
   const clientDeviceId = req.body.deviceId || req.body.device_id || null;
   const blockedByPhone = await User.findOne({
     isBlocked: true,
@@ -81,7 +107,10 @@ exports.login = asyncHandler(async (req, res, next) => {
   }).select("_id");
   if (blockedByPhone) {
     return next(
-      new ApiError("رقم الجوال أو الجهاز أو العنوان مرتبط بحساب محظور. تواصل مع الدعم.", 403)
+      new ApiError(
+        "رقم الجوال أو الجهاز أو العنوان مرتبط بحساب محظور. تواصل مع الدعم.",
+        403,
+      ),
     );
   }
   if (clientIp) {
@@ -93,7 +122,10 @@ exports.login = asyncHandler(async (req, res, next) => {
     }).select("_id");
     if (blockedByIp) {
       return next(
-        new ApiError("رقم الجوال أو الجهاز أو العنوان مرتبط بحساب محظور. تواصل مع الدعم.", 403)
+        new ApiError(
+          "رقم الجوال أو الجهاز أو العنوان مرتبط بحساب محظور. تواصل مع الدعم.",
+          403,
+        ),
       );
     }
   }
@@ -106,7 +138,10 @@ exports.login = asyncHandler(async (req, res, next) => {
     }).select("_id");
     if (blockedByDevice) {
       return next(
-        new ApiError("رقم الجوال أو الجهاز أو العنوان مرتبط بحساب محظور. تواصل مع الدعم.", 403)
+        new ApiError(
+          "رقم الجوال أو الجهاز أو العنوان مرتبط بحساب محظور. تواصل مع الدعم.",
+          403,
+        ),
       );
     }
   }
@@ -139,8 +174,8 @@ exports.protect = asyncHandler(async (req, res, next) => {
     return next(
       new ApiError(
         "You are not login, Please login to get access this route",
-        401
-      )
+        401,
+      ),
     );
   }
 
@@ -153,13 +188,13 @@ exports.protect = asyncHandler(async (req, res, next) => {
     return next(
       new ApiError(
         "The user that belong to this token does no longer exist",
-        401
-      )
+        401,
+      ),
     );
   }
   if (currentUser.active === false) {
     return next(
-      new ApiError("الحساب معطّل أو محذوف. لا يمكنك الوصول لهذه الصفحة.", 403)
+      new ApiError("الحساب معطّل أو محذوف. لا يمكنك الوصول لهذه الصفحة.", 403),
     );
   }
 
@@ -167,15 +202,15 @@ exports.protect = asyncHandler(async (req, res, next) => {
   if (currentUser.passwordChangedAt) {
     const passChangedTimestamp = parseInt(
       currentUser.passwordChangedAt.getTime() / 1000,
-      10
+      10,
     );
     // Password changed after token created (Error)
     if (passChangedTimestamp > decoded.iat) {
       return next(
         new ApiError(
           "User recently changed his password. please login again..",
-          401
-        )
+          401,
+        ),
       );
     }
   }
@@ -184,10 +219,22 @@ exports.protect = asyncHandler(async (req, res, next) => {
   next();
 });
 
-// @desc    كان يمنع الدخول حتى التحقق من OTP — تم تعطيله: لا يشترط التحقق من الهاتف
-// @use     ما زال يُستدعى في المسارات للتوافق؛ يمرر الطلب دائماً
+// @desc    يمنع دخول المستخدم للتطبيق حتى يتحقق من OTP (رقم الهاتف)
+// @use     بعد protect على مسارات المستخدم فقط (ليس الأدمن أو Auth)
 exports.requirePhoneVerified = (req, res, next) => {
-  next();
+  if (!req.user) {
+    return next(
+      new ApiError("You are not logged in. Please log in to get access.", 401),
+    );
+  }
+  if (req.user.phoneVerified === true) {
+    return next();
+  }
+  return res.status(403).json({
+    code: "PHONE_NOT_VERIFIED",
+    message: "يجب التحقق من رقم الهاتف أولاً",
+    phone: req.user.phone || null,
+  });
 };
 
 // @desc    Authorization (User Permissions)
@@ -198,7 +245,7 @@ exports.allowedTo = (...roles) =>
     // 2) access registered user (req.user.role)
     if (!roles.includes(req.user.role)) {
       return next(
-        new ApiError("You are not allowed to access this route", 403)
+        new ApiError("You are not allowed to access this route", 403),
       );
     }
     next();
@@ -212,7 +259,7 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
   const user = await User.findOne({ email: req.body.email });
   if (!user) {
     return next(
-      new ApiError(`There is no user with that email ${req.body.email}`, 404)
+      new ApiError(`There is no user with that email ${req.body.email}`, 404),
     );
   }
   // 2) If user exist, Generate hash reset random 6 digits and save it in db
@@ -287,7 +334,7 @@ exports.resetPassword = asyncHandler(async (req, res, next) => {
   const user = await User.findOne({ email: req.body.email });
   if (!user) {
     return next(
-      new ApiError(`There is no user with email ${req.body.email}`, 404)
+      new ApiError(`There is no user with email ${req.body.email}`, 404),
     );
   }
 
