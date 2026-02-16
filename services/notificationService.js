@@ -10,6 +10,7 @@ const {
 
 const Notification = require("../models/notificationModel");
 const User = require("../models/userModel");
+const { sendPushToUser } = require("../utils/pushNotification");
 
 // إشعارات لوحة التحكم فقط (البث من الأدمن)، وليس كل إشعارات التطبيق
 const ADMIN_BROADCAST_TYPES = [
@@ -352,6 +353,22 @@ exports.createAdminBroadcastNotification = asyncHandler(async (req, res, next) =
   }));
 
   const inserted = await Notification.insertMany(docs, { ordered: false });
+
+  // إرسال push لكل مستخدم حتى يصل الإشعار للتطبيق وهو مغلق
+  const pushPromises = inserted.map(async (doc) => {
+    try {
+      const sent = await sendPushToUser(doc.user, doc, null);
+      if (sent) {
+        await Notification.updateOne(
+          { _id: doc._id },
+          { pushSent: true, pushSentAt: new Date() }
+        );
+      }
+    } catch (err) {
+      console.error(`[Push] Admin broadcast to user ${doc.user}:`, err.message);
+    }
+  });
+  await Promise.allSettled(pushPromises);
 
   res.status(201).json({
     message: "Broadcast notifications created",
