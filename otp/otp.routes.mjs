@@ -7,8 +7,27 @@ import { sendOTP, verifyOTP } from "./otp.service.mjs";
 
 const require = createRequire(import.meta.url);
 const User = require("../models/userModel.js");
+const jwt = require("jsonwebtoken");
 
 const router = express.Router();
+
+/**
+ * إذا وُجد توكن صالح، يُرجَع المستخدم الحالي (للتحديث بالـ _id بدل البحث بالرقم).
+ * لا يرمي خطأ إن لم يكن هناك توكن أو كان غير صالح.
+ */
+async function optionalAuthUser(req) {
+  const authHeader = req.headers?.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+  const token = authHeader.split(" ")[1];
+  if (!token) return null;
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+    const user = await User.findById(decoded.userId);
+    return user && user.active !== false ? user : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * GET /api/v1/otp/qr
@@ -98,53 +117,32 @@ router.post("/send", async (req, res) => {
 });
 
 /**
- * قواعد نداء الدول وطول الرقم الوطني (بعد إزالة الصفر من البداية إن وُجد)
- * يستخدم لبناء كل الصيغ الممكنة للرقم المخزن في DB (0997.. أو +963997.. أو 997..)
+ * إرجاع قائمة صيغ محتملة للرقم لربطها بالمستخدم في DB (قد يكون الرقم محفوظاً كـ 0997.. أو +963997..)
  */
-const DIAL_RULES = [
-  { prefix: "963", len: 3 },
-  { prefix: "966", len: 3 },
-  { prefix: "962", len: 3 },
-  { prefix: "971", len: 3 },
-  { prefix: "965", len: 3 },
-  { prefix: "974", len: 3 },
-  { prefix: "973", len: 3 },
-  { prefix: "968", len: 3 },
-  { prefix: "961", len: 3 },
-  { prefix: "964", len: 3 },
-  { prefix: "972", len: 3 },
-  { prefix: "967", len: 3 },
-  { prefix: "20", len: 2 },
-  { prefix: "90", len: 2 },
-  { prefix: "213", len: 3 },
-  { prefix: "212", len: 3 },
-  { prefix: "216", len: 3 },
-  { prefix: "218", len: 3 },
-  { prefix: "249", len: 3 },
-];
-
 function phoneVariants(phone) {
-  const p = String(phone).trim().replace(/\s/g, "").replace(/^\+/, "");
-  const variants = new Set();
-  variants.add(phone.trim());
-  variants.add(p);
-  if (p.startsWith("0")) {
+  const p = String(phone).trim().replace(/\s/g, "");
+  const variants = new Set([p]);
+  if (p.startsWith("+")) {
+    const withoutPlus = p.slice(1);
+    variants.add(withoutPlus);
+    if (/^963\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(3));
+    if (/^966\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(3));
+    if (/^962\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(3));
+    if (/^971\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(3));
+    if (/^965\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(3));
+    if (/^974\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(3));
+    if (/^973\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(3));
+    if (/^968\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(3));
+    if (/^961\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(3));
+    if (/^20\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(2));
+    if (/^964\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(3));
+    if (/^972\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(3));
+    if (/^90\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(2));
+  } else if (p.startsWith("0")) {
     variants.add(p.slice(1));
-    variants.add(p.replace(/^0+/, ""));
-    if (p.length >= 10 && p.startsWith("09")) variants.add("+963" + p.slice(1));
-    if (p.length >= 10 && p.startsWith("05")) variants.add("+966" + p.slice(1));
-  }
-  for (const { prefix, len } of DIAL_RULES) {
-    if (p.length >= prefix.length && p.startsWith(prefix)) {
-      let national = p.slice(prefix.length).replace(/^0+/, "");
-      if (national) {
-        variants.add("0" + national);
-        variants.add(national);
-        variants.add("+" + prefix + national);
-      }
-    }
-  }
-  if (/^\d{9,}$/.test(p)) {
+    if (p.length === 10 && p.startsWith("09")) variants.add("+963" + p.slice(1));
+    if (p.length === 10 && p.startsWith("05")) variants.add("+966" + p.slice(1));
+  } else if (/^\d{9,}$/.test(p)) {
     variants.add("0" + p);
     variants.add("+963" + p);
   }
@@ -152,26 +150,10 @@ function phoneVariants(phone) {
 }
 
 /**
- * إرجاع صيغة E.164 للرقم (مثل +963997278481) لاستخدامها في تحديث حقل phone في المستند وتوحيد التخزين
- */
-function normalizeToE164(phone) {
-  const p = String(phone).trim().replace(/\s/g, "").replace(/^\+/, "");
-  if (!p || !/^\d+$/.test(p)) return null;
-  for (const { prefix } of DIAL_RULES) {
-    if (p.startsWith(prefix)) {
-      let national = p.slice(prefix.length).replace(/^0+/, "");
-      if (national) return "+" + prefix + national;
-    }
-  }
-  if (p.startsWith("0")) return "+963" + p.replace(/^0+/, "");
-  if (p.length >= 9) return "+963" + p;
-  return null;
-}
-
-/**
  * POST /api/otp/verify
  * Body: { "phone": "+9639xxxxxxxx", "code": "123456" }
- * على النجاح: تحديث المستخدم المرتبط بهذا الرقم إلى phoneVerified: true (يبحث بعدة صيغ للرقم).
+ * إذا أُرسل توكن (Authorization: Bearer ...): يُحدَّث المستخدم الحالي بالـ _id (لا بحث بالرقم).
+ * وإلا: يبحث عن المستخدم بعدة صيغ للرقم ويحدّثه.
  */
 router.post("/verify", async (req, res) => {
   const phone = req.body?.phone;
@@ -195,24 +177,28 @@ router.post("/verify", async (req, res) => {
       message: result.message,
     });
   }
-  const trimmed = phone.trim();
-  const variants = phoneVariants(trimmed);
-  const e164 = normalizeToE164(trimmed);
-  const updatePayload = {
-    phoneVerified: true,
-    registrationStep: 6,
-    ...(e164 && { phone: e164 }),
-  };
-  let updated = await User.findOneAndUpdate(
+
+  const currentUser = await optionalAuthUser(req);
+  if (currentUser) {
+    await User.findByIdAndUpdate(currentUser._id, {
+      $set: { phoneVerified: true, registrationStep: 6 },
+    });
+    return res.status(200).json({
+      success: true,
+      message: "تم التحقق بنجاح.",
+    });
+  }
+
+  const variants = phoneVariants(phone.trim());
+  const updated = await User.findOneAndUpdate(
     { phone: { $in: variants } },
-    { $set: updatePayload },
+    { $set: { phoneVerified: true, registrationStep: 6 } },
     { new: true },
   );
   if (!updated) {
-    updated = await User.findOneAndUpdate(
-      { phone: trimmed },
-      { $set: updatePayload },
-      { new: true },
+    await User.findOneAndUpdate(
+      { phone: phone.trim() },
+      { $set: { phoneVerified: true, registrationStep: 6 } },
     );
   }
   return res.status(200).json({
