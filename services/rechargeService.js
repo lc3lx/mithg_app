@@ -144,7 +144,7 @@ exports.deleteRechargeCode = asyncHandler(async (req, res, next) => {
 // @route   POST /api/v1/recharge-codes/use
 // @access  Private/User
 exports.useRechargeCode = asyncHandler(async (req, res, next) => {
-  const { code } = req.body;
+  const { code, packageId } = req.body;
 
   if (!code) {
     return next(new ApiError("Recharge code is required", 400));
@@ -173,20 +173,34 @@ exports.useRechargeCode = asyncHandler(async (req, res, next) => {
     return next(new ApiError(message, 400));
   }
 
-  // التحقق: قيمة الكود يجب أن تكفي سعر أصغر باقة نشطة (نفس العملة أو أي باقة)
-  const activePackages = await Subscription.find({ isActive: true }).select("price currency").lean();
-  if (activePackages.length > 0) {
-    const sameCurrency = activePackages.filter((p) => (p.currency || "SAR") === (rechargeCode.currency || "SAR"));
-    const packagesToCheck = sameCurrency.length > 0 ? sameCurrency : activePackages;
-    const minPrice = Math.min(...packagesToCheck.map((p) => Number(p.price)));
-    if (Number(rechargeCode.amount) < minPrice) {
-      return next(
-        new ApiError(
-          "قيمة الكود لا تكفي لتفعيل الاشتراك. يرجى مراسلة الدعم.",
-          400
-        )
-      );
-    }
+  // التحقق: قيمة الكود يجب أن تكون مساوية لسعر الباقة التي اختارها المستخدم (نفس العملة)
+  if (!packageId) {
+    return next(
+      new ApiError("يجب اختيار الباقة قبل استخدام الكود.", 400)
+    );
+  }
+
+  const subscription = await Subscription.findOne({
+    _id: packageId,
+    isActive: true,
+  }).lean();
+
+  if (!subscription) {
+    return next(new ApiError("الباقة غير موجودة أو غير متاحة.", 400));
+  }
+
+  const codeAmount = Number(rechargeCode.amount);
+  const codeCurrency = (rechargeCode.currency || "USD").toUpperCase();
+  const packagePrice = Number(subscription.price);
+  const packageCurrency = (subscription.currency || "USD").toUpperCase();
+
+  if (codeAmount !== packagePrice || codeCurrency !== packageCurrency) {
+    return next(
+      new ApiError(
+        "قيمة الكود لا تطابق سعر الباقة المختارة. يرجى استخدام كود مساوٍ لقيمة الباقة أو مراسلة الدعم.",
+        400
+      )
+    );
   }
 
   // Get or create user wallet
@@ -218,18 +232,20 @@ exports.useRechargeCode = asyncHandler(async (req, res, next) => {
     status: "completed",
   });
 
-  // Grant subscription / mark user as subscribed if appropriate
+  // تفعيل الاشتراك حسب الباقة المختارة (مدة ونوع الباقة)
   try {
     const user = await User.findById(req.user._id);
-    if (user) {
+    if (user && subscription) {
       user.isSubscribed = true;
       const now = new Date();
-      const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-      user.subscriptionEndDate = thirtyDays;
+      const durationDays = subscription.durationDays || 30;
+      user.subscriptionEndDate = new Date(
+        now.getTime() + durationDays * 24 * 60 * 60 * 1000
+      );
+      user.subscriptionPackage = subscription.packageType;
       await user.save();
     }
   } catch (err) {
-    // Non-fatal: log error but allow the response to proceed
     console.error("Error granting subscription after recharge code:", err);
   }
 
