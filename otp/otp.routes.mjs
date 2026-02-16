@@ -98,9 +98,42 @@ router.post("/send", async (req, res) => {
 });
 
 /**
+ * إرجاع قائمة صيغ محتملة للرقم لربطها بالمستخدم في DB (قد يكون الرقم محفوظاً كـ 0997.. أو +963997..)
+ */
+function phoneVariants(phone) {
+  const p = String(phone).trim().replace(/\s/g, "");
+  const variants = new Set([p]);
+  if (p.startsWith("+")) {
+    const withoutPlus = p.slice(1);
+    variants.add(withoutPlus);
+    if (/^963\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(3));
+    if (/^966\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(3));
+    if (/^962\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(3));
+    if (/^971\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(3));
+    if (/^965\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(3));
+    if (/^974\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(3));
+    if (/^973\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(3));
+    if (/^968\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(3));
+    if (/^961\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(3));
+    if (/^20\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(2));
+    if (/^964\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(3));
+    if (/^972\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(3));
+    if (/^90\d+$/.test(withoutPlus)) variants.add("0" + withoutPlus.slice(2));
+  } else if (p.startsWith("0")) {
+    variants.add(p.slice(1));
+    if (p.length === 10 && p.startsWith("09")) variants.add("+963" + p.slice(1));
+    if (p.length === 10 && p.startsWith("05")) variants.add("+966" + p.slice(1));
+  } else if (/^\d{9,}$/.test(p)) {
+    variants.add("0" + p);
+    variants.add("+963" + p);
+  }
+  return [...variants];
+}
+
+/**
  * POST /api/otp/verify
  * Body: { "phone": "+9639xxxxxxxx", "code": "123456" }
- * على النجاح: تحديث المستخدم المرتبط بهذا الرقم إلى phoneVerified: true حتى يُسمح له بتسجيل الدخول.
+ * على النجاح: تحديث المستخدم المرتبط بهذا الرقم إلى phoneVerified: true (يبحث بعدة صيغ للرقم).
  */
 router.post("/verify", async (req, res) => {
   const phone = req.body?.phone;
@@ -124,10 +157,18 @@ router.post("/verify", async (req, res) => {
       message: result.message,
     });
   }
-  await User.findOneAndUpdate(
-    { phone: phone.trim() },
+  const variants = phoneVariants(phone.trim());
+  const updated = await User.findOneAndUpdate(
+    { phone: { $in: variants } },
     { $set: { phoneVerified: true, registrationStep: 6 } },
+    { new: true },
   );
+  if (!updated) {
+    await User.findOneAndUpdate(
+      { phone: phone.trim() },
+      { $set: { phoneVerified: true, registrationStep: 6 } },
+    );
+  }
   return res.status(200).json({
     success: true,
     message: "تم التحقق بنجاح.",
