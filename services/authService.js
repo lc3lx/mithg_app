@@ -27,12 +27,11 @@ exports.signup = asyncHandler(async (req, res, next) => {
     res.status(201).json({ data: user, token });
   } catch (err) {
     if (err.code === 11000) {
-      let key = null;
-      if (err.keyPattern) {
-        key = Object.keys(err.keyPattern)[0];
-      } else if (err.keyValue) {
-        key = Object.keys(err.keyValue)[0];
-      }
+      const key = err.keyPattern
+        ? Object.keys(err.keyPattern)[0]
+        : err.keyValue
+        ? Object.keys(err.keyValue)[0]
+        : null;
       if (key === "phone") {
         return next(
           new ApiError(
@@ -220,10 +219,7 @@ exports.protect = asyncHandler(async (req, res, next) => {
   next();
 });
 
-// آخر خطوة في ويزارد التسجيل (0=بعد إنشاء الحساب، 1..5=صفحات التسجيل، 6=مرحلة OTP)
-const REGISTRATION_LAST_STEP = 6;
-
-// @desc    يمنع دخول المستخدم للتطبيق حتى يُكمل خطوات التسجيل ويتحقق من OTP
+// @desc    يمنع دخول المستخدم للتطبيق حتى يتحقق من OTP (رقم الهاتف)
 // @use     بعد protect على مسارات المستخدم فقط (ليس الأدمن أو Auth)
 exports.requirePhoneVerified = (req, res, next) => {
   if (!req.user) {
@@ -231,23 +227,14 @@ exports.requirePhoneVerified = (req, res, next) => {
       new ApiError("You are not logged in. Please log in to get access.", 401),
     );
   }
-  const step = req.user.registrationStep != null ? req.user.registrationStep : 0;
-  if (step < REGISTRATION_LAST_STEP) {
-    return res.status(403).json({
-      code: "REGISTRATION_INCOMPLETE",
-      message: "يجب إكمال خطوات التسجيل أولاً",
-      registrationStep: step,
-      phone: req.user.phone || null,
-    });
+  if (req.user.phoneVerified === true) {
+    return next();
   }
-  if (req.user.phoneVerified !== true) {
-    return res.status(403).json({
-      code: "PHONE_NOT_VERIFIED",
-      message: "يجب التحقق من رقم الهاتف أولاً",
-      phone: req.user.phone || null,
-    });
-  }
-  next();
+  return res.status(403).json({
+    code: "PHONE_NOT_VERIFIED",
+    message: "يجب التحقق من رقم الهاتف أولاً",
+    phone: req.user.phone || null,
+  });
 };
 
 // @desc    Authorization (User Permissions)
