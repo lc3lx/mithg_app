@@ -384,10 +384,22 @@ exports.getUserFavorites = asyncHandler(async (req, res, next) => {
     "favorites",
     "name age gender bio location profileImg coverImg about isOnline lastSeen profileViews"
   );
+  const friendIds = (user.friends || []).map((id) => id.toString());
+  const favorites = (user.favorites || []).map((fav) => {
+    const favData = fav.toObject();
+    const isFriend = friendIds.includes(fav._id.toString());
+    favData.isFriend = isFriend;
+    favData.canOpenProfile = isFriend;
+    if (!isFriend) {
+      favData.profileImg = null;
+      favData.coverImg = null;
+    }
+    return favData;
+  });
 
   res.status(200).json({
-    results: user.favorites.length,
-    data: user.favorites,
+    results: favorites.length,
+    data: favorites,
   });
 });
 
@@ -567,15 +579,37 @@ exports.getFriendRequests = asyncHandler(async (req, res, next) => {
       "sentFriendRequests",
       "name age gender bio location profileImg coverImg about isOnline lastSeen profileViews"
     );
+  const friendIds = (user.friends || []).map((id) => id.toString());
+
+  const incoming = (user.friendRequests || []).map((u) => {
+    const data = u.toObject();
+    const isFriend = friendIds.includes(u._id.toString());
+    data.isFriend = isFriend;
+    // الواردة يمكن فتحها (قرار منتج)، والصادرة لا يمكن حتى القبول.
+    data.canOpenProfile = true;
+    return data;
+  });
+
+  const outgoing = (user.sentFriendRequests || []).map((u) => {
+    const data = u.toObject();
+    const isFriend = friendIds.includes(u._id.toString());
+    data.isFriend = isFriend;
+    data.canOpenProfile = isFriend;
+    if (!isFriend) {
+      data.profileImg = null;
+      data.coverImg = null;
+    }
+    return data;
+  });
 
   res.status(200).json({
     incoming: {
-      results: user.friendRequests.length,
-      data: user.friendRequests,
+      results: incoming.length,
+      data: incoming,
     },
     outgoing: {
-      results: user.sentFriendRequests.length,
-      data: user.sentFriendRequests,
+      results: outgoing.length,
+      data: outgoing,
     },
   });
 });

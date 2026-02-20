@@ -466,9 +466,14 @@ exports.getAllProfiles = asyncHandler(async (req, res, next) => {
       isFriend,
     };
 
-    // غير الأصدقاء: إخفاء المعرض فقط؛ الصورة الشخصية تبقى لعرضها مغبشة في الواجهة
+    // غير الأصدقاء: إخفاء وسائط الحساسة من الباك مباشرة (بدون الاعتماد على الفرونت)
     if (!isFriend) {
+      profileData.profileImg = null;
+      profileData.coverImg = null;
       profileData.gallery = [];
+      profileData.canOpenProfile = false;
+    } else {
+      profileData.canOpenProfile = true;
     }
 
     return profileData;
