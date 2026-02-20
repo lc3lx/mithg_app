@@ -504,11 +504,13 @@ exports.createProfileViewNotification = async (viewerId, profileOwnerId) => {
     });
 
     if (!existingNotification) {
+      const viewer = await User.findById(viewerId).select("name").lean();
+      const viewerName = viewer?.name?.trim() || "مستخدم";
       const notification = await Notification.create({
         user: profileOwnerId,
         type: 'profile_view',
         title: 'زيارة ملف شخصي',
-        message: 'شخص زار ملفك الشخصي',
+        message: `${viewerName} قام بزيارة ملفك الشخصي`,
         relatedUser: viewerId,
       });
       return notification;

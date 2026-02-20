@@ -11,6 +11,7 @@ const User = require("../models/userModel");
 const Chat = require("../models/chatModel");
 const Message = require("../models/messageModel");
 const DeviceToken = require("../models/deviceTokenModel");
+const Notification = require("../models/notificationModel");
 const UserReport = require("../models/userReportModel");
 const { createFriendRequestNotification, createFriendRequestAcceptedNotification } = require("./notificationService");
 
@@ -20,6 +21,231 @@ const deleteAllChatsForUser = async (userId) => {
 
   await Message.deleteMany({ chat: { $in: chatIds } });
   await Chat.deleteMany({ _id: { $in: chatIds } });
+};
+
+const PROFILE_MATCH_RELEVANT_FIELDS = [
+  "religiousCommitment",
+  "prayerObservance",
+  "preferredPartnerAgeMin",
+  "preferredPartnerAgeMax",
+  "preferredPartnerCountry",
+  "acceptPolygamy",
+  "marriageType",
+  "registrationStep",
+];
+
+const normalizeArabic = (value) =>
+  (value || "")
+    .toString()
+    .trim()
+    .toLowerCase();
+
+const includesPolygamy = (marriageType) =>
+  normalizeArabic(marriageType).includes("تعدد");
+
+const scoreOneSidePreferences = (preferer, candidate) => {
+  let score = 0;
+
+  // 1) Age preference (35)
+  const minAge = Number.isFinite(preferer.preferredPartnerAgeMin)
+    ? preferer.preferredPartnerAgeMin
+    : 18;
+  const maxAge = Number.isFinite(preferer.preferredPartnerAgeMax)
+    ? preferer.preferredPartnerAgeMax
+    : 80;
+  const candidateAge = Number.isFinite(candidate.age) ? candidate.age : null;
+
+  if (candidateAge == null) {
+    score += 12;
+  } else if (candidateAge >= minAge && candidateAge <= maxAge) {
+    score += 35;
+  } else {
+    const distance = Math.min(
+      Math.abs(candidateAge - minAge),
+      Math.abs(candidateAge - maxAge)
+    );
+    if (distance <= 2) score += 25;
+    else if (distance <= 5) score += 15;
+  }
+
+  // 2) Preferred country (15)
+  const preferredCountry = normalizeArabic(preferer.preferredPartnerCountry);
+  const candidateCountry = normalizeArabic(candidate.country);
+  const candidateNationality = normalizeArabic(candidate.nationality);
+  if (!preferredCountry) {
+    score += 8;
+  } else if (
+    preferredCountry === candidateCountry ||
+    preferredCountry === candidateNationality
+  ) {
+    score += 15;
+  }
+
+  // 3) Religious commitment (15)
+  const prefererReligious = normalizeArabic(preferer.religiousCommitment);
+  const candidateReligious = normalizeArabic(candidate.religiousCommitment);
+  if (!prefererReligious || !candidateReligious) {
+    score += 8;
+  } else if (prefererReligious === candidateReligious) {
+    score += 15;
+  } else {
+    score += 5;
+  }
+
+  // 4) Prayer observance (15)
+  const prefererPrayer = normalizeArabic(preferer.prayerObservance);
+  const candidatePrayer = normalizeArabic(candidate.prayerObservance);
+  if (!prefererPrayer || !candidatePrayer) {
+    score += 8;
+  } else if (prefererPrayer === candidatePrayer) {
+    score += 15;
+  } else {
+    score += 5;
+  }
+
+  // 5) Polygamy/marriage-type compatibility (20)
+  const prefererGender = normalizeArabic(preferer.gender);
+  const candidateGender = normalizeArabic(candidate.gender);
+  if (prefererGender === "female" && candidateGender === "male") {
+    const candidateWantsPolygamy = includesPolygamy(candidate.marriageType);
+    if (typeof preferer.acceptPolygamy !== "boolean") {
+      score += 10;
+    } else if (candidateWantsPolygamy) {
+      score += preferer.acceptPolygamy ? 20 : 0;
+    } else {
+      score += 20;
+    }
+  } else if (prefererGender === "male" && candidateGender === "female") {
+    const prefererWantsPolygamy = includesPolygamy(preferer.marriageType);
+    if (typeof candidate.acceptPolygamy !== "boolean") {
+      score += 10;
+    } else if (prefererWantsPolygamy) {
+      score += candidate.acceptPolygamy ? 20 : 0;
+    } else {
+      score += 20;
+    }
+  } else {
+    score += 10;
+  }
+
+  return Math.max(0, Math.min(100, Math.round(score)));
+};
+
+const buildNearMatchMessage = ({ receiverGender, relatedName, score }) => {
+  const g = normalizeArabic(receiverGender);
+  if (g === "male") {
+    return `يوجد بنت قريبة من اهتماماتك بنسبة ${score}%: ${relatedName}`;
+  }
+  if (g === "female") {
+    return `يوجد شب قريب من اهتماماتك بنسبة ${score}%: ${relatedName}`;
+  }
+  return `يوجد شخص قريب من اهتماماتك بنسبة ${score}%: ${relatedName}`;
+};
+
+const createNearMatchNotificationOncePerDay = async ({
+  receiverId,
+  relatedUserId,
+  receiverGender,
+  relatedName,
+  score,
+}) => {
+  const exists = await Notification.findOne({
+    user: receiverId,
+    type: "match_suggestion",
+    relatedUser: relatedUserId,
+    createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+  })
+    .select("_id")
+    .lean();
+
+  if (exists) return false;
+
+  await Notification.create({
+    user: receiverId,
+    type: "match_suggestion",
+    title: "توافق قريب من اهتماماتك",
+    message: buildNearMatchMessage({ receiverGender, relatedName, score }),
+    relatedUser: relatedUserId,
+    data: { score, source: "preferences_near_match" },
+  });
+  return true;
+};
+
+const maybeNotifyNearPreferenceMatches = async (user) => {
+  const userGender = normalizeArabic(user.gender);
+  let oppositeGender = null;
+  if (userGender === "male") oppositeGender = "female";
+  if (userGender === "female") oppositeGender = "male";
+  if (!oppositeGender) return;
+
+  const excludedIds = [
+    user._id,
+    ...(user.friends || []),
+    ...(user.blockedUsers || []),
+  ];
+
+  const candidates = await User.find({
+    _id: { $nin: excludedIds },
+    gender: oppositeGender,
+    active: true,
+    phoneVerified: true,
+    identityVerified: true,
+    isSubscribed: true,
+    $or: [
+      { subscriptionEndDate: { $gt: new Date() } },
+      { subscriptionEndDate: null },
+      { subscriptionEndDate: { $exists: false } },
+    ],
+    registrationStep: { $gte: 4 },
+    blockedUsers: { $ne: user._id },
+  })
+    .select(
+      "name gender age country nationality religiousCommitment prayerObservance " +
+        "preferredPartnerAgeMin preferredPartnerAgeMax preferredPartnerCountry " +
+        "acceptPolygamy marriageType blockedUsers"
+    )
+    .limit(60)
+    .lean();
+
+  const jobs = candidates
+    .map((candidate) => {
+      const iBlockedCandidate = (user.blockedUsers || []).some(
+        (id) => id.toString() === candidate._id.toString()
+      );
+      const candidateBlockedMe = (candidate.blockedUsers || []).some(
+        (id) => id.toString() === user._id.toString()
+      );
+      if (iBlockedCandidate || candidateBlockedMe) return null;
+
+      const scoreFromUser = scoreOneSidePreferences(user, candidate);
+      const scoreFromCandidate = scoreOneSidePreferences(candidate, user);
+      const mutualScore = Math.round((scoreFromUser + scoreFromCandidate) / 2);
+
+      // المطلوب: مطابقة قريبة وليست كاملة (80% - 90%)
+      if (mutualScore < 80 || mutualScore > 90) return null;
+
+      return Promise.all([
+        createNearMatchNotificationOncePerDay({
+          receiverId: user._id,
+          relatedUserId: candidate._id,
+          receiverGender: user.gender,
+          relatedName: candidate.name || "مستخدم",
+          score: mutualScore,
+        }),
+        createNearMatchNotificationOncePerDay({
+          receiverId: candidate._id,
+          relatedUserId: user._id,
+          receiverGender: candidate.gender,
+          relatedName: user.name || "مستخدم",
+          score: mutualScore,
+        }),
+      ]);
+    })
+    .filter(Boolean);
+
+  if (jobs.length > 0) {
+    await Promise.all(jobs);
+  }
 };
 
 // Upload single image
@@ -274,6 +500,16 @@ exports.updateLoggedUserProfileInfo = asyncHandler(async (req, res, next) => {
 
   // Save to trigger post("save") hooks
   const updatedUser = await user.save();
+
+  // بعد حفظ تفضيلات صفحة 4.5 نرسل إشعارات المطابقة القريبة (80-90%) للطرفين.
+  const hasRelevantPreferenceChange = PROFILE_MATCH_RELEVANT_FIELDS.some(
+    (field) => Object.prototype.hasOwnProperty.call(req.body, field)
+  );
+  if (hasRelevantPreferenceChange) {
+    maybeNotifyNearPreferenceMatches(updatedUser).catch((err) => {
+      console.error("Near preference match notification error:", err.message);
+    });
+  }
 
   console.log('✅ User profile info updated successfully:', {
     id: updatedUser._id,
