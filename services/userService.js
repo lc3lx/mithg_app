@@ -9,9 +9,18 @@ const { uploadSingleImage } = require("../middlewares/uploadImageMiddleware");
 const createToken = require("../utils/createToken");
 const User = require("../models/userModel");
 const Chat = require("../models/chatModel");
+const Message = require("../models/messageModel");
 const DeviceToken = require("../models/deviceTokenModel");
 const UserReport = require("../models/userReportModel");
 const { createFriendRequestNotification, createFriendRequestAcceptedNotification } = require("./notificationService");
+
+const deleteAllChatsForUser = async (userId) => {
+  const chatIds = await Chat.find({ participants: userId }).distinct("_id");
+  if (!chatIds.length) return;
+
+  await Message.deleteMany({ chat: { $in: chatIds } });
+  await Chat.deleteMany({ _id: { $in: chatIds } });
+};
 
 // Upload single image
 exports.uploadUserImage = uploadSingleImage("profileImg");
@@ -109,7 +118,22 @@ exports.changeUserPassword = asyncHandler(async (req, res, next) => {
 // @desc    Delete specific user
 // @route   DELETE /api/v1/users/:id
 // @access  Private/Admin
-exports.deleteUser = factory.deleteOne(User);
+exports.deleteUser = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+  const user = await User.findById(id);
+
+  if (!user) {
+    return next(new ApiError(`No document for this id ${id}`, 404));
+  }
+
+  // حذف جميع المحادثات التي يشارك فيها هذا المستخدم (مع كل الرسائل التابعة لها)
+  await deleteAllChatsForUser(id);
+
+  await User.findByIdAndDelete(id);
+  await DeviceToken.deleteMany({ user: id });
+
+  res.status(204).send();
+});
 
 // @desc    Get Logged user data
 // @route   GET /api/v1/users/getMe
@@ -287,6 +311,8 @@ exports.freezeAccount = asyncHandler(async (req, res, next) => {
 // @access  Private/Protect
 exports.permanentDeleteAccount = asyncHandler(async (req, res, next) => {
   const userId = req.user._id;
+  // حذف جميع المحادثات التي يشارك فيها هذا المستخدم (مع كل الرسائل التابعة لها)
+  await deleteAllChatsForUser(userId);
   const deleted = await User.findByIdAndDelete(userId);
   if (!deleted) {
     return next(new ApiError("المستخدم غير موجود أو تم حذفه مسبقاً.", 404));
