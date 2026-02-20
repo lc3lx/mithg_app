@@ -20,6 +20,17 @@ const UserWarnings = require("../models/userWarningsModel");
 const BannedWords = require("../models/bannedWordsModel");
 const Notification = require("../models/notificationModel");
 
+const isFullOrPermanentBlock = (user) => {
+  if (!user || !user.blockedUntil) return false;
+  const hasFullIdentifiers =
+    !!user.blockedIdentifiers?.phone ||
+    (user.blockedIdentifiers?.ips || []).length > 0 ||
+    (user.blockedIdentifiers?.deviceIds || []).length > 0;
+  const yearsAhead = user.blockedUntil.getFullYear() - new Date().getFullYear();
+  const isPermanentStyle = yearsAhead >= 10;
+  return hasFullIdentifiers || isPermanentStyle;
+};
+
 // @desc    Get all chats for logged user
 // @route   GET /api/v1/chats
 // @access  Private
@@ -320,11 +331,11 @@ exports.sendMessage = asyncHandler(async (req, res, next) => {
   }
 
   if (req.user.isBlocked && req.user.blockedUntil > new Date()) {
+    const blockedMessage = isFullOrPermanentBlock(req.user)
+      ? "تم حظر حسابك بشكل كامل"
+      : `You are blocked until ${req.user.blockedUntil.toLocaleString()}`;
     return next(
-      new ApiError(
-        `You are blocked until ${req.user.blockedUntil.toLocaleString()}`,
-        403
-      )
+      new ApiError(blockedMessage, 403)
     );
   }
 

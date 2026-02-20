@@ -10,6 +10,26 @@ const createToken = require("../utils/createToken");
 
 const User = require("../models/userModel");
 
+const isFullOrPermanentBlock = (user) => {
+  if (!user || !user.blockedUntil) return false;
+  const hasFullIdentifiers =
+    !!user.blockedIdentifiers?.phone ||
+    (user.blockedIdentifiers?.ips || []).length > 0 ||
+    (user.blockedIdentifiers?.deviceIds || []).length > 0;
+  const yearsAhead = user.blockedUntil.getFullYear() - new Date().getFullYear();
+  const isPermanentStyle = yearsAhead >= 10;
+  return hasFullIdentifiers || isPermanentStyle;
+};
+
+const buildBlockMessage = (user) => {
+  if (isFullOrPermanentBlock(user)) {
+    return "تم حظر حسابك بشكل كامل. تواصل مع الدعم.";
+  }
+  return `الحساب محظور حتى ${user.blockedUntil.toLocaleString(
+    "ar-SA"
+  )}. تواصل مع الدعم.`;
+};
+
 // @desc    Signup
 // @route   POST /api/v1/auth/signup
 // @access  Public
@@ -86,14 +106,7 @@ exports.login = asyncHandler(async (req, res, next) => {
 
   // التحقق من الحظر (حساب أو حظر شامل: جوال / IP / جهاز)
   if (user.isBlocked && user.blockedUntil && user.blockedUntil > new Date()) {
-    return next(
-      new ApiError(
-        `الحساب محظور حتى ${user.blockedUntil.toLocaleString(
-          "ar-SA",
-        )}. تواصل مع الدعم.`,
-        403,
-      ),
-    );
+    return next(new ApiError(buildBlockMessage(user), 403));
   }
   const clientIp = (req.headers["x-forwarded-for"] || req.ip || "")
     .toString()
@@ -104,14 +117,9 @@ exports.login = asyncHandler(async (req, res, next) => {
     isBlocked: true,
     blockedUntil: { $gt: new Date() },
     "blockedIdentifiers.phone": user.phone,
-  }).select("_id");
+  }).select("_id blockedUntil blockedIdentifiers");
   if (blockedByPhone) {
-    return next(
-      new ApiError(
-        "رقم الجوال أو الجهاز أو العنوان مرتبط بحساب محظور. تواصل مع الدعم.",
-        403,
-      ),
-    );
+    return next(new ApiError(buildBlockMessage(blockedByPhone), 403));
   }
   if (clientIp) {
     const blockedByIp = await User.findOne({
@@ -119,14 +127,9 @@ exports.login = asyncHandler(async (req, res, next) => {
       blockedUntil: { $gt: new Date() },
       blockedIdentifiers: { $exists: true, $ne: null },
       "blockedIdentifiers.ips": clientIp,
-    }).select("_id");
+    }).select("_id blockedUntil blockedIdentifiers");
     if (blockedByIp) {
-      return next(
-        new ApiError(
-          "رقم الجوال أو الجهاز أو العنوان مرتبط بحساب محظور. تواصل مع الدعم.",
-          403,
-        ),
-      );
+      return next(new ApiError(buildBlockMessage(blockedByIp), 403));
     }
   }
   if (clientDeviceId) {
@@ -135,14 +138,9 @@ exports.login = asyncHandler(async (req, res, next) => {
       blockedUntil: { $gt: new Date() },
       blockedIdentifiers: { $exists: true, $ne: null },
       "blockedIdentifiers.deviceIds": clientDeviceId,
-    }).select("_id");
+    }).select("_id blockedUntil blockedIdentifiers");
     if (blockedByDevice) {
-      return next(
-        new ApiError(
-          "رقم الجوال أو الجهاز أو العنوان مرتبط بحساب محظور. تواصل مع الدعم.",
-          403,
-        ),
-      );
+      return next(new ApiError(buildBlockMessage(blockedByDevice), 403));
     }
   }
 

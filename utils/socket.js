@@ -8,6 +8,17 @@ const BannedWords = require("../models/bannedWordsModel");
 const { checkMessageAndWarn } = require("../services/userWarningsService");
 const { hasActiveSubscriptionAndVerification } = require("../middlewares/subscriptionMiddleware");
 
+const isFullOrPermanentBlock = (user) => {
+  if (!user || !user.blockedUntil) return false;
+  const hasFullIdentifiers =
+    !!user.blockedIdentifiers?.phone ||
+    (user.blockedIdentifiers?.ips || []).length > 0 ||
+    (user.blockedIdentifiers?.deviceIds || []).length > 0;
+  const yearsAhead = user.blockedUntil.getFullYear() - new Date().getFullYear();
+  const isPermanentStyle = yearsAhead >= 10;
+  return hasFullIdentifiers || isPermanentStyle;
+};
+
 // تخزين المستخدمين المتصلين
 const onlineUsers = new Map();
 
@@ -227,8 +238,11 @@ const socketHandler = (io) => {
           user.blockedUntil &&
           user.blockedUntil > new Date()
         ) {
+          const blockedMessage = isFullOrPermanentBlock(user)
+            ? "تم حظر حسابك بشكل كامل"
+            : `You are blocked until ${user.blockedUntil.toLocaleString()}`;
           socket.emit("error", {
-            message: `You are blocked until ${user.blockedUntil.toLocaleString()}`,
+            message: blockedMessage,
           });
           return;
         }
