@@ -306,7 +306,6 @@ exports.getUserProfile = asyncHandler(async (req, res, next) => {
     friendIds.includes(req.user._id.toString());
 
   if (req.user._id.toString() !== userId && !isFriend) {
-    profileData.profileImg = null;
     profileData.coverImg = null;
     profileData.gallery = [];
     profileData.bio = null;
@@ -468,7 +467,6 @@ exports.getAllProfiles = asyncHandler(async (req, res, next) => {
 
     // غير الأصدقاء: إخفاء وسائط الحساسة من الباك مباشرة (بدون الاعتماد على الفرونت)
     if (!isFriend) {
-      profileData.profileImg = null;
       profileData.coverImg = null;
       profileData.gallery = [];
       profileData.canOpenProfile = false;

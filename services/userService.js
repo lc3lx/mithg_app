@@ -627,7 +627,6 @@ exports.getUserFavorites = asyncHandler(async (req, res, next) => {
     favData.isFriend = isFriend;
     favData.canOpenProfile = isFriend;
     if (!isFriend) {
-      favData.profileImg = null;
       favData.coverImg = null;
     }
     return favData;
@@ -832,7 +831,6 @@ exports.getFriendRequests = asyncHandler(async (req, res, next) => {
     data.isFriend = isFriend;
     data.canOpenProfile = isFriend;
     if (!isFriend) {
-      data.profileImg = null;
       data.coverImg = null;
     }
     return data;
