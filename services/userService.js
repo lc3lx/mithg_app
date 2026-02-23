@@ -730,7 +730,7 @@ exports.acceptFriendRequest = asyncHandler(async (req, res, next) => {
   }
 
   // Create notification for the sender (who sent the original request)
-  await createFriendRequestAcceptedNotification(req.user._id, userId);
+  await createFriendRequestAcceptedNotification(userId, req.user._id);
 
   res.status(200).json({
     message: "Friend request accepted successfully",
