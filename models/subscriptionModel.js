@@ -31,12 +31,11 @@ const subscriptionSchema = new mongoose.Schema(
       required: [true, "Duration in days is required"],
       min: [1, "Duration must be at least 1 day"],
     },
-    features: [
-      {
-        type: String,
-        trim: true,
-      },
-    ],
+    // ميزات الاشتراك المعروضة للمستخدم (يتحكم بها الأدمن)، مثل: رسائل لا محدودة، إظهار من أعجبك، من زار بروفايلك، فلاتر متقدمة
+    features: {
+      type: [String],
+      default: [],
+    },
     isActive: {
       type: Boolean,
       default: true,
