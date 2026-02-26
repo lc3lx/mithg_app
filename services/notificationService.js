@@ -520,6 +520,57 @@ exports.createProfileViewNotification = async (viewerId, profileOwnerId) => {
   }
 };
 
+exports.createGalleryViewRequestNotification = async (requesterId, ownerId) => {
+  try {
+    const requester = await User.findById(requesterId).select("name").lean();
+    const requesterName = requester?.name?.trim() || "مستخدم";
+    const notification = await Notification.create({
+      user: ownerId,
+      type: "gallery_view_request",
+      title: "طلب مشاهدة المعرض",
+      message: `${requesterName} يطلب مشاهدة معرض صورك`,
+      relatedUser: requesterId,
+    });
+    return notification;
+  } catch (error) {
+    console.error("Error creating gallery view request notification:", error);
+  }
+};
+
+exports.createGalleryViewAcceptedNotification = async (ownerId, requesterId) => {
+  try {
+    const owner = await User.findById(ownerId).select("name").lean();
+    const ownerName = owner?.name?.trim() || "مستخدم";
+    const notification = await Notification.create({
+      user: requesterId,
+      type: "gallery_view_accepted",
+      title: "تم قبول طلب مشاهدة المعرض",
+      message: `وافق ${ownerName} على طلبك لمشاهدة المعرض. يمكنك المشاهدة مرة واحدة.`,
+      relatedUser: ownerId,
+    });
+    return notification;
+  } catch (error) {
+    console.error("Error creating gallery view accepted notification:", error);
+  }
+};
+
+exports.createGalleryViewRejectedNotification = async (ownerId, requesterId) => {
+  try {
+    const owner = await User.findById(ownerId).select("name").lean();
+    const ownerName = owner?.name?.trim() || "مستخدم";
+    const notification = await Notification.create({
+      user: requesterId,
+      type: "gallery_view_rejected",
+      title: "تم رفض طلب مشاهدة المعرض",
+      message: `رفض ${ownerName} طلبك لمشاهدة المعرض`,
+      relatedUser: ownerId,
+    });
+    return notification;
+  } catch (error) {
+    console.error("Error creating gallery view rejected notification:", error);
+  }
+};
+
 exports.createMatchNotification = async (userId1, userId2, matchData) => {
   try {
     // Create notification for both users

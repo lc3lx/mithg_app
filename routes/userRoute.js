@@ -15,6 +15,9 @@ const {
   removeFriendValidator,
   blockUserValidator,
   reportUserValidator,
+  sendGalleryViewRequestValidator,
+  acceptGalleryViewRequestValidator,
+  rejectGalleryViewRequestValidator,
 } = require("../utils/validators/userValidator");
 
 const {
@@ -47,6 +50,12 @@ const {
   blockUser,
   reportUser,
 } = require("../services/userService");
+const {
+  sendGalleryViewRequest,
+  getGalleryViewRequests,
+  acceptGalleryViewRequest,
+  rejectGalleryViewRequest,
+} = require("../services/galleryViewRequestService");
 
 const authService = require("../services/authService");
 const {
@@ -121,6 +130,25 @@ router.delete(
 // عرض طلبات الصداقة وقائمة الأصدقاء يتطلب اشتراكاً وتوثيقاً (تحقق باك + فرونت)
 router.get("/friend-requests", requireSubscriptionAndVerification, getFriendRequests);
 router.get("/friends/list", requireSubscriptionAndVerification, getFriends);
+
+// Gallery view requests (طلب مشاهدة المعرض)
+router.post(
+  "/gallery-view-request/:userId",
+  requireSubscriptionAndVerification,
+  sendGalleryViewRequestValidator,
+  sendGalleryViewRequest
+);
+router.get("/gallery-view-requests", getGalleryViewRequests);
+router.post(
+  "/gallery-view-request/:requestId/accept",
+  acceptGalleryViewRequestValidator,
+  acceptGalleryViewRequest
+);
+router.post(
+  "/gallery-view-request/:requestId/reject",
+  rejectGalleryViewRequestValidator,
+  rejectGalleryViewRequest
+);
 router.delete("/friends/:userId", removeFriendValidator, removeFriend);
 router.post("/block/:userId", blockUserValidator, blockUser);
 router.post("/report/:userId", reportUserValidator, reportUser);

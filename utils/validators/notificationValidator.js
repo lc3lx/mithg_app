@@ -12,6 +12,9 @@ const NOTIFICATION_TYPES = [
   "profile_view",
   "match_suggestion",
   "security_update",
+  "gallery_view_request",
+  "gallery_view_accepted",
+  "gallery_view_rejected",
   // Admin broadcast notifications
   "update",
   "promotion",

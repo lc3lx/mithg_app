@@ -5,6 +5,7 @@ const { v4: uuidv4 } = require("uuid");
 const asyncHandler = require("express-async-handler");
 const ApiError = require("../utils/apiError");
 const User = require("../models/userModel");
+const GalleryViewRequest = require("../models/galleryViewRequestModel");
 const {
   createProfileViewNotification,
 } = require("./notificationService");
@@ -102,8 +103,8 @@ exports.addToGallery = asyncHandler(async (req, res, next) => {
 });
 
 // @desc    Get user gallery
-// @route   GET /api/v1/users/:userId/gallery
-// @access  Private/Protect (friends or self)
+// @route   GET /api/v1/profile/:userId/gallery
+// @access  Private (friends, self, or one-time via accepted gallery view request)
 exports.getUserGallery = asyncHandler(async (req, res, next) => {
   const { userId } = req.params;
 
@@ -124,14 +125,33 @@ exports.getUserGallery = asyncHandler(async (req, res, next) => {
       return friendId === requesterId;
     });
 
+  let consumeGrant = false;
   if (!isFriend) {
-    return next(new ApiError("Gallery is available for friends only", 403));
+    const grant = await GalleryViewRequest.findOne({
+      ownerId: userId,
+      requesterId: req.user._id,
+      status: "accepted",
+      usedAt: null,
+    });
+    if (!grant) {
+      return next(new ApiError("Gallery is available for friends or by one-time approval only", 403));
+    }
+    consumeGrant = true;
   }
 
-  // Sort gallery by creation date (newest first)
-  const gallery = user.gallery.sort(
-    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-  );
+  // Sort gallery by primary first, then creation date (newest first)
+  const gallery = user.gallery.sort((a, b) => {
+    if (a.isPrimary && !b.isPrimary) return -1;
+    if (!a.isPrimary && b.isPrimary) return 1;
+    return new Date(b.createdAt) - new Date(a.createdAt);
+  });
+
+  if (consumeGrant) {
+    await GalleryViewRequest.updateOne(
+      { ownerId: userId, requesterId: req.user._id, status: "accepted", usedAt: null },
+      { usedAt: new Date() }
+    );
+  }
 
   res.status(200).json({
     results: gallery.length,

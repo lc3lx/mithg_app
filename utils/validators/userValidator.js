@@ -1,6 +1,6 @@
 const slugify = require("slugify");
 const bcrypt = require("bcryptjs");
-const { check, body } = require("express-validator");
+const { check, body, param } = require("express-validator");
 const validatorMiddleware = require("../../middlewares/validatorMiddleware");
 const User = require("../../models/userModel");
 
@@ -246,5 +246,20 @@ exports.reportUserValidator = [
   check("userId").isMongoId().withMessage("Invalid User id format"),
   body("reason").optional().isString().withMessage("Reason must be a string"),
   body("details").optional().isString().withMessage("Details must be a string"),
+  validatorMiddleware,
+];
+
+exports.sendGalleryViewRequestValidator = [
+  param("userId").isMongoId().withMessage("Invalid user id format"),
+  validatorMiddleware,
+];
+
+exports.acceptGalleryViewRequestValidator = [
+  param("requestId").isMongoId().withMessage("Invalid request id format"),
+  validatorMiddleware,
+];
+
+exports.rejectGalleryViewRequestValidator = [
+  param("requestId").isMongoId().withMessage("Invalid request id format"),
   validatorMiddleware,
 ];
