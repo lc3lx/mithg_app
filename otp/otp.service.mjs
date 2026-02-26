@@ -57,6 +57,9 @@ export async function sendOTP(phone) {
   store.set(key, { code, expiresAt });
   recordSend(phone);
 
+  // طباعة الرمز في الـ console للتطوير واللوج
+  console.log("[OTP] الرمز للمطور (لوج):", code, "| رقم:", key);
+
   const arabicMessage = `رمز التحقق الخاص بك: *${code}*\nصالح لمدة دقيقتين.\nلا تشارك هذا الرمز مع أحد.`;
 
   try {
