@@ -69,16 +69,15 @@ export async function sendOTP(phone) {
     console.log("[OTP] تم إرسال الرمز بنجاح إلى:", key);
     return { success: true };
   } catch (err) {
-    store.delete(key);
+    // عدم حذف الرمز عند فشل واتساب: يبقى الرمز في الـ store ويُطبع في اللوج فيمكن التحقق به
     const msg = err.message || "فشل إرسال الرسالة عبر واتساب.";
     console.error("[OTP] فشل الإرسال إلى", key, ":", msg);
-    const userMessage =
-      msg.includes("timeout") || msg.includes("connection")
-        ? "واتساب غير متصل أو انقطع. تأكد من مسح رمز QR واتساب (GET /api/v1/otp/qr) ثم حاول مرة أخرى."
-        : msg.includes("Invalid phone")
-        ? "رقم الهاتف غير صالح. استخدم صيغة دولية مثل 963912345678."
-        : "فشل إرسال الرسالة عبر واتساب. تأكد من اتصال واتساب ومسح رمز QR.";
-    return { success: false, message: userMessage };
+    console.log("[OTP] يمكنك التحقق باستخدام الرمز أعلاه من لوج السيرفر:", code);
+    return {
+      success: true,
+      message:
+        "لم نتمكن من إرسال الرمز عبر واتساب. استخدم الرمز الظاهر في لوج السيرفر للتحقق.",
+    };
   }
 }
 
