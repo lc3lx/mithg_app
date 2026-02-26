@@ -296,12 +296,12 @@ exports.processPostMedia = asyncHandler(async (req, res, next) => {
         return;
       }
 
-      // 🖼️ IMAGE
+      // 🖼️ IMAGE — resize to fit inside 1200x1200 without cropping (full image visible)
       if (isImage) {
         const filename = `post-${id}-${Date.now()}-${index}.jpeg`;
 
         await sharp(file.buffer)
-          .resize(1200, 1200)
+          .resize(1200, 1200, { fit: "inside", withoutEnlargement: true })
           .toFormat("jpeg")
           .jpeg({ quality: 90 })
           .toFile(`uploads/posts/${filename}`);
