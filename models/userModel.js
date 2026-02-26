@@ -31,7 +31,6 @@ const userSchema = new mongoose.Schema(
     phone: {
       type: String,
       required: [true, "Phone number required"],
-      unique: true,
     },
     phoneVerified: {
       type: Boolean,
@@ -367,7 +366,7 @@ const userSchema = new mongoose.Schema(
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  }
+  },
 );
 
 userSchema.pre("save", async function (next) {
