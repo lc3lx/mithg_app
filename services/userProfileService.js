@@ -62,8 +62,9 @@ exports.addToGallery = asyncHandler(async (req, res, next) => {
   if (type === "image") {
     filename = `gallery-${uuidv4()}-${Date.now()}.jpeg`;
 
+    // حفظ الصورة كاملة بدون قص: تقليص داخل إطار أقصى 1200x1200 مع الحفاظ على النسبة
     await sharp(req.file.buffer)
-      .resize(800, 800)
+      .resize(1200, 1200, { fit: "inside", withoutEnlargement: true })
       .toFormat("jpeg")
       .jpeg({ quality: 90 })
       .toFile(`uploads/users/gallery/${filename}`);
@@ -350,8 +351,8 @@ exports.getUserProfile = asyncHandler(async (req, res, next) => {
 
   profileData.isFriend = isFriend;
 
-  // إشعار زيارة البروفايل: عندما يشاهد أحدهم بروفايلك (غير نفسك)
-  if (req.user._id.toString() !== userId) {
+  // إشعار زيارة البروفايل: فقط عندما يشاهد بروفايلك شخص غير صديق (وليس نفسك)
+  if (req.user._id.toString() !== userId && !isFriend) {
     createProfileViewNotification(req.user._id, userId).catch(() => {});
   }
 

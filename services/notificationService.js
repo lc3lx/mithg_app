@@ -537,12 +537,15 @@ exports.createGalleryViewRequestNotification = async (requesterId, ownerId) => {
   }
 };
 
+// إشعار القبول/الرفض يُرسل فقط لصاحب الطلب (الطالب) وليس لصاحب المعرض
 exports.createGalleryViewAcceptedNotification = async (ownerId, requesterId) => {
   try {
+    const recipientId = requesterId && typeof requesterId === "object" ? requesterId._id ?? requesterId : requesterId;
+    if (!recipientId) return null;
     const owner = await User.findById(ownerId).select("name").lean();
     const ownerName = owner?.name?.trim() || "مستخدم";
     const notification = await Notification.create({
-      user: requesterId,
+      user: recipientId,
       type: "gallery_view_accepted",
       title: "تم قبول طلب مشاهدة المعرض",
       message: `وافق ${ownerName} على طلبك لمشاهدة المعرض. يمكنك المشاهدة مرة واحدة.`,
@@ -556,10 +559,12 @@ exports.createGalleryViewAcceptedNotification = async (ownerId, requesterId) => 
 
 exports.createGalleryViewRejectedNotification = async (ownerId, requesterId) => {
   try {
+    const recipientId = requesterId && typeof requesterId === "object" ? requesterId._id ?? requesterId : requesterId;
+    if (!recipientId) return null;
     const owner = await User.findById(ownerId).select("name").lean();
     const ownerName = owner?.name?.trim() || "مستخدم";
     const notification = await Notification.create({
-      user: requesterId,
+      user: recipientId,
       type: "gallery_view_rejected",
       title: "تم رفض طلب مشاهدة المعرض",
       message: `رفض ${ownerName} طلبك لمشاهدة المعرض`,
