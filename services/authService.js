@@ -9,6 +9,7 @@ const sendEmail = require("../utils/sendEmail");
 const createToken = require("../utils/createToken");
 
 const User = require("../models/userModel");
+const Notification = require("../models/notificationModel");
 
 const isFullOrPermanentBlock = (user) => {
   if (!user || !user.blockedUntil) return false;
@@ -42,6 +43,22 @@ exports.signup = asyncHandler(async (req, res, next) => {
       phone: req.body.phone,
       password: req.body.password,
     });
+
+    // إشعار ترحيبي تلقائي من الإدارة لكل مستخدم جديد.
+    try {
+      await Notification.createNotification({
+        user: user._id,
+        type: "welcome",
+        title: "رسالة من الإدارة",
+        message:
+          "السلام عليكم نحن هنا لخدمتكم يمكنكم الاستفسار عن اي خدمة في اي وقت",
+      });
+    } catch (notificationError) {
+      console.error(
+        "Signup welcome notification error:",
+        notificationError.message
+      );
+    }
 
     const token = createToken(user._id);
     res.status(201).json({ data: user, token });
