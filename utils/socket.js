@@ -202,7 +202,7 @@ const socketHandler = (io) => {
           socket.emit("error", { message: "Admins cannot send messages" });
           return;
         }
-        const { chatId, content, messageType = "text" } = data;
+        const { chatId, content, messageType = "text", clientTempId } = data;
 
         // التحقق من أن المستخدم مشارك في الدردشة أو ولي أمر
         const chat = await Chat.findOne({
@@ -339,6 +339,7 @@ const socketHandler = (io) => {
         const messagePayload = {
           chatId,
           message: message.toObject ? message.toObject() : message,
+          ...(clientTempId ? { clientTempId } : {}),
         };
 
         // إرسال فوري للمشاركين (بما فيهم المرسل) — مثل واتساب
@@ -349,6 +350,7 @@ const socketHandler = (io) => {
         const responseData = {
           message: message.toObject ? message.toObject() : message,
           messageId: message._id,
+          ...(clientTempId ? { clientTempId } : {}),
         };
         if (warningResult && !warningResult.safe) {
           responseData.warning = warningResult.warning;
@@ -381,14 +383,6 @@ const socketHandler = (io) => {
             await Promise.all(
               otherParticipants.map(async (participantId) => {
                 if (isParticipantViewingChat(participantId)) return;
-                await Chat.findByIdAndUpdate(
-                  chatId,
-                  { $inc: { "unreadCount.$[elem].count": 1 } },
-                  {
-                    arrayFilters: [{ "elem.user": participantId }],
-                    upsert: true,
-                  }
-                );
                 const participantSocketId = onlineUsers.get(
                   participantId.toString()
                 );
