@@ -427,6 +427,37 @@ userSchema.post("save", (doc) => {
   }
 });
 
+const deleteAllChatsForUser = async (userId) => {
+  if (!userId) return;
+  const Chat = mongoose.model("Chat");
+  const Message = mongoose.model("Message");
+  const chatIds = await Chat.find({
+    $or: [{ participants: userId }, { primaryUsers: userId }],
+  }).distinct("_id");
+  if (!chatIds.length) return;
+  await Message.deleteMany({ chat: { $in: chatIds } });
+  await Chat.deleteMany({ _id: { $in: chatIds } });
+};
+
+const onUserFindOneAndDelete = async (doc) => {
+  if (!doc?._id) return;
+  await deleteAllChatsForUser(doc._id);
+};
+
+const onUserDeleteOneDocument = async function onUserDeleteOneDocument() {
+  if (!this?._id) return;
+  await deleteAllChatsForUser(this._id);
+};
+
+// ضمان حذف كل محادثات المستخدم أينما تم حذف المستخدم (حتى خارج userService).
+userSchema.post("findOneAndDelete", onUserFindOneAndDelete);
+
+userSchema.post(
+  "deleteOne",
+  { document: true, query: false },
+  onUserDeleteOneDocument
+);
+
 const User = mongoose.model("User", userSchema);
 
 module.exports = User;

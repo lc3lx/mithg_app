@@ -16,7 +16,9 @@ const UserReport = require("../models/userReportModel");
 const { createFriendRequestNotification, createFriendRequestAcceptedNotification } = require("./notificationService");
 
 const deleteAllChatsForUser = async (userId) => {
-  const chatIds = await Chat.find({ participants: userId }).distinct("_id");
+  const chatIds = await Chat.find({
+    $or: [{ participants: userId }, { primaryUsers: userId }],
+  }).distinct("_id");
   if (!chatIds.length) return;
 
   await Message.deleteMany({ chat: { $in: chatIds } });
