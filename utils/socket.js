@@ -40,6 +40,42 @@ const getUnreadCount = async (chatId, userId) => {
   }
 };
 
+const buildBlockedUserPayload = (user, { forSelf = false } = {}) => {
+  const isActive =
+    !!(
+      user &&
+      user.isBlocked === true &&
+      user.blockedUntil &&
+      new Date(user.blockedUntil) > new Date()
+    );
+  const isFullBlock = isActive ? isFullOrPermanentBlock(user) : false;
+  const blockedUntil = isActive && user.blockedUntil
+    ? new Date(user.blockedUntil).toISOString()
+    : null;
+
+  if (!isActive) {
+    return {
+      active: false,
+      fullBlock: false,
+      blockedUntil: null,
+      message: null,
+    };
+  }
+
+  const message = forSelf
+    ? (isFullBlock
+        ? "أنت محظور بشكل كامل."
+        : `أنت محظور حتى ${new Date(user.blockedUntil).toLocaleString("ar-SA")}`)
+    : "الطرف الآخر محظور حالياً.";
+
+  return {
+    active: true,
+    fullBlock: isFullBlock,
+    blockedUntil,
+    message,
+  };
+};
+
 const socketHandler = (io) => {
   const chatNamespace = io.of("/chat");
   console.log("🔌 [Chat Socket] Chat namespace '/chat' created");
@@ -238,10 +274,16 @@ const socketHandler = (io) => {
           user.blockedUntil &&
           user.blockedUntil > new Date()
         ) {
-          const blockedMessage = isFullOrPermanentBlock(user)
-            ? "تم حظر حسابك بشكل كامل"
-            : `You are blocked until ${user.blockedUntil.toLocaleString()}`;
+          const isFullBlock = isFullOrPermanentBlock(user);
+          const blockedMessage = isFullBlock
+            ? "أنت محظور بشكل كامل."
+            : `أنت محظور حتى ${user.blockedUntil.toLocaleString("ar-SA")}`;
           socket.emit("error", {
+            code: "USER_BLOCKED",
+            blockedUntil: user.blockedUntil
+              ? new Date(user.blockedUntil).toISOString()
+              : null,
+            fullBlock: isFullBlock,
             message: blockedMessage,
           });
           return;
@@ -579,12 +621,13 @@ const socketHandler = (io) => {
         const otherParticipantId = (chat.participants || []).find(
           (p) => (p._id || p).toString() !== userId.toString()
         );
+        let otherUser = null;
         if (otherParticipantId) {
           const otherId = (
             otherParticipantId._id || otherParticipantId
           ).toString();
-          const otherUser = await User.findById(otherId)
-            .select("blockedUsers friends")
+          otherUser = await User.findById(otherId)
+            .select("blockedUsers friends isBlocked blockedUntil blockedIdentifiers")
             .lean();
           if (otherUser) {
             const blockedIds = (otherUser.blockedUsers || []).map((id) =>
@@ -638,8 +681,19 @@ const socketHandler = (io) => {
           unreadCount: unreadEntry ? unreadEntry.count : 0,
         };
 
+        const selfUser = await User.findById(userId)
+          .select("isBlocked blockedUntil blockedIdentifiers")
+          .lean();
+        const selfBlock = buildBlockedUserPayload(selfUser, { forSelf: true });
+        const otherBlock = buildBlockedUserPayload(otherUser, { forSelf: false });
+
         socket.emit("chat_detail", {
-          data: { chat: chatWithUnread, messages },
+          data: {
+            chat: chatWithUnread,
+            messages,
+            selfBlock,
+            otherBlock,
+          },
         });
       } catch (err) {
         console.error("get_chat error:", err);
