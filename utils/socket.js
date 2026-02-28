@@ -626,7 +626,8 @@ const socketHandler = (io) => {
             path: "replyTo",
             select: "content sender messageType",
           })
-          .sort({ createdAt: 1 })
+          // اجلب آخر 100 رسالة (الأحدث) ثم اقلبها لعرض زمني صحيح
+          .sort({ createdAt: -1 })
           .limit(100)
           .lean();
 
@@ -639,7 +640,7 @@ const socketHandler = (io) => {
         };
 
         socket.emit("chat_detail", {
-          data: { chat: chatWithUnread, messages },
+          data: { chat: chatWithUnread, messages: messages.reverse() },
         });
       } catch (err) {
         console.error("get_chat error:", err);
