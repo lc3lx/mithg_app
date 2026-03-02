@@ -51,7 +51,7 @@ export function phoneToJid(phone) {
 const WA_READY_TIMEOUT_MS = 45000; // 45s (أطول من 20s AwaitingInitialSync)
 const RECONNECT_DELAY_MS = 5000;  // تأخير أساسي قبل إعادة الاتصال
 const RECONNECT_MAX_DELAY_MS = 60000; // أقصى تأخير (دقيقة)
-let reconnectAttempts = 0; // يُصفّر عند اتصال ناجح. إن استمر Connection Failure: احذف مجلد otp/auth_info_wa وامسح QR من جديد.
+let reconnectAttempts = 0; // يُصفّر عند اتصال ناجح. إن استمر Connection Failure: من لوحة الأدمن اختر "إعادة ربط واتساب" ثم امسح QR من جديد (الجلسة في DB فقط).
 
 /**
  * Send a WhatsApp text message. Resolves when connection is ready and message is sent.
