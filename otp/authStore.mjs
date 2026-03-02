@@ -9,6 +9,25 @@ import { proto } from "@whiskeysockets/baileys/WAProto/index.js";
 const require = createRequire(import.meta.url);
 const WhatsappAuth = require("../models/whatsappAuthModel.js");
 
+/** libsignal يتوقع Buffer وليس Uint8Array؛ استبدال كل Uint8Array داخل الكائن بـ Buffer عند التحميل */
+function credsEnsureBuffers(obj) {
+  if (obj == null) return obj;
+  if (obj instanceof Uint8Array && !Buffer.isBuffer(obj)) {
+    return Buffer.from(obj);
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(credsEnsureBuffers);
+  }
+  if (typeof obj === "object") {
+    const out = {};
+    for (const k of Object.keys(obj)) {
+      out[k] = credsEnsureBuffers(obj[k]);
+    }
+    return out;
+  }
+  return obj;
+}
+
 const DOC_ID = "default";
 const MUTEX_WAIT_MS = 5000;
 let writeLock = null;
@@ -44,7 +63,8 @@ async function saveDoc(update) {
  */
 export async function useMongoAuthState() {
   const raw = await loadDoc();
-  const creds = raw.creds ? JSON.parse(JSON.stringify(raw.creds), BufferJSON.reviver) : null;
+  let creds = raw.creds ? JSON.parse(JSON.stringify(raw.creds), BufferJSON.reviver) : null;
+  if (creds) creds = credsEnsureBuffers(creds);
   const keysStore = raw.keys && typeof raw.keys === "object" ? raw.keys : {};
 
   const keys = {
@@ -65,6 +85,7 @@ export async function useMongoAuthState() {
             continue;
           }
         }
+        value = value != null ? credsEnsureBuffers(value) : null;
         if (type === "app-state-sync-key" && value) {
           value = proto.Message.AppStateSyncKeyData.fromObject(value);
         }
