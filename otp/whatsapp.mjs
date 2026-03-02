@@ -6,6 +6,7 @@ import makeWASocket, { useMultiFileAuthState, DisconnectReason } from "@whiskeys
 import QRCode from "qrcode";
 import path from "path";
 import { fileURLToPath } from "url";
+import fs from "fs/promises";
 
 /** تخفيف لوقات Baileys (لا نعرض JSON و stack trace)، نعتمد على connection.update للرسائل */
 const noop = () => {};
@@ -159,6 +160,32 @@ async function connect() {
       console.log("✅ واتساب متصل وجاهز لإرسال OTP.");
     }
   });
+}
+
+/**
+ * مسح الجلسة وإعادة الربط من الصفر (يظهر QR جديد على /api/v1/otp/qr).
+ * استخدمه عندما تريد ربط واتساب من جديد.
+ */
+export async function forceReconnect() {
+  if (sock) {
+    try {
+      sock.end(undefined);
+    } catch (_) {}
+    sock = null;
+  }
+  isReady = false;
+  reconnectAttempts = 0;
+  lastQRDataUrl = null;
+  readyPromise = new Promise((resolve) => {
+    resolveReady = resolve;
+  });
+  try {
+    await fs.rm(AUTH_FOLDER, { recursive: true, force: true });
+  } catch (_) {}
+  connect().catch((err) => {
+    console.error("❌ فشل إعادة اتصال واتساب:", err.message);
+  });
+  console.log("🔄 تم مسح الجلسة. افتح /api/v1/otp/qr وامسح الرمز من واتساب.");
 }
 
 // Start connection on load

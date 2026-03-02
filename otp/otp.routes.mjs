@@ -30,6 +30,35 @@ async function optionalAuthUser(req) {
 }
 
 /**
+ * GET /api/v1/otp/reconnect
+ * مسح جلسة واتساب وإعادة الربط من الصفر. بعدها افتح /api/v1/otp/qr وامسح الرمز.
+ */
+router.get("/reconnect", async (req, res) => {
+  try {
+    const { forceReconnect } = await import("./whatsapp.mjs");
+    await forceReconnect();
+    return res.send(`
+      <!DOCTYPE html>
+      <html dir="rtl" lang="ar">
+      <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>إعادة ربط واتساب</title>
+      <style>body{font-family:sans-serif;background:#1a1a2e;color:#eee;text-align:center;padding:2rem;}
+      a{color:#60a5fa;}</style></head>
+      <body>
+        <h1>إعادة ربط واتساب</h1>
+        <p>تم مسح الجلسة.</p>
+        <p><a href="/api/v1/otp/qr">افتح صفحة QR وامسح الرمز من واتساب</a></p>
+      </body></html>
+    `);
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message || "فشل إعادة الربط",
+    });
+  }
+});
+
+/**
  * GET /api/v1/otp/qr
  * عرض رمز QR لربط واتساب (افتح هذا الرابط من جوالك أو المتصفح وامسح الرمز من واتساب)
  */
