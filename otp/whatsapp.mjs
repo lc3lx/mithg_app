@@ -21,6 +21,8 @@ const baileysLogger = {
 let sock = null;
 let isReady = false;
 let resolveReady = null;
+/** عند true: الإغلاق القادم من سوكيت قديم (مثلاً بعد forceReconnect) فلا نجدول إعادة اتصال */
+let skipNextCloseReconnect = false;
 /** Promise تُحل عند اتصال واتساب (تُعاد إنشاؤها عند كل إعادة اتصال) */
 let readyPromise = new Promise((resolve) => {
   resolveReady = resolve;
@@ -118,6 +120,10 @@ async function connect() {
     }
 
     if (connection === "close") {
+      if (skipNextCloseReconnect) {
+        skipNextCloseReconnect = false;
+        return;
+      }
       const statusCode = lastDisconnect?.error?.output?.statusCode ?? null;
       const errMsg = lastDisconnect?.error?.message || "";
       const isLoggedOut = statusCode === DisconnectReason.loggedOut;
@@ -162,6 +168,7 @@ async function connect() {
  * استخدمه عندما تريد ربط واتساب من جديد.
  */
 export async function forceReconnect() {
+  skipNextCloseReconnect = true;
   if (sock) {
     try {
       sock.end(undefined);
