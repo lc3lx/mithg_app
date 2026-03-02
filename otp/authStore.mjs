@@ -9,11 +9,13 @@ import { proto } from "@whiskeysockets/baileys/WAProto/index.js";
 const require = createRequire(import.meta.url);
 const WhatsappAuth = require("../models/whatsappAuthModel.js");
 
-/** libsignal يتوقع Buffer وليس Uint8Array؛ استبدال كل Uint8Array داخل الكائن بـ Buffer عند التحميل */
+/** libsignal يتوقع Buffer وليس Uint8Array؛ استبدال كل بيانات ثنائية بـ Buffer عند التحميل */
 function credsEnsureBuffers(obj) {
   if (obj == null) return obj;
-  if (obj instanceof Uint8Array && !Buffer.isBuffer(obj)) {
-    return Buffer.from(obj);
+  if (Buffer.isBuffer(obj)) return obj;
+  if (obj instanceof Uint8Array) return Buffer.from(obj);
+  if (typeof obj === "object" && obj.type === "Buffer" && obj.data != null) {
+    return typeof obj.data === "string" ? Buffer.from(obj.data, "base64") : Buffer.from(obj.data);
   }
   if (Array.isArray(obj)) {
     return obj.map(credsEnsureBuffers);
@@ -138,12 +140,12 @@ export async function clearMongoAuth() {
 
 function initAuthCreds() {
   return {
-    noiseKey: { public: new Uint8Array(32), private: new Uint8Array(32) },
-    pairingEphemeralKeyPair: { public: new Uint8Array(32), private: new Uint8Array(32) },
-    signedIdentityKey: { public: new Uint8Array(32), private: new Uint8Array(32) },
+    noiseKey: { public: Buffer.alloc(32), private: Buffer.alloc(32) },
+    pairingEphemeralKeyPair: { public: Buffer.alloc(32), private: Buffer.alloc(32) },
+    signedIdentityKey: { public: Buffer.alloc(32), private: Buffer.alloc(32) },
     signedPreKey: {
-      keyPair: { public: new Uint8Array(32), private: new Uint8Array(32) },
-      signature: new Uint8Array(64),
+      keyPair: { public: Buffer.alloc(32), private: Buffer.alloc(32) },
+      signature: Buffer.alloc(64),
       keyId: 0,
     },
     registrationId: 0,
