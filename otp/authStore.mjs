@@ -104,6 +104,17 @@ export async function useMongoAuthState() {
   };
 }
 
+/**
+ * مسح جلسة واتساب من قاعدة البيانات (لإعادة الربط وعرض QR من جديد).
+ */
+export async function clearMongoAuth() {
+  await WhatsappAuth.findOneAndUpdate(
+    { _id: DOC_ID },
+    { $set: { creds: null, keys: {} } },
+    { upsert: true }
+  );
+}
+
 function initAuthCreds() {
   return {
     noiseKey: { public: new Uint8Array(32), private: new Uint8Array(32) },

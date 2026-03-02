@@ -37,17 +37,26 @@ router.get("/reconnect", async (req, res) => {
   try {
     const { forceReconnect } = await import("./whatsapp.mjs");
     await forceReconnect();
+    const qrPath = "/api/v1/otp/qr";
     return res.send(`
       <!DOCTYPE html>
       <html dir="rtl" lang="ar">
       <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
       <title>إعادة ربط واتساب</title>
       <style>body{font-family:sans-serif;background:#1a1a2e;color:#eee;text-align:center;padding:2rem;}
-      a{color:#60a5fa;}</style></head>
+      a{color:#60a5fa;} .countdown{color:#fbbf24;margin:1rem 0;}</style></head>
       <body>
         <h1>إعادة ربط واتساب</h1>
-        <p>تم مسح الجلسة.</p>
-        <p><a href="/api/v1/otp/qr">افتح صفحة QR وامسح الرمز من واتساب</a></p>
+        <p>تم مسح الجلسة. جاري فتح صفحة الرمز...</p>
+        <p class="countdown" id="count">سيتم التحويل خلال <span id="n">3</span> ثوانٍ</p>
+        <p><a href="${qrPath}">افتح صفحة QR الآن</a></p>
+        <script>
+          var n=3, el=document.getElementById('n'), count=document.getElementById('count');
+          var t=setInterval(function(){
+            n--; if(el) el.textContent=n;
+            if(n<=0){ clearInterval(t); location.href="${qrPath}"; }
+          }, 1000);
+        </script>
       </body></html>
     `);
   } catch (err) {
@@ -85,12 +94,13 @@ router.get("/qr", async (req, res) => {
         <!DOCTYPE html>
         <html dir="rtl" lang="ar">
         <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta http-equiv="refresh" content="3">
         <title>واتساب OTP</title>
         <style>body{font-family:sans-serif;background:#1a1a2e;color:#eee;text-align:center;padding:2rem;}
         .wait{color:#fbbf24;}</style></head>
         <body>
           <h1>واتساب OTP</h1>
-          <p class="wait">⏳ جاري توليد رمز QR... حدّث الصفحة خلال ثوانٍ.</p>
+          <p class="wait">⏳ جاري توليد رمز QR... الصفحة تُحدَّث تلقائياً كل 3 ثوانٍ.</p>
         </body></html>
       `);
     }
@@ -199,7 +209,7 @@ router.post("/verify", async (req, res) => {
       message: "رمز التحقق مطلوب (code)",
     });
   }
-  const result = verifyOTP(phone.trim(), String(code));
+  const result = await verifyOTP(phone.trim(), String(code));
   if (!result.success) {
     return res.status(400).json({
       success: false,

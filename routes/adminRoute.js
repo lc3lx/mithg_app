@@ -97,6 +97,36 @@ router.post("/create-default-admin", async (req, res) => {
 // Protected admin routes
 router.use(adminService.protectAdmin);
 
+// WhatsApp QR & OTP (admin only)
+router.get("/whatsapp-qr", async (req, res) => {
+  try {
+    const { getQRForWeb } = await import("../otp/whatsapp.mjs");
+    const data = getQRForWeb();
+    return res.json(data);
+  } catch (err) {
+    return res.status(500).json({ message: err.message || "WhatsApp module error" });
+  }
+});
+router.post("/whatsapp-reconnect", async (req, res) => {
+  try {
+    const { forceReconnect } = await import("../otp/whatsapp.mjs");
+    await forceReconnect();
+    return res.json({ message: "تم طلب إعادة ربط واتساب. امسح رمز QR الجديد." });
+  } catch (err) {
+    return res.status(500).json({ message: err.message || "WhatsApp reconnect failed" });
+  }
+});
+router.get("/otp-records", async (req, res) => {
+  try {
+    const { getOtpRecords } = await import("../otp/otp.service.mjs");
+    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
+    const records = await getOtpRecords(limit);
+    return res.json({ records });
+  } catch (err) {
+    return res.status(500).json({ message: err.message || "OTP records error" });
+  }
+});
+
 // Profile management
 router.get("/profile", getAdminProfile);
 

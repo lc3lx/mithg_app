@@ -1,12 +1,10 @@
 /**
  * WhatsApp connection via Baileys (QR + session).
- * Session saved locally so QR is only required once.
+ * Session saved in MongoDB so no file deletion needed after server restart.
  */
-import makeWASocket, { useMultiFileAuthState, DisconnectReason } from "@whiskeysockets/baileys";
+import makeWASocket, { DisconnectReason } from "@whiskeysockets/baileys";
 import QRCode from "qrcode";
-import path from "path";
-import { fileURLToPath } from "url";
-import fs from "fs/promises";
+import { useMongoAuthState, clearMongoAuth } from "./authStore.mjs";
 
 /** تخفيف لوقات Baileys (لا نعرض JSON و stack trace)، نعتمد على connection.update للرسائل */
 const noop = () => {};
@@ -19,9 +17,6 @@ const baileysLogger = {
   fatal: noop,
   child: () => baileysLogger,
 };
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const AUTH_FOLDER = path.join(__dirname, "auth_info_wa");
 
 let sock = null;
 let isReady = false;
@@ -95,7 +90,7 @@ async function connect() {
   readyPromise = new Promise((resolve) => {
     resolveReady = resolve;
   });
-  const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
+  const { state, saveCreds } = await useMongoAuthState();
 
   sock = makeWASocket({
     auth: state,
@@ -163,7 +158,7 @@ async function connect() {
 }
 
 /**
- * مسح الجلسة وإعادة الربط من الصفر (يظهر QR جديد على /api/v1/otp/qr).
+ * مسح الجلسة من قاعدة البيانات وإعادة الربط من الصفر (يظهر QR جديد).
  * استخدمه عندما تريد ربط واتساب من جديد.
  */
 export async function forceReconnect() {
@@ -179,13 +174,13 @@ export async function forceReconnect() {
   readyPromise = new Promise((resolve) => {
     resolveReady = resolve;
   });
-  try {
-    await fs.rm(AUTH_FOLDER, { recursive: true, force: true });
-  } catch (_) {}
+  await clearMongoAuth();
+  // تأخير قصير حتى ينتهي إغلاق السوكيت ثم نطلب QR جديد من واتساب
+  await new Promise((r) => setTimeout(r, 800));
   connect().catch((err) => {
     console.error("❌ فشل إعادة اتصال واتساب:", err.message);
   });
-  console.log("🔄 تم مسح الجلسة. افتح /api/v1/otp/qr وامسح الرمز من واتساب.");
+  console.log("🔄 تم مسح الجلسة. افتح /api/v1/otp/qr وامسح الرمز (أو انتظر التحديث التلقائي).");
 }
 
 // Start connection on load
