@@ -191,23 +191,39 @@ async function connect() {
       const shouldReconnect = !isLoggedOut && !isForbidden;
       if (shouldReconnect) {
         const isConnectionTerminated = /Connection Terminated|Connection Closed/i.test(errMsg);
-        const baseDelay = isConnectionTerminated && reconnectAttempts < 3
-          ? 20000
-          : RECONNECT_DELAY_MS;
-        const delay = Math.min(
-          baseDelay * Math.pow(2, Math.min(reconnectAttempts, 4)),
-          RECONNECT_MAX_DELAY_MS
-        );
         reconnectAttempts += 1;
-        console.log(
-          "🔄 انقطع الاتصال بواتساب (",
-          errMsg || statusCode || "Connection Failure",
-          "). إعادة المحاولة بعد",
-          delay / 1000,
-          "ثانية (محاولة",
-          reconnectAttempts,
-          ")."
-        );
+
+        let delay;
+        if (isConnectionTerminated && reconnectAttempts >= 5) {
+          delay = 5 * 60 * 1000; // 5 دقائق بعد 5 محاولات فاشلة
+          console.log(
+            "⚠️ واتساب يغلق الاتصال بشكل متكرر (غالباً بسبب IP السيرفر). انتظار",
+            delay / 60000,
+            "دقيقة قبل المحاولة التالية (محاولة",
+            reconnectAttempts,
+            ")."
+          );
+          console.log(
+            "💡 إن استمر: جرّب تشغيل البوت من شبكة منزلية أو استخدم بروكسي؛ عناوين VPS/داتاسنتر كثيراً ما تُقيّد من واتساب."
+          );
+        } else {
+          const baseDelay = isConnectionTerminated && reconnectAttempts < 3
+            ? 20000
+            : RECONNECT_DELAY_MS;
+          delay = Math.min(
+            baseDelay * Math.pow(2, Math.min(reconnectAttempts - 1, 4)),
+            RECONNECT_MAX_DELAY_MS
+          );
+          console.log(
+            "🔄 انقطع الاتصال بواتساب (",
+            errMsg || statusCode || "Connection Failure",
+            "). إعادة المحاولة بعد",
+            delay / 1000,
+            "ثانية (محاولة",
+            reconnectAttempts,
+            ")."
+          );
+        }
         setTimeout(() => connect(), delay);
       } else {
         console.log("❌ انقطع الاتصال بواتساب:", errMsg || statusCode);
