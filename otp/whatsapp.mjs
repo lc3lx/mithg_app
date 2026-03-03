@@ -129,7 +129,6 @@ async function connect() {
 
     sock = makeWASocket({
       auth: state,
-      printQRInTerminal: true,
       logger: baileysLogger,
       syncFullHistory: false,
       getMessage: async () => undefined,
