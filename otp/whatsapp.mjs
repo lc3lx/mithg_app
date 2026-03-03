@@ -152,9 +152,27 @@ async function connect() {
       const errMsg = lastDisconnect?.error?.message || "";
       const isLoggedOut = statusCode === DisconnectReason.loggedOut;
       const isForbidden = statusCode === 403;
-      // إعادة الاتصال لأي انقطاع ما عدا تسجيل خروج أو 403
-      const shouldReconnect = !isLoggedOut && !isForbidden;
       isReady = false;
+
+      const isBadAuthError =
+        /Invalid private key|Uint8Array|invalid.*key|bad.*auth/i.test(errMsg);
+      if (isBadAuthError) {
+        console.log("⚠️ جلسة تالفة أو غير متوافقة. مسح الجلسة وطلب QR جديد:", errMsg);
+        skipNextCloseReconnect = true;
+        clearMongoAuth()
+          .then(() => {
+            lastQRDataUrl = null;
+            reconnectAttempts = 0;
+            setTimeout(() => connect(), 800);
+          })
+          .catch((e) => {
+            console.error("❌ فشل مسح الجلسة:", e.message);
+            setTimeout(() => connect(), 5000);
+          });
+        return;
+      }
+
+      const shouldReconnect = !isLoggedOut && !isForbidden;
       if (shouldReconnect) {
         const delay = Math.min(
           RECONNECT_DELAY_MS * Math.pow(2, reconnectAttempts),
