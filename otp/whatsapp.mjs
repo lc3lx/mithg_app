@@ -43,8 +43,8 @@ export function getQRForWeb() {
   return { connected: false, qrDataUrl: lastQRDataUrl };
 }
 
-const QR_WAIT_INTERVAL_MS = 400;
-const QR_WAIT_MAX_MS = 16000;
+const QR_WAIT_INTERVAL_MS = 300;
+const QR_WAIT_MAX_MS = 22000;
 
 /**
  * مثل getQRForWeb لكن ينتظر حتى يظهر رمز QR (أو اتصال ناجح) لمدة محدودة.
@@ -129,7 +129,7 @@ async function connect() {
 
     sock = makeWASocket({
       auth: state,
-      printQRInTerminal: false,
+      printQRInTerminal: true,
       logger: baileysLogger,
       syncFullHistory: false,
       getMessage: async () => undefined,

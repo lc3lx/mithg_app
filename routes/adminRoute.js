@@ -101,7 +101,7 @@ router.use(adminService.protectAdmin);
 router.get("/whatsapp-qr", async (req, res) => {
   try {
     const { getQRForWebOrWait } = await import("../otp/whatsapp.mjs");
-    const data = await getQRForWebOrWait(16000);
+    const data = await getQRForWebOrWait(22000);
     return res.json(data);
   } catch (err) {
     return res.status(500).json({ message: err.message || "WhatsApp module error" });
