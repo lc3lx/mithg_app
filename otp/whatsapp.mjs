@@ -32,10 +32,12 @@ let lastQRDataUrl = null;
 
 /**
  * للحصول على رمز QR للعرض في صفحة ويب (مفيد عند التشغيل على VPS)
+ * إذا لم يكن هناك اتصال ولا QR، نُشغّل connect() حتى يظهر رمز في الطلبات التالية.
  * @returns {{ connected: boolean, qrDataUrl: string | null }}
  */
 export function getQRForWeb() {
   if (isReady) return { connected: true, qrDataUrl: null };
+  if (sock === null) connect().catch((err) => console.error("❌ بدء واتساب للـ QR:", err.message));
   return { connected: false, qrDataUrl: lastQRDataUrl };
 }
 
@@ -115,9 +117,8 @@ async function connect() {
       } catch (e) {
         console.log("QR (raw):", qr);
       }
-    } else {
-      lastQRDataUrl = null;
     }
+    // لا نمسح lastQRDataUrl هنا عند عدم وجود qr — نبقيه حتى اتصال ناجح أو QR جديد
 
     if (connection === "close") {
       if (skipNextCloseReconnect) {
@@ -156,7 +157,7 @@ async function connect() {
     if (connection === "open") {
       reconnectAttempts = 0;
       isReady = true;
-      lastQRDataUrl = null;
+      lastQRDataUrl = null; // اتصال ناجح — لا حاجة لـ QR
       if (resolveReady) resolveReady();
       console.log("✅ واتساب متصل وجاهز لإرسال OTP.");
     }
