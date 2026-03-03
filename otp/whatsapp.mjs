@@ -1,56 +1,116 @@
-// whatsapp-wweb.mjs
-import pkg from "whatsapp-web.js";
-import qrcode from "qrcode-terminal";
-import mongoose from "mongoose";
-import { MongoStore } from "wwebjs-mongo";
+// whatsapp-baileys.mjs
+import { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
+import { Boom } from '@hapi/boom';
+import qrcode from 'qrcode-terminal';
+import mongoose from 'mongoose';
+import { MongoClient } from 'mongodb';
+import readline from 'readline';
 
-const { Client, RemoteAuth } = pkg;
+// ────────────────────────────────────────────────
+// إذا كنت تستخدم حزمة جاهزة لـ MongoDB auth state
+// npm install mongo-baileys
+// ────────────────────────────────────────────────
+// import { useMongoDBAuthState } from 'mongo-baileys';
 
-// إعداد مدة الانتظار القصوى (45 ثانية)
+// أو نكتب دالة بسيطة يدوية (موصى بها للتحكم الأفضل)
+
 const WA_READY_TIMEOUT_MS = 45000;
 
-// ========= إعداد MongoStore للجلسة =========
-let mongoStore = null;
-
-async function initMongoForWhatsApp() {
-  if (mongoStore) return mongoStore;
-
+// ─── MongoDB Auth State Implementation ────────────────────────────────
+async function useMongoAuthState() {
   const uri = process.env.MONGO_URI || process.env.DB_URI;
-  if (!uri) throw new Error("Missing MONGO_URI/DB_URI for WhatsApp session");
+  if (!uri) throw new Error("Missing MONGO_URI / DB_URI");
 
-  // التحقق مما إذا كان Mongoose متصلاً بالفعل من مكان آخر في المشروع
-  if (mongoose.connection.readyState !== 1) {
-    await mongoose
-      .connect(uri, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-      })
-      .catch((err) => {
-        console.error("❌ WhatsApp Mongo connect error:", err.message);
-        throw err;
-      });
+  const client = new MongoClient(uri);
+  await client.connect();
+
+  const db = client.db('whatsapp_sessions');
+  const collection = db.collection('auth_state_default');
+
+  const KEY_COLLECTION = 'keys';
+  const CREDS_KEY = 'creds';
+
+  async function get(key) {
+    const doc = await collection.findOne({ _id: key });
+    return doc ? doc.value : null;
   }
 
-  mongoStore = new MongoStore({ mongoose });
-  return mongoStore;
+  async function set(key, value) {
+    await collection.updateOne(
+      { _id: key },
+      { $set: { value } },
+      { upsert: true }
+    );
+  }
+
+  async function remove(key) {
+    await collection.deleteOne({ _id: key });
+  }
+
+  async function getCreds() {
+    return (await get(CREDS_KEY)) || {};
+  }
+
+  async function saveCreds() {
+    // يتم استدعاؤها داخل Baileys عند تغيير creds
+    await set(CREDS_KEY, state.creds);
+  }
+
+  const state = {
+    creds: await getCreds(),
+    keys: {
+      get: async (type, ids) => {
+        const data = {};
+        for (const id of ids) {
+          let value = await get(`${type}:${id}`);
+          if (type === 'app-state-sync-key') {
+            value = value ? Buffer.from(value) : undefined;
+          }
+          data[id] = value;
+        }
+        return data;
+      },
+      set: async (data) => {
+        const ops = [];
+        for (const category in data) {
+          for (const id in data[category]) {
+            const value = data[category][id];
+            const key = `${category}:${id}`;
+            if (value === undefined) {
+              ops.push(remove(key));
+            } else {
+              let storable = value;
+              if (category === 'app-state-sync-key') {
+                storable = value ? Buffer.from(value).toString('base64') : null;
+              }
+              ops.push(set(key, storable));
+            }
+          }
+        }
+        await Promise.all(ops);
+      }
+    }
+  };
+
+  return { state, saveCreds, client }; // client لإغلاق الاتصال لاحقًا إن لزم
 }
 
-// ========= Connection Manager واحد (Singleton) =========
-class WhatsAppWWebManager {
+// ─── Connection Manager (Singleton) ────────────────────────────────────
+class WhatsAppBaileysManager {
   constructor() {
-    /** @type {Client | null} */
-    this.client = null;
-    this.state = "idle"; // idle / connecting / waiting_for_qr / connected / closed / blocked
+    this.sock = null;
+    this.state = 'idle'; // idle / connecting / waiting_for_qr / connected / closed / blocked
     this.connectPromise = null;
     this.readyPromise = null;
     this.resolveReady = null;
     this.reconnectAttempts = 0;
     this.blockedUntil = 0;
+    this.mongoClient = null;
   }
 
   _logState(next) {
     if (this.state === next) return;
-    console.log(`🔁 WhatsApp(wweb) state: ${this.state} -> ${next}`);
+    console.log(`🔁 WhatsApp(baileys) state: ${this.state} → ${next}`);
     this.state = next;
   }
 
@@ -65,223 +125,198 @@ class WhatsAppWWebManager {
     return this.blockedUntil && Date.now() < this.blockedUntil;
   }
 
-  async _initClient() {
-    if (this.client) return;
+  async _initSocket() {
+    if (this.sock) return;
 
-    const store = await initMongoForWhatsApp();
+    const { state, saveCreds, client } = await useMongoAuthState();
+    this.mongoClient = client;
 
-    this.client = new Client({
-      authStrategy: new RemoteAuth({
-        clientId: "default-whatsapp-session",
-        store,
-        backupSyncIntervalMs: 60 * 1000,
-      }),
-      puppeteer: {
-        headless: true,
-        args: [
-          "--no-sandbox",
-          "--disable-setuid-sandbox",
-          "--disable-dev-shm-usage",
-          "--disable-accelerated-2d-canvas",
-          "--no-first-run",
-          "--no-zygote",
-          "--disable-gpu",
-        ],
-      },
+    const { version } = await fetchLatestBaileysVersion().catch(() => ({ version: [2, 3000, 0] }));
+
+    this.sock = makeWASocket({
+      version,
+      auth: state,
+      printQRInTerminal: false,
+      syncFullHistory: false,
+      shouldSyncHistoryMessage: () => false,
+      markOnlineOnConnect: true,
+      logger: { level: 'silent' }, // أو 'debug' للتتبع
     });
 
-    this.client.on("qr", (qr) => {
-      this._logState("waiting_for_qr");
-      console.log("📱 امسح رمز QR (whatsapp-web.js):");
-      qrcode.generate(qr, { small: true });
-    });
+    // حفظ التغييرات في creds تلقائيًا
+    this.sock.ev.on('creds.update', saveCreds);
 
-    this.client.on("ready", () => {
-      this.reconnectAttempts = 0;
-      this.blockedUntil = 0;
-      this._logState("connected");
-      console.log("✅ WhatsApp (whatsapp-web.js) جاهز.");
-      if (this.resolveReady) this.resolveReady();
-    });
+    this.sock.ev.on('connection.update', (update) => {
+      const { connection, lastDisconnect, qr } = update;
 
-    this.client.on("disconnected", (reason) => {
-      console.log("❌ WhatsApp (whatsapp-web.js) disconnected:", reason);
-      this._handleDisconnect(reason);
-    });
+      if (qr) {
+        this._logState('waiting_for_qr');
+        console.log('📱 امسح رمز QR (baileys):');
+        qrcode.generate(qr, { small: true });
+      }
 
-    this.client.on("auth_failure", (msg) => {
-      console.error("⚠️ WhatsApp auth failure:", msg);
-      this._handleDisconnect("AUTH_FAILURE");
+      if (connection === 'open') {
+        this.reconnectAttempts = 0;
+        this.blockedUntil = 0;
+        this._logState('connected');
+        console.log('✅ WhatsApp (baileys) جاهز.');
+        if (this.resolveReady) this.resolveReady();
+      }
+
+      if (connection === 'close') {
+        const statusCode = (lastDisconnect?.error instanceof Boom)?.output?.statusCode;
+        console.log('❌ Baileys disconnected. Reason code:', statusCode);
+
+        const shouldReconnect =
+          statusCode !== DisconnectReason.loggedOut &&
+          statusCode !== DisconnectReason.badSession;
+
+        this._handleDisconnect(statusCode, shouldReconnect);
+      }
     });
   }
 
   async ensureConnected() {
     if (this.isBlocked()) {
-      this._logState("blocked");
       const mins = Math.round((this.blockedUntil - Date.now()) / 60000);
-      console.log(
-        `⏳ WhatsApp(wweb) blocked backoff ~${mins} دقيقة. لن نحاول الآن.`,
-      );
+      console.log(`⏳ Baileys blocked backoff ~${mins} دقيقة`);
       return;
     }
 
-    if (this.client && this.state === "connected") return;
+    if (this.sock && this.state === 'connected') return;
 
     if (this.connectPromise) return this.connectPromise;
 
     this.connectPromise = this._connectInternal().finally(() => {
       this.connectPromise = null;
     });
+
     return this.connectPromise;
   }
 
   async _connectInternal() {
-    this._logState("connecting");
+    this._logState('connecting');
     this._ensureReadyPromise();
 
-    await this._initClient();
+    await this._initSocket();
 
-    try {
-      await this.client.initialize();
-    } catch (err) {
-      console.error("❌ فشل initialize whatsapp-web.js:", err.message);
-      this._handleDisconnect(err?.message || "INIT_ERROR");
-      throw err;
-    }
+    // Baileys يبدأ الاتصال تلقائيًا عند إنشاء السوكت
+    // لكن ننتظر الـ ready عبر promise
+    await Promise.race([
+      this.readyPromise,
+      new Promise((_, rej) =>
+        setTimeout(() => rej(new Error('Baileys init timeout')), 20000)
+      )
+    ]).catch(() => {});
   }
 
-  _handleDisconnect(reason) {
-    this._logState("closed");
-    this.reconnectAttempts += 1;
-    this.client = null; // تفريغ الكلاينت لإعادة البناء
+  _handleDisconnect(code, shouldReconnect = true) {
+    this._logState('closed');
+    this.sock = null;
 
-    const isConnectionTerminated =
-      /CONNECTION_CLOSED|CONNECTION_LOST|AUTH_FAILURE/i.test(reason || "");
+    const isBadAuth = [DisconnectReason.loggedOut, DisconnectReason.badSession].includes(code);
 
-    if (this.reconnectAttempts >= 5 && isConnectionTerminated) {
-      const blockMs = 5 * 60 * 1000;
-      this.blockedUntil = Date.now() + blockMs;
-      this._logState("blocked");
-      console.log(
-        `⚠️ إيقاف المحاولات لـ ${blockMs / 60000} دقيقة بسبب الفشل المتكرر.`,
-      );
-      return;
+    if (isBadAuth) {
+      this.reconnectAttempts += 1;
+      if (this.reconnectAttempts >= 5) {
+        this.blockedUntil = Date.now() + 5 * 60 * 1000;
+        console.log('⚠️ إيقاف المحاولات 5 دقائق بسبب فشل متكرر');
+        return;
+      }
     }
 
-    const base =
-      isConnectionTerminated && this.reconnectAttempts <= 3 ? 20000 : 5000;
-    const delay = Math.min(
-      base * Math.pow(2, Math.min(this.reconnectAttempts - 1, 4)),
-      60000,
-    );
+    if (!shouldReconnect) return;
 
-    console.log(
-      `🔄 محاولة إعادة الاتصال بعد ${Math.round(delay / 1000)} ثانية. (محاولة ${
-        this.reconnectAttempts
-      })`,
-    );
+    const delay = Math.min(5000 * Math.pow(2, this.reconnectAttempts), 60000);
+    console.log(`🔄 إعادة اتصال بعد ${Math.round(delay/1000)} ثانية (محاولة ${this.reconnectAttempts + 1})`);
 
     setTimeout(() => {
-      this.ensureConnected().catch((err) =>
-        console.error("❌ فشل إعادة الاتصال whatsapp-web.js:", err.message),
-      );
+      this.ensureConnected().catch(console.error);
     }, delay);
   }
 
   async ensureReadyForSend() {
-    if (this.client && this.state === "connected") return;
-
     await this.ensureConnected();
 
     await Promise.race([
       this.readyPromise,
       new Promise((_, rej) =>
-        setTimeout(
-          () => rej(new Error("WhatsApp timeout (45s). حاول مرة أخرى.")),
-          WA_READY_TIMEOUT_MS,
-        ),
-      ),
+        setTimeout(() => rej(new Error('WhatsApp timeout (45s)')), WA_READY_TIMEOUT_MS)
+      )
     ]);
 
-    if (!this.client || this.state !== "connected") {
-      throw new Error("WhatsApp is not ready");
+    if (!this.sock || this.state !== 'connected') {
+      throw new Error('WhatsApp Baileys غير جاهز');
     }
   }
 
   async sendText(phone, text) {
     await this.ensureReadyForSend();
 
-    // استخراج الأرقام فقط وتنسيقها بصيغة واتساب ويب
-    const digits = String(phone).replace(/\D/g, "");
-    if (!digits) throw new Error("رقم الهاتف غير صالح");
+    const digits = String(phone).replace(/\D/g, '');
+    if (!digits) throw new Error('رقم الهاتف غير صالح');
 
-    const chatId = `${digits}@c.us`;
+    const jid = `${digits}@s.whatsapp.net`;
 
-    await this.client.sendMessage(chatId, text);
+    await this.sock.sendMessage(jid, { text });
+  }
+
+  async destroy() {
+    if (this.sock) {
+      await this.sock.logout().catch(() => {});
+      this.sock.end();
+      this.sock = null;
+    }
+    if (this.mongoClient) {
+      await this.mongoClient.close().catch(() => {});
+    }
+    this._logState('closed');
   }
 }
 
 // Singleton
-const manager = new WhatsAppWWebManager();
+const manager = new WhatsAppBaileysManager();
 
-// ========= واجهات التصدير المتوافقة مع المشروع =========
+// ─── Export Interfaces (متوافقة مع الكود القديم) ────────────────────────
 
-// 1) إرسال رسالة OTP (نصية) عبر WhatsApp
 export async function sendWhatsAppMessage(phone, text) {
   await manager.sendText(phone, text);
 }
 
-// 2) حالة الجاهزية (متصل أم لا)
 export function isWhatsAppReady() {
-  return manager.state === "connected";
+  return manager.state === 'connected';
 }
 
-// 3) إعادة ضبط الجلسة لإجبار ربط جديد (تستخدمها لوحة الأدمن في /whatsapp-reconnect)
 export async function forceReconnect() {
   manager.blockedUntil = 0;
   manager.reconnectAttempts = 0;
 
-  if (manager.client) {
-    try {
-      await manager.client.logout();
-      await manager.client.destroy();
-    } catch {
-      // تجاهل الأخطاء أثناء التدمير
-    }
-    manager.client = null;
+  if (manager.sock) {
+    await manager.destroy();
   }
 
-  manager._logState("idle");
-  console.log("🔄 تم مسح جلسة whatsapp-web.js. سيتطلب QR جديد عند أول اتصال.");
+  manager._logState('idle');
+  console.log('🔄 تم مسح جلسة Baileys. سيطلب QR جديد عند الاتصال القادم.');
 }
 
-// 4) واجهة متوافقة مع Baileys لعرض حالة الاتصال من لوحة الأدمن
-//    (الآن لا نرجع QR كصورة، بل فقط حالة الاتصال؛ QR يُعرض في الترمينال).
 export async function getQRForWebOrWait(maxWaitMs = 20000) {
-  // نحاول الاتصال إن لم نكن في حالة blocked
   if (!manager.isBlocked()) {
     await manager.ensureConnected();
   }
 
-  // ننتظر حتى يتصل أو تنتهي المهلة
   try {
     await Promise.race([
       (async () => {
-        if (manager.state === "connected") return;
+        if (manager.state === 'connected') return;
         manager._ensureReadyPromise();
         await manager.readyPromise;
       })(),
-      new Promise((_, rej) =>
-        setTimeout(
-          () => rej(new Error("WhatsApp (whatsapp-web.js) QR wait timeout")),
-          maxWaitMs,
-        ),
-      ),
+      new Promise((_, rej) => setTimeout(() => rej(), maxWaitMs))
     ]);
-  } catch {
-    // نتجاهل الخطأ هنا، ونرجع الحالة فقط
-  }
+  } catch {}
 
-  const connected = manager.state === "connected";
-  return { connected, qrDataUrl: null };
+  return {
+    connected: manager.state === 'connected',
+    qrDataUrl: null // يظهر QR في الترمينال فقط
+  };
 }
