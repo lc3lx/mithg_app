@@ -21,6 +21,8 @@ const baileysLogger = {
 let sock = null;
 let isReady = false;
 let resolveReady = null;
+/** منع تشغيل connect() أكثر من مرة في نفس الوقت */
+let connecting = false;
 /** عند true: الإغلاق القادم من سوكيت قديم (مثلاً بعد forceReconnect) فلا نجدول إعادة اتصال */
 let skipNextCloseReconnect = false;
 /** Promise تُحل عند اتصال واتساب (تُعاد إنشاؤها عند كل إعادة اتصال) */
@@ -112,18 +114,28 @@ export function isWhatsAppReady() {
 }
 
 async function connect() {
+  if (connecting) return;
+  connecting = true;
   sock = null;
   isReady = false;
   readyPromise = new Promise((resolve) => {
     resolveReady = resolve;
   });
-  const { state, saveCreds } = await useMongoAuthState();
+  try {
+    const { state, saveCreds } = await useMongoAuthState();
 
-  sock = makeWASocket({
-    auth: state,
-    printQRInTerminal: false,
-    logger: baileysLogger,
-  });
+    sock = makeWASocket({
+      auth: state,
+      printQRInTerminal: false,
+      logger: baileysLogger,
+      syncFullHistory: false,
+      getMessage: async () => undefined,
+    });
+  } catch (err) {
+    connecting = false;
+    console.error("❌ فشل تهيئة واتساب:", err.message);
+    throw err;
+  }
 
   sock.ev.on("creds.update", saveCreds);
 
@@ -144,6 +156,7 @@ async function connect() {
     // لا نمسح lastQRDataUrl هنا عند عدم وجود qr — نبقيه حتى اتصال ناجح أو QR جديد
 
     if (connection === "close") {
+      connecting = false;
       if (skipNextCloseReconnect) {
         skipNextCloseReconnect = false;
         return;
@@ -163,7 +176,7 @@ async function connect() {
           .then(() => {
             lastQRDataUrl = null;
             reconnectAttempts = 0;
-            setTimeout(() => connect(), 800);
+            setTimeout(() => connect(), 1500);
           })
           .catch((e) => {
             console.error("❌ فشل مسح الجلسة:", e.message);
@@ -174,8 +187,12 @@ async function connect() {
 
       const shouldReconnect = !isLoggedOut && !isForbidden;
       if (shouldReconnect) {
+        const isConnectionTerminated = /Connection Terminated|Connection Closed/i.test(errMsg);
+        const baseDelay = isConnectionTerminated && reconnectAttempts < 3
+          ? 20000
+          : RECONNECT_DELAY_MS;
         const delay = Math.min(
-          RECONNECT_DELAY_MS * Math.pow(2, reconnectAttempts),
+          baseDelay * Math.pow(2, Math.min(reconnectAttempts, 4)),
           RECONNECT_MAX_DELAY_MS
         );
         reconnectAttempts += 1;
@@ -196,6 +213,7 @@ async function connect() {
     }
 
     if (connection === "open") {
+      connecting = false;
       reconnectAttempts = 0;
       isReady = true;
       lastQRDataUrl = null; // اتصال ناجح — لا حاجة لـ QR
@@ -211,6 +229,7 @@ async function connect() {
  */
 export async function forceReconnect() {
   skipNextCloseReconnect = true;
+  connecting = false;
   if (sock) {
     try {
       sock.end(undefined);
@@ -224,15 +243,16 @@ export async function forceReconnect() {
     resolveReady = resolve;
   });
   await clearMongoAuth();
-  // تأخير قصير حتى ينتهي إغلاق السوكيت ثم نطلب QR جديد من واتساب
-  await new Promise((r) => setTimeout(r, 800));
+  await new Promise((r) => setTimeout(r, 1500));
   connect().catch((err) => {
     console.error("❌ فشل إعادة اتصال واتساب:", err.message);
   });
-  console.log("🔄 تم مسح الجلسة. افتح /api/v1/otp/qr وامسح الرمز (أو انتظر التحديث التلقائي).");
+  console.log("🔄 تم مسح الجلسة. امسح رمز QR من لوحة الأدمن (ربط واتساب و OTP).");
 }
 
-// Start connection on load
-connect().catch((err) => {
-  console.error("❌ فشل بدء واتساب:", err.message);
-});
+// Start connection on load (بعد تأخير قصير لتفادي تضارب مع أي استيراد آخر)
+setTimeout(() => {
+  connect().catch((err) => {
+    console.error("❌ فشل بدء واتساب:", err.message);
+  });
+}, 2000);
