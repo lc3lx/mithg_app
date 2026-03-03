@@ -121,8 +121,11 @@ async function connect() {
   readyPromise = new Promise((resolve) => {
     resolveReady = resolve;
   });
+  let state, saveCreds;
   try {
-    const { state, saveCreds } = await useMongoAuthState();
+    const auth = await useMongoAuthState();
+    state = auth.state;
+    saveCreds = auth.saveCreds;
 
     sock = makeWASocket({
       auth: state,
