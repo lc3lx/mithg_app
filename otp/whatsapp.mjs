@@ -13,7 +13,6 @@
  */
 import makeWASocket, { DisconnectReason } from "@whiskeysockets/baileys";
 import QRCode from "qrcode";
-import { HttpsProxyAgent } from "https-proxy-agent";
 import { EventEmitter } from "events";
 import {
   useMongoAuthState,
@@ -22,9 +21,6 @@ import {
   clearQRFromDB,
   getQRFromDB,
 } from "./authStore.mjs";
-
-const proxyUrl = process.env.WHATSAPP_PROXY_URL || "";
-const proxyAgent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
 
 /** تخفيف لوغات Baileys (لا نعرض JSON و stack trace)، نعتمد على connection.update للرسائل */
 const noop = () => {};
@@ -160,19 +156,13 @@ class WhatsAppConnectionManager {
       throw err;
     }
 
-    const socketConfig = {
-      auth: authState.state,
-      logger: baileysLogger,
-      syncFullHistory: false,
-      getMessage: async () => undefined,
-    };
-    if (proxyAgent) {
-      socketConfig.agent = proxyAgent;
-      console.log("🔒 اتصال واتساب عبر بروكسي (WHATSAPP_PROXY_URL).");
-    }
-
     try {
-      this.sock = makeWASocket(socketConfig);
+      this.sock = makeWASocket({
+        auth: authState.state,
+        logger: baileysLogger,
+        syncFullHistory: false,
+        getMessage: async () => undefined,
+      });
     } catch (err) {
       console.error("❌ فشل تهيئة سوكيت واتساب:", err.message);
       this.sock = null;
