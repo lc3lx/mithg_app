@@ -88,6 +88,7 @@ let reconnectAttempts = 0; // يُصفّر عند اتصال ناجح. إن اس
  * @returns {Promise<void>}
  */
 export async function sendWhatsAppMessage(phone, text) {
+  if (sock === null) connect().catch((err) => console.error("❌ بدء واتساب للإرسال:", err.message));
   if (!sock || !isReady) {
     await Promise.race([
       readyPromise,
@@ -270,9 +271,4 @@ export async function forceReconnect() {
   console.log("🔄 تم مسح الجلسة. امسح رمز QR من لوحة الأدمن (ربط واتساب و OTP).");
 }
 
-// Start connection on load (بعد تأخير قصير لتفادي تضارب مع أي استيراد آخر)
-setTimeout(() => {
-  connect().catch((err) => {
-    console.error("❌ فشل بدء واتساب:", err.message);
-  });
-}, 2000);
+// لا نبدأ الاتصال تلقائياً — يبدأ فقط عند طلب QR (لوحة الأدمن) أو عند إرسال OTP
