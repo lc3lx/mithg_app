@@ -4,7 +4,7 @@
  */
 import { createRequire } from "module";
 import { BufferJSON } from "@whiskeysockets/baileys/lib/Utils/generics.js";
-import { proto } from "../../node_modules/@whiskeysockets/baileys/lib/WAProto/index.js";
+import { proto } from "@whiskeysockets/baileys/lib/WAProto/index.js";
 
 const require = createRequire(import.meta.url);
 const WhatsappAuth = require("../models/whatsappAuthModel.js");
