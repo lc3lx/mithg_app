@@ -100,8 +100,8 @@ router.use(adminService.protectAdmin);
 // WhatsApp QR & OTP (admin only)
 router.get("/whatsapp-qr", async (req, res) => {
   try {
-    const { getQRForWeb } = await import("../otp/whatsapp.mjs");
-    const data = getQRForWeb();
+    const { getQRForWebOrWait } = await import("../otp/whatsapp.mjs");
+    const data = await getQRForWebOrWait(16000);
     return res.json(data);
   } catch (err) {
     return res.status(500).json({ message: err.message || "WhatsApp module error" });

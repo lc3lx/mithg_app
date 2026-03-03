@@ -1,6 +1,7 @@
 /**
  * تخزين حالة اتصال واتساب (Baileys) في MongoDB بدل الملفات.
  * يستخدم موديل WhatsappAuth (وثيقة واحدة _id: 'default').
+ * libsignal يتوقع Buffer وليس Uint8Array — نحوّل بعد الاسترجاع.
  */
 import { createRequire } from "module";
 import { BufferJSON } from "@whiskeysockets/baileys/lib/Utils/generics.js";
@@ -8,6 +9,20 @@ import { proto } from "@whiskeysockets/baileys/WAProto/index.js";
 
 const require = createRequire(import.meta.url);
 const WhatsappAuth = require("../models/whatsappAuthModel.js");
+
+/** تحويل Uint8Array إلى Buffer في أي مكان داخل obj (لتوافق libsignal). */
+function ensureBuffers(obj) {
+  if (obj === null || obj === undefined) return obj;
+  if (obj instanceof Uint8Array) return Buffer.from(obj);
+  if (Buffer.isBuffer(obj)) return obj;
+  if (Array.isArray(obj)) return obj.map(ensureBuffers);
+  if (typeof obj === "object" && obj.constructor === Object) {
+    const out = {};
+    for (const k of Object.keys(obj)) out[k] = ensureBuffers(obj[k]);
+    return out;
+  }
+  return obj;
+}
 
 const DOC_ID = "default";
 const MUTEX_WAIT_MS = 5000;
@@ -46,9 +61,10 @@ async function saveDoc(update) {
  */
 export async function useMongoAuthState() {
   const raw = await loadDoc();
-  const creds = raw.creds
+  let creds = raw.creds
     ? JSON.parse(JSON.stringify(raw.creds), BufferJSON.reviver)
     : null;
+  if (creds) creds = ensureBuffers(creds);
   const keysStore = raw.keys && typeof raw.keys === "object" ? raw.keys : {};
 
   const keys = {
@@ -64,6 +80,7 @@ export async function useMongoAuthState() {
         if (typeof value === "string") {
           try {
             value = JSON.parse(value, BufferJSON.reviver);
+            value = ensureBuffers(value);
           } catch {
             data[id] = null;
             continue;

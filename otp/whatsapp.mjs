@@ -41,6 +41,29 @@ export function getQRForWeb() {
   return { connected: false, qrDataUrl: lastQRDataUrl };
 }
 
+const QR_WAIT_INTERVAL_MS = 400;
+const QR_WAIT_MAX_MS = 16000;
+
+/**
+ * مثل getQRForWeb لكن ينتظر حتى يظهر رمز QR (أو اتصال ناجح) لمدة محدودة.
+ * مناسب لطلب واحد من الواجهة حتى لا يرجع null في أول طلب.
+ * @param {number} maxWaitMs - أقصى انتظار بالميلي ثانية (افتراضي 16 ثانية)
+ * @returns {Promise<{ connected: boolean, qrDataUrl: string | null }>}
+ */
+export async function getQRForWebOrWait(maxWaitMs = QR_WAIT_MAX_MS) {
+  if (isReady) return { connected: true, qrDataUrl: null };
+  if (lastQRDataUrl) return { connected: false, qrDataUrl: lastQRDataUrl };
+  if (sock === null) connect().catch((err) => console.error("❌ بدء واتساب للـ QR:", err.message));
+
+  const deadline = Date.now() + maxWaitMs;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, QR_WAIT_INTERVAL_MS));
+    if (isReady) return { connected: true, qrDataUrl: null };
+    if (lastQRDataUrl) return { connected: false, qrDataUrl: lastQRDataUrl };
+  }
+  return { connected: false, qrDataUrl: lastQRDataUrl };
+}
+
 /**
  * Format phone to WhatsApp JID (e.g. +963912345678 -> 963912345678@s.whatsapp.net)
  */
