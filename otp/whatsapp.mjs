@@ -1,10 +1,15 @@
 /**
  * WhatsApp connection via Baileys (QR + session).
  * Session saved in MongoDB so no file deletion needed after server restart.
+ * اختياري: WHATSAPP_PROXY_URL (مثلاً http://user:pass@host:port) لاستخدام بروكسي عند الاتصال.
  */
 import makeWASocket, { DisconnectReason } from "@whiskeysockets/baileys";
 import QRCode from "qrcode";
+import { HttpsProxyAgent } from "https-proxy-agent";
 import { useMongoAuthState, clearMongoAuth, saveQRToDB, clearQRFromDB } from "./authStore.mjs";
+
+const proxyUrl = process.env.WHATSAPP_PROXY_URL || "";
+const proxyAgent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
 
 /** تخفيف لوقات Baileys (لا نعرض JSON و stack trace)، نعتمد على connection.update للرسائل */
 const noop = () => {};
@@ -128,12 +133,17 @@ async function connect() {
     state = auth.state;
     saveCreds = auth.saveCreds;
 
-    sock = makeWASocket({
+    const socketConfig = {
       auth: state,
       logger: baileysLogger,
       syncFullHistory: false,
       getMessage: async () => undefined,
-    });
+    };
+    if (proxyAgent) {
+      socketConfig.agent = proxyAgent;
+      console.log("🔒 اتصال واتساب عبر بروكسي (WHATSAPP_PROXY_URL).");
+    }
+    sock = makeWASocket(socketConfig);
   } catch (err) {
     connecting = false;
     console.error("❌ فشل تهيئة واتساب:", err.message);
