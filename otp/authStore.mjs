@@ -4,31 +4,10 @@
  */
 import { createRequire } from "module";
 import { BufferJSON } from "@whiskeysockets/baileys/lib/Utils/generics.js";
-import { proto } from "@whiskeysockets/baileys/WAProto/index.js";
+import { proto } from "../../node_modules/@whiskeysockets/baileys/lib/WAProto/index.js";
 
 const require = createRequire(import.meta.url);
 const WhatsappAuth = require("../models/whatsappAuthModel.js");
-
-/** libsignal يتوقع Buffer وليس Uint8Array؛ استبدال كل بيانات ثنائية بـ Buffer عند التحميل */
-function credsEnsureBuffers(obj) {
-  if (obj == null) return obj;
-  if (Buffer.isBuffer(obj)) return obj;
-  if (obj instanceof Uint8Array) return Buffer.from(obj);
-  if (typeof obj === "object" && obj.type === "Buffer" && obj.data != null) {
-    return typeof obj.data === "string" ? Buffer.from(obj.data, "base64") : Buffer.from(obj.data);
-  }
-  if (Array.isArray(obj)) {
-    return obj.map(credsEnsureBuffers);
-  }
-  if (typeof obj === "object") {
-    const out = {};
-    for (const k of Object.keys(obj)) {
-      out[k] = credsEnsureBuffers(obj[k]);
-    }
-    return out;
-  }
-  return obj;
-}
 
 const DOC_ID = "default";
 const MUTEX_WAIT_MS = 5000;
@@ -38,9 +17,11 @@ async function withLock(fn) {
   while (writeLock) {
     await new Promise((r) => setTimeout(r, 50));
   }
-  writeLock = Promise.resolve().then(fn).finally(() => {
-    writeLock = null;
-  });
+  writeLock = Promise.resolve()
+    .then(fn)
+    .finally(() => {
+      writeLock = null;
+    });
   return writeLock;
 }
 
@@ -54,7 +35,7 @@ async function saveDoc(update) {
     await WhatsappAuth.findOneAndUpdate(
       { _id: DOC_ID },
       { $set: update },
-      { upsert: true, new: true }
+      { upsert: true, new: true },
     );
   });
 }
@@ -65,8 +46,9 @@ async function saveDoc(update) {
  */
 export async function useMongoAuthState() {
   const raw = await loadDoc();
-  let creds = raw.creds ? JSON.parse(JSON.stringify(raw.creds), BufferJSON.reviver) : null;
-  if (creds) creds = credsEnsureBuffers(creds);
+  const creds = raw.creds
+    ? JSON.parse(JSON.stringify(raw.creds), BufferJSON.reviver)
+    : null;
   const keysStore = raw.keys && typeof raw.keys === "object" ? raw.keys : {};
 
   const keys = {
@@ -87,7 +69,6 @@ export async function useMongoAuthState() {
             continue;
           }
         }
-        value = value != null ? credsEnsureBuffers(value) : null;
         if (type === "app-state-sync-key" && value) {
           value = proto.Message.AppStateSyncKeyData.fromObject(value);
         }
@@ -100,14 +81,17 @@ export async function useMongoAuthState() {
       for (const category of Object.keys(data)) {
         for (const id of Object.keys(data[category])) {
           const value = data[category][id];
-          const file = `${category}-${id}`.replace(/\//g, "__").replace(/:/g, "-");
-          flat[file] = value == null ? null : JSON.stringify(value, BufferJSON.replacer);
+          const file = `${category}-${id}`
+            .replace(/\//g, "__")
+            .replace(/:/g, "-");
+          flat[file] =
+            value == null ? null : JSON.stringify(value, BufferJSON.replacer);
         }
       }
       await WhatsappAuth.findOneAndUpdate(
         { _id: DOC_ID },
         { $set: { keys: flat } },
-        { upsert: true }
+        { upsert: true },
       );
     },
   };
@@ -134,18 +118,24 @@ export async function clearMongoAuth() {
   await WhatsappAuth.findOneAndUpdate(
     { _id: DOC_ID },
     { $set: { creds: null, keys: {} } },
-    { upsert: true }
+    { upsert: true },
   );
 }
 
 function initAuthCreds() {
   return {
-    noiseKey: { public: Buffer.alloc(32), private: Buffer.alloc(32) },
-    pairingEphemeralKeyPair: { public: Buffer.alloc(32), private: Buffer.alloc(32) },
-    signedIdentityKey: { public: Buffer.alloc(32), private: Buffer.alloc(32) },
+    noiseKey: { public: new Uint8Array(32), private: new Uint8Array(32) },
+    pairingEphemeralKeyPair: {
+      public: new Uint8Array(32),
+      private: new Uint8Array(32),
+    },
+    signedIdentityKey: {
+      public: new Uint8Array(32),
+      private: new Uint8Array(32),
+    },
     signedPreKey: {
-      keyPair: { public: Buffer.alloc(32), private: Buffer.alloc(32) },
-      signature: Buffer.alloc(64),
+      keyPair: { public: new Uint8Array(32), private: new Uint8Array(32) },
+      signature: new Uint8Array(64),
       keyId: 0,
     },
     registrationId: 0,
