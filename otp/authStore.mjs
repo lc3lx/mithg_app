@@ -1,7 +1,7 @@
 /**
  * تخزين حالة اتصال واتساب (Baileys) في MongoDB بدل الملفات.
  * يستخدم موديل WhatsappAuth (وثيقة واحدة _id: 'default').
- * libsignal يتوقع Buffer وليس Uint8Array — نحوّل بعد الاسترجاع.
+ * libsignal يتوقع Buffer وليس Uint8Array — نستخدم Buffer في كل مكان (استرجاع + initAuthCreds).
  */
 import { createRequire } from "module";
 import { BufferJSON } from "@whiskeysockets/baileys/lib/Utils/generics.js";
@@ -10,7 +10,13 @@ import { proto } from "@whiskeysockets/baileys/WAProto/index.js";
 const require = createRequire(import.meta.url);
 const WhatsappAuth = require("../models/whatsappAuthModel.js");
 
-/** تحويل Uint8Array إلى Buffer في أي مكان داخل obj (لتوافق libsignal). */
+/** Reviver: مثل BufferJSON.reviver لكن يُرجع Buffer بدل Uint8Array (متطلب libsignal في Node). */
+function bufferReviver(key, value) {
+  const v = BufferJSON.reviver(key, value);
+  return v instanceof Uint8Array ? Buffer.from(v) : v;
+}
+
+/** تحويل Uint8Array → Buffer في أي مكان داخل obj (لتوافق libsignal). */
 function ensureBuffers(obj) {
   if (obj === null || obj === undefined) return obj;
   if (obj instanceof Uint8Array) return Buffer.from(obj);
@@ -62,7 +68,7 @@ async function saveDoc(update) {
 export async function useMongoAuthState() {
   const raw = await loadDoc();
   let creds = raw.creds
-    ? JSON.parse(JSON.stringify(raw.creds), BufferJSON.reviver)
+    ? JSON.parse(JSON.stringify(raw.creds), bufferReviver)
     : null;
   if (creds) creds = ensureBuffers(creds);
   const keysStore = raw.keys && typeof raw.keys === "object" ? raw.keys : {};
@@ -79,7 +85,7 @@ export async function useMongoAuthState() {
         }
         if (typeof value === "string") {
           try {
-            value = JSON.parse(value, BufferJSON.reviver);
+            value = JSON.parse(value, bufferReviver);
             value = ensureBuffers(value);
           } catch {
             data[id] = null;
@@ -115,7 +121,7 @@ export async function useMongoAuthState() {
 
   const saveCreds = async () => {
     const toSave = creds ? JSON.stringify(creds, BufferJSON.replacer) : null;
-    const parsed = toSave ? JSON.parse(toSave, BufferJSON.reviver) : null;
+    const parsed = toSave ? JSON.parse(toSave, bufferReviver) : null;
     await saveDoc({ creds: parsed });
   };
 
@@ -139,20 +145,21 @@ export async function clearMongoAuth() {
   );
 }
 
+/** نفس هيكل Baileys لكن بـ Buffer (مطلوب لـ libsignal في Node). */
 function initAuthCreds() {
   return {
-    noiseKey: { public: new Uint8Array(32), private: new Uint8Array(32) },
+    noiseKey: { public: Buffer.alloc(32), private: Buffer.alloc(32) },
     pairingEphemeralKeyPair: {
-      public: new Uint8Array(32),
-      private: new Uint8Array(32),
+      public: Buffer.alloc(32),
+      private: Buffer.alloc(32),
     },
     signedIdentityKey: {
-      public: new Uint8Array(32),
-      private: new Uint8Array(32),
+      public: Buffer.alloc(32),
+      private: Buffer.alloc(32),
     },
     signedPreKey: {
-      keyPair: { public: new Uint8Array(32), private: new Uint8Array(32) },
-      signature: new Uint8Array(64),
+      keyPair: { public: Buffer.alloc(32), private: Buffer.alloc(32) },
+      signature: Buffer.alloc(64),
       keyId: 0,
     },
     registrationId: 0,
