@@ -4,7 +4,7 @@
  */
 import makeWASocket, { DisconnectReason } from "@whiskeysockets/baileys";
 import QRCode from "qrcode";
-import { useMongoAuthState, clearMongoAuth } from "./authStore.mjs";
+import { useMongoAuthState, clearMongoAuth, saveQRToDB, clearQRFromDB } from "./authStore.mjs";
 
 /** تخفيف لوقات Baileys (لا نعرض JSON و stack trace)، نعتمد على connection.update للرسائل */
 const noop = () => {};
@@ -148,6 +148,7 @@ async function connect() {
     if (qr) {
       try {
         lastQRDataUrl = await QRCode.toDataURL(qr, { width: 300, margin: 2 });
+        saveQRToDB(lastQRDataUrl).catch(() => {});
         const qrText = await QRCode.toString(qr, { type: "terminal", small: true });
         console.log("\n📱 امسح رمز QR بواسطة واتساب (WhatsApp > Linked Devices):\n");
         console.log(qrText);
@@ -219,7 +220,8 @@ async function connect() {
       connecting = false;
       reconnectAttempts = 0;
       isReady = true;
-      lastQRDataUrl = null; // اتصال ناجح — لا حاجة لـ QR
+      lastQRDataUrl = null;
+      clearQRFromDB().catch(() => {});
       if (resolveReady) resolveReady();
       console.log("✅ واتساب متصل وجاهز لإرسال OTP.");
     }

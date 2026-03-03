@@ -140,9 +140,39 @@ export async function useMongoAuthState() {
 export async function clearMongoAuth() {
   await WhatsappAuth.findOneAndUpdate(
     { _id: DOC_ID },
-    { $set: { creds: null, keys: {} } },
+    { $set: { creds: null, keys: {}, lastQRDataUrl: null, lastQRAt: null } },
     { upsert: true },
   );
+}
+
+const QR_DB_MAX_AGE_MS = 2 * 60 * 1000; // 2 دقائق
+
+/** حفظ رمز QR في قاعدة البيانات ليعرضه أي instance. */
+export async function saveQRToDB(dataUrl) {
+  if (!dataUrl || typeof dataUrl !== "string") return;
+  await WhatsappAuth.findOneAndUpdate(
+    { _id: DOC_ID },
+    { $set: { lastQRDataUrl: dataUrl, lastQRAt: new Date() } },
+    { upsert: true },
+  ).catch(() => {});
+}
+
+/** جلب آخر QR من قاعدة البيانات إذا كان حديثاً (خلال دقيقتين). */
+export async function getQRFromDB() {
+  const doc = await WhatsappAuth.findById(DOC_ID).lean().catch(() => null);
+  if (!doc?.lastQRDataUrl || !doc?.lastQRAt) return null;
+  const age = Date.now() - new Date(doc.lastQRAt).getTime();
+  if (age > QR_DB_MAX_AGE_MS) return null;
+  return doc.lastQRDataUrl;
+}
+
+/** مسح QR المحفوظ (بعد اتصال ناجح). */
+export async function clearQRFromDB() {
+  await WhatsappAuth.findOneAndUpdate(
+    { _id: DOC_ID },
+    { $set: { lastQRDataUrl: null, lastQRAt: null } },
+    { upsert: true },
+  ).catch(() => {});
 }
 
 /** نفس هيكل Baileys لكن بـ Buffer (مطلوب لـ libsignal في Node). */
