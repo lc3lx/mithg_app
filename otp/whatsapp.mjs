@@ -207,6 +207,7 @@ class BaileysConnectionManager {
   async _onClose(lastDisconnect) {
     const statusCode = lastDisconnect?.error?.output?.statusCode ?? null;
     const errMsg = lastDisconnect?.error?.message || "";
+    if (statusCode != null) console.log("🔌 Baileys disconnect statusCode:", statusCode);
     const isLoggedOut = statusCode === DisconnectReason.loggedOut;
     const isForbidden = statusCode === 403;
 
@@ -290,7 +291,21 @@ class BaileysConnectionManager {
     this.qrWaiters = [];
   }
 
+  _getConnectionErrorHint() {
+    if (this.isBlocked()) return "blocked";
+    if (this.state === STATES.CLOSED && this.reconnectAttempts > 0) return "connection_terminated";
+    return null;
+  }
+
   async getQRForWebOrWait(maxWaitMs = QR_WAIT_MAX_MS_DEFAULT) {
+    const addHint = (obj) => {
+      if (obj.qrDataUrl == null && obj.connected === false) {
+        const hint = this._getConnectionErrorHint();
+        if (hint) return { ...obj, connectionError: hint };
+      }
+      return obj;
+    };
+
     if (this.isReady && this.sock) {
       return { connected: true, qrDataUrl: null };
     }
@@ -333,7 +348,7 @@ class BaileysConnectionManager {
         if (this.isReady && this.sock) {
           resolve({ connected: true, qrDataUrl: null });
         } else {
-          resolve({ connected: false, qrDataUrl: this.lastQRDataUrl });
+          resolve(addHint({ connected: false, qrDataUrl: this.lastQRDataUrl }));
         }
       }, maxWaitMs);
 
