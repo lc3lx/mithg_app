@@ -207,9 +207,13 @@ class BaileysConnectionManager {
   async _onClose(lastDisconnect) {
     const statusCode = lastDisconnect?.error?.output?.statusCode ?? null;
     const errMsg = lastDisconnect?.error?.message || "";
-    if (statusCode != null) console.log("🔌 Baileys disconnect statusCode:", statusCode);
+    if (statusCode != null) {
+      const codeNames = { 428: "connectionClosed", 408: "connectionLost/timedOut", 440: "connectionReplaced", 401: "loggedOut", 403: "forbidden", 500: "badSession", 515: "restartRequired" };
+      console.log("🔌 Baileys disconnect statusCode:", statusCode, codeNames[statusCode] ? `(${codeNames[statusCode]})` : "");
+    }
     const isLoggedOut = statusCode === DisconnectReason.loggedOut;
     const isForbidden = statusCode === 403;
+    const isConnectionClosed = statusCode === 428; // DisconnectReason.connectionClosed — يحدث أحياناً مع "Too many reconnect attempts"
 
     this.isReady = false;
     this.sock = null;
@@ -236,8 +240,9 @@ class BaileysConnectionManager {
 
     this.reconnectAttempts += 1;
     const isConnectionTerminated = /Connection Terminated|Connection Closed/i.test(errMsg);
+    const shouldBlockRetries = isConnectionTerminated || isConnectionClosed; // 428 = connectionClosed
 
-    if (this.reconnectAttempts >= RECONNECT_BLOCK_AFTER && isConnectionTerminated) {
+    if (this.reconnectAttempts >= RECONNECT_BLOCK_AFTER && shouldBlockRetries) {
       const blockMs = 5 * 60 * 1000;
       this.blockedUntil = Date.now() + blockMs;
       this.setState(STATES.BLOCKED);
@@ -252,16 +257,22 @@ class BaileysConnectionManager {
       return;
     }
 
+    // 428 (connectionClosed): واتساب يغلق الاتصال — استخدام انتظار أطول لتجنب "Too many reconnect attempts"
     const baseDelay =
-      isConnectionTerminated && this.reconnectAttempts <= 3
-        ? 20_000
-        : RECONNECT_BASE_DELAY_MS;
+      isConnectionClosed
+        ? 45_000
+        : isConnectionTerminated && this.reconnectAttempts <= 3
+          ? 20_000
+          : RECONNECT_BASE_DELAY_MS;
     const delay = Math.min(
-      baseDelay * Math.pow(2, Math.min(this.reconnectAttempts - 1, 4)),
+      baseDelay * (2 ** Math.min(this.reconnectAttempts - 1, 4)),
       RECONNECT_MAX_DELAY_MS,
     );
 
     this.setState(STATES.CLOSED);
+    if (isConnectionClosed) {
+      console.log("💡 428 (connectionClosed): واتساب أغلق الاتصال. استخدام انتظار أطول لتجنب تكرار المحاولات.");
+    }
     console.log(
       "🔄 انقطع الاتصال بواتساب (Baileys) (",
       errMsg || statusCode || "Connection Failure",
