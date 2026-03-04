@@ -42,7 +42,7 @@ function createClient() {
     authStrategy,
     puppeteer: {
       headless: true,
-      executablePath: "/usr/bin/chromium",
+      executablePath: "/usr/bin/chromium-browser",
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
     },
   });
@@ -57,7 +57,11 @@ function createClient() {
       lastQRDataUrl = null;
     }
     qrWaiters.forEach(({ resolve }) =>
-      resolve({ connected: false, qrDataUrl: lastQRDataUrl, qrRaw: qr || null })
+      resolve({
+        connected: false,
+        qrDataUrl: lastQRDataUrl,
+        qrRaw: qr || null,
+      }),
     );
     qrWaiters = [];
   });
@@ -71,7 +75,9 @@ function createClient() {
     isReady = true;
     lastQRRaw = null;
     lastQRDataUrl = null;
-    qrWaiters.forEach(({ resolve }) => resolve({ connected: true, qrDataUrl: null, qrRaw: null }));
+    qrWaiters.forEach(({ resolve }) =>
+      resolve({ connected: true, qrDataUrl: null, qrRaw: null }),
+    );
     qrWaiters = [];
   });
 
@@ -108,7 +114,8 @@ export async function ensureInitialized() {
 /** إرسال رسالة نصية عبر واتساب */
 export async function sendWhatsAppMessage(phone, text) {
   await ensureInitialized();
-  if (!isReady || !client) throw new Error("WhatsApp غير جاهز. يرجى ربط الحساب عبر QR.");
+  if (!isReady || !client)
+    throw new Error("WhatsApp غير جاهز. يرجى ربط الحساب عبر QR.");
   const digits = String(phone).replace(/\D/g, "");
   if (!digits.length) throw new Error("Invalid phone number");
   const chatId = `${digits}@c.us`;
@@ -124,7 +131,8 @@ export function isWhatsAppReady() {
 export function getQRForWeb() {
   const now = Date.now();
   if (isReady) return { connected: true, qrDataUrl: null };
-  if (lastQRDataUrl && now - lastQRAt <= QR_RECENT_MS) return { connected: false, qrDataUrl: lastQRDataUrl };
+  if (lastQRDataUrl && now - lastQRAt <= QR_RECENT_MS)
+    return { connected: false, qrDataUrl: lastQRDataUrl };
   return { connected: false, qrDataUrl: lastQRDataUrl || null };
 }
 
@@ -135,14 +143,23 @@ export async function getQRForWebOrWait(maxWaitMs = QR_WAIT_MAX_MS_DEFAULT) {
   if (isReady) return { connected: true, qrDataUrl: null, qrRaw: null };
   const now = Date.now();
   if (lastQRDataUrl && now - lastQRAt <= QR_RECENT_MS)
-    return { connected: false, qrDataUrl: lastQRDataUrl, qrRaw: lastQRRaw || null };
+    return {
+      connected: false,
+      qrDataUrl: lastQRDataUrl,
+      qrRaw: lastQRRaw || null,
+    };
 
   return new Promise((resolve) => {
     const timeout = setTimeout(() => {
       const idx = qrWaiters.findIndex((w) => w.resolve === resolve);
       if (idx !== -1) qrWaiters.splice(idx, 1);
       if (isReady) resolve({ connected: true, qrDataUrl: null, qrRaw: null });
-      else resolve({ connected: false, qrDataUrl: lastQRDataUrl, qrRaw: lastQRRaw || null });
+      else
+        resolve({
+          connected: false,
+          qrDataUrl: lastQRDataUrl,
+          qrRaw: lastQRRaw || null,
+        });
     }, maxWaitMs);
     qrWaiters.push({
       resolve: (value) => {
@@ -173,5 +190,7 @@ export async function forceReconnect() {
   } catch (e) {
     console.warn("[WhatsApp] forceReconnect: delete session:", e?.message);
   }
-  console.log("[WhatsApp] تم طلب إعادة الربط. الجلسة محذوفة من MongoDB. سيُطلب QR عند الطلب التالي.");
+  console.log(
+    "[WhatsApp] تم طلب إعادة الربط. الجلسة محذوفة من MongoDB. سيُطلب QR عند الطلب التالي.",
+  );
 }
