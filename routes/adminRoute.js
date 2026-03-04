@@ -101,13 +101,12 @@ router.use(adminService.protectAdmin);
 router.get("/whatsapp-qr", async (req, res) => {
   try {
     const { getQRForWebOrWait } = await import("../otp/whatsapp.mjs");
-    const { getQRFromDB } = await import("../otp/authStore.mjs");
-    let data = await getQRForWebOrWait(22000);
-    if (!data.qrDataUrl && !data.connected) {
-      const qrFromDb = await getQRFromDB();
-      if (qrFromDb) data = { connected: false, qrDataUrl: qrFromDb };
-    }
-    return res.json(data);
+    const data = await getQRForWebOrWait(22000);
+    return res.json({
+      connected: data.connected,
+      qrDataUrl: data.qrDataUrl || null,
+      connectionError: data.connectionError || undefined,
+    });
   } catch (err) {
     return res.status(500).json({ message: err.message || "WhatsApp module error" });
   }

@@ -35,7 +35,8 @@ async function optionalAuthUser(req) {
  */
 router.get("/qr", async (req, res) => {
   try {
-    const { getQRForWeb } = await import("./whatsapp.mjs");
+    const { ensureInitialized, getQRForWeb } = await import("./whatsapp.mjs");
+    await ensureInitialized();
     const { connected, qrDataUrl } = getQRForWeb();
     if (connected) {
       return res.send(`

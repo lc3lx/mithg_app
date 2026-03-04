@@ -30,6 +30,13 @@ const mountRoutes = require("./routes");
 // Connect with db
 dbConnection();
 
+// تهيئة واتساب (whatsapp-web.js): استرجاع الجلسة من MongoDB إن وُجدت
+setImmediate(() => {
+  import("./otp/whatsapp.mjs")
+    .then(({ ensureInitialized }) => ensureInitialized())
+    .catch((err) => console.error("[WhatsApp] تهيئة:", err?.message || err));
+});
+
 // Message cleanup cron job (run daily at 2 AM)
 // TODO: Uncomment after installing node-cron
 // const cron = require("node-cron");

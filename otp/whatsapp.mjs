@@ -1,450 +1,176 @@
 /**
- * WhatsApp connection via Baileys (QR + session).
- * Session saved in MongoDB using useMongoAuthState (no files on disk).
+ * WhatsApp connection via whatsapp-web.js.
+ * Session in MongoDB only: database "whatsapp", collection "sessions", sessionId "main-wa".
+ * QR عرض عبر API فقط (لا طباعة في التيرمنال).
  *
- * واجهات التصدير المتوافقة مع المشروع:
- * - sendWhatsAppMessage(phone, text)
- * - isWhatsAppReady()
- * - getQRForWebOrWait(maxWaitMs?)
- * - forceReconnect()
+ * Exports: sendWhatsAppMessage, isWhatsAppReady, forceReconnect, getQRForWebOrWait, getQRForWeb
  */
-import makeWASocket, { DisconnectReason } from "@whiskeysockets/baileys";
-import QRCode from "qrcode";
-import {
-  useMongoAuthState,
-  clearMongoAuth,
-  saveQRToDB,
-  clearQRFromDB,
-  getQRFromDB,
-} from "./authStore.mjs";
+import { createRequire } from "module";
 
-// ---------- Helpers ----------
+const require = createRequire(import.meta.url);
+const { Client, RemoteAuth } = require("whatsapp-web.js");
+const mongoose = require("mongoose");
+const QRCode = require("qrcode");
+const MongoSessionStore = require("./mongoSessionStore");
 
-/** Format phone to WhatsApp JID (e.g. +963912345678 -> 963912345678@s.whatsapp.net) */
-function phoneToJid(phone) {
-  const digits = String(phone).replace(/\D/g, "");
-  if (!digits.length) return null;
-  return `${digits}@s.whatsapp.net`;
-}
-
-const noop = () => {};
-const baileysLogger = {
-  trace: noop,
-  debug: noop,
-  info: noop,
-  warn: noop,
-  error: noop,
-  fatal: noop,
-  child: () => baileysLogger,
-};
-
-const WA_READY_TIMEOUT_MS = 45000;
-const RECONNECT_BASE_DELAY_MS = 5000;
-const RECONNECT_MAX_DELAY_MS = 60000;
-const RECONNECT_BLOCK_AFTER = 5;
+const SESSION_ID = "main-wa";
 const QR_WAIT_MAX_MS_DEFAULT = 22000;
+
+// ----- In-memory state (لا تخزين على القرص) -----
+let client = null;
+let isReady = false;
+let lastQRRaw = null;
+let lastQRDataUrl = null;
+let lastQRAt = 0;
+let initPromise = null;
+let qrWaiters = [];
 const QR_RECENT_MS = 60_000;
 
-const STATES = {
-  IDLE: "idle",
-  CONNECTING: "connecting",
-  WAITING_FOR_QR: "waiting_for_qr",
-  CONNECTED: "connected",
-  CLOSED: "closed",
-  BLOCKED: "blocked",
-};
-
-class BaileysConnectionManager {
-  constructor() {
-    /** @type {ReturnType<typeof makeWASocket> | null} */
-    this.sock = null;
-    this.state = STATES.IDLE;
-    this.prevState = null;
-
-    this.isReady = false;
-    this.readyPromise = null;
-    this.resolveReady = null;
-
-    this.connectPromise = null;
-    this.reconnectAttempts = 0;
-    this.blockedUntil = 0;
-
-    this.lastQRDataUrl = null;
-    this.lastQRAt = 0;
-
-    this.qrWaiters = [];
-  }
-
-  setState(next) {
-    if (this.state === next) return;
-    const from = this.state;
-    this.prevState = from;
-    this.state = next;
-    console.log(`🔁 WhatsApp(Baileys) state: ${from} -> ${next}`);
-  }
-
-  isBlocked() {
-    return this.blockedUntil && Date.now() < this.blockedUntil;
-  }
-
-  _ensureReadyPromise() {
-    if (this.readyPromise && this.resolveReady) return;
-    this.readyPromise = new Promise((resolve) => {
-      this.resolveReady = resolve;
-    });
-  }
-
-  async ensureConnecting({ forceNewSession = false } = {}) {
-    if (this.isBlocked()) {
-      this.setState(STATES.BLOCKED);
-      const mins = Math.round((this.blockedUntil - Date.now()) / 60000);
-      console.log(
-        `⏳ WhatsApp(Baileys) blocked backoff ~${mins} دقيقة. لن نحاول الاتصال الآن.`,
-      );
-      return;
-    }
-
-    if (this.sock && this.state === STATES.CONNECTED) {
-      return;
-    }
-
-    if (this.connectPromise) return this.connectPromise;
-
-    this.connectPromise = this._connectInternal({ forceNewSession }).finally(() => {
-      this.connectPromise = null;
-    });
-    return this.connectPromise;
-  }
-
-  async _connectInternal({ forceNewSession = false } = {}) {
-    if (this.sock) return;
-
-    this.setState(STATES.CONNECTING);
-    this.isReady = false;
-    this._ensureReadyPromise();
-
-    if (forceNewSession) {
-      await clearMongoAuth().catch(() => {});
-      this.lastQRDataUrl = null;
-      this.lastQRAt = 0;
-    }
-
-    let authState;
-    try {
-      authState = await useMongoAuthState();
-    } catch (err) {
-      console.error("❌ فشل تحميل حالة واتساب من MongoDB:", err.message);
-      this.setState(STATES.CLOSED);
-      throw err;
-    }
-
-    try {
-      this.sock = makeWASocket({
-        auth: authState.state,
-        logger: baileysLogger,
-        printQRInTerminal: false,
-        syncFullHistory: false,
-      });
-    } catch (err) {
-      console.error("❌ فشل تهيئة سوكيت واتساب (Baileys):", err.message);
-      this.sock = null;
-      this.setState(STATES.CLOSED);
-      throw err;
-    }
-
-    this.sock.ev.on("creds.update", authState.saveCreds);
-    this.sock.ev.on("connection.update", (update) => this._handleConnectionUpdate(update));
-  }
-
-  async _handleConnectionUpdate(update) {
-    const { connection, lastDisconnect, qr } = update;
-
-    if (qr) {
-      const now = Date.now();
-      if (!this.lastQRDataUrl || now - this.lastQRAt > QR_RECENT_MS) {
-        try {
-          const dataUrl = await QRCode.toDataURL(qr, { width: 300, margin: 2 });
-          this.lastQRDataUrl = dataUrl;
-          this.lastQRAt = now;
-          saveQRToDB(dataUrl).catch(() => {});
-
-          const qrText = await QRCode.toString(qr, { type: "terminal", small: true });
-          console.log("\n📱 امسح رمز QR بواسطة واتساب (WhatsApp > Linked Devices):\n");
-          console.log(qrText);
-          console.log("\n   أو افتح في المتصفح: GET /api/v1/otp/qr\n");
-        } catch (e) {
-          console.log("QR (raw):", qr);
-        }
-      }
-      if (this.state !== STATES.CONNECTED) {
-        this.setState(STATES.WAITING_FOR_QR);
-        this._notifyQrWaiters();
-      }
-    }
-
-    if (connection === "open") {
-      this._onOpen();
-      return;
-    }
-
-    if (connection === "close") {
-      await this._onClose(lastDisconnect);
-    }
-  }
-
-  _onOpen() {
-    this.isReady = true;
-    this.reconnectAttempts = 0;
-    this.blockedUntil = 0;
-    this.lastQRDataUrl = null;
-    this.lastQRAt = 0;
-    clearQRFromDB().catch(() => {});
-    this.setState(STATES.CONNECTED);
-    if (this.resolveReady) this.resolveReady();
-    console.log("✅ واتساب (Baileys) متصل وجاهز لإرسال OTP.");
-  }
-
-  async _onClose(lastDisconnect) {
-    const statusCode = lastDisconnect?.error?.output?.statusCode ?? null;
-    const errMsg = lastDisconnect?.error?.message || "";
-    if (statusCode != null) {
-      const codeNames = { 428: "connectionClosed", 408: "connectionLost/timedOut", 440: "connectionReplaced", 401: "loggedOut", 403: "forbidden", 500: "badSession", 515: "restartRequired" };
-      console.log("🔌 Baileys disconnect statusCode:", statusCode, codeNames[statusCode] ? `(${codeNames[statusCode]})` : "");
-    }
-    const isLoggedOut = statusCode === DisconnectReason.loggedOut;
-    const isForbidden = statusCode === 403;
-    const isConnectionClosed = statusCode === 428; // DisconnectReason.connectionClosed — يحدث أحياناً مع "Too many reconnect attempts"
-
-    this.isReady = false;
-    this.sock = null;
-    this._ensureReadyPromise();
-
-    const isBadAuth =
-      isLoggedOut ||
-      isForbidden ||
-      /Invalid private key|Uint8Array|invalid.*key|bad.*auth/i.test(errMsg);
-
-    if (isBadAuth) {
-      console.log(
-        "⚠️ جلسة واتساب (Baileys) تالفة أو منتهية. مسح الجلسة وطلب QR جديد:",
-        errMsg || statusCode,
-      );
-      await clearMongoAuth().catch((e) => {
-        console.error("❌ فشل مسح الجلسة من MongoDB:", e.message);
-      });
-      this.lastQRDataUrl = null;
-      this.lastQRAt = 0;
-      this.setState(STATES.CLOSED);
-      return;
-    }
-
-    this.reconnectAttempts += 1;
-    const isConnectionTerminated = /Connection Terminated|Connection Closed/i.test(errMsg);
-    const shouldBlockRetries = isConnectionTerminated || isConnectionClosed; // 428 = connectionClosed
-
-    if (this.reconnectAttempts >= RECONNECT_BLOCK_AFTER && shouldBlockRetries) {
-      const blockMs = 5 * 60 * 1000;
-      this.blockedUntil = Date.now() + blockMs;
-      this.setState(STATES.BLOCKED);
-      console.log(
-        "⚠️ واتساب يغلق الاتصال بشكل متكرر (غالباً بسبب IP السيرفر). " +
-          `إيقاف المحاولات لمدة ${blockMs / 60000} دقيقة (محاولات متتالية: ${this.reconnectAttempts}).`,
-      );
-      console.log(
-        "💡 إن استمر: جرّب تشغيل البوت من شبكة منزلية؛ عناوين VPS/داتاسنتر قد تُقيّد من واتساب.",
-      );
-      this.setState(STATES.CLOSED);
-      return;
-    }
-
-    // 428 (connectionClosed): واتساب يغلق الاتصال — استخدام انتظار أطول لتجنب "Too many reconnect attempts"
-    const baseDelay =
-      isConnectionClosed
-        ? 45_000
-        : isConnectionTerminated && this.reconnectAttempts <= 3
-          ? 20_000
-          : RECONNECT_BASE_DELAY_MS;
-    const delay = Math.min(
-      baseDelay * (2 ** Math.min(this.reconnectAttempts - 1, 4)),
-      RECONNECT_MAX_DELAY_MS,
-    );
-
-    this.setState(STATES.CLOSED);
-    if (isConnectionClosed) {
-      console.log("💡 428 (connectionClosed): واتساب أغلق الاتصال. استخدام انتظار أطول لتجنب تكرار المحاولات.");
-    }
-    console.log(
-      "🔄 انقطع الاتصال بواتساب (Baileys) (",
-      errMsg || statusCode || "Connection Failure",
-      "). إعادة المحاولة بعد",
-      Math.round(delay / 1000),
-      "ثانية (محاولة",
-      this.reconnectAttempts,
-      ").",
-    );
-
-    setTimeout(() => {
-      this.ensureConnecting().catch((err) => {
-        console.error("❌ فشل إعادة محاولة اتصال واتساب (Baileys):", err.message);
-      });
-    }, delay);
-  }
-
-  _notifyQrWaiters() {
-    if (!this.qrWaiters.length) return;
-    const payload = {
-      connected: this.isReady,
-      qrDataUrl: this.lastQRDataUrl,
-    };
-    for (const { resolve } of this.qrWaiters) {
-      resolve(payload);
-    }
-    this.qrWaiters = [];
-  }
-
-  _getConnectionErrorHint() {
-    if (this.isBlocked()) return "blocked";
-    if (this.state === STATES.CLOSED && this.reconnectAttempts > 0) return "connection_terminated";
-    return null;
-  }
-
-  async getQRForWebOrWait(maxWaitMs = QR_WAIT_MAX_MS_DEFAULT) {
-    const addHint = (obj) => {
-      if (obj.qrDataUrl == null && obj.connected === false) {
-        const hint = this._getConnectionErrorHint();
-        if (hint) return { ...obj, connectionError: hint };
-      }
-      return obj;
-    };
-
-    if (this.isReady && this.sock) {
-      return { connected: true, qrDataUrl: null };
-    }
-
-    const now = Date.now();
-    if (this.lastQRDataUrl && now - this.lastQRAt <= QR_RECENT_MS) {
-      return { connected: false, qrDataUrl: this.lastQRDataUrl };
-    }
-
-    if (!this.lastQRDataUrl) {
-      const dbQr = await getQRFromDB().catch(() => null);
-      if (dbQr) {
-        this.lastQRDataUrl = dbQr;
-        this.lastQRAt = Date.now();
-        return { connected: false, qrDataUrl: dbQr };
-      }
-    }
-
-    if (!this.isBlocked()) {
-      await this.ensureConnecting();
-    } else {
-      this.setState(STATES.BLOCKED);
-    }
-
-    if (this.isReady && this.sock) {
-      return { connected: true, qrDataUrl: null };
-    }
-    if (this.lastQRDataUrl) {
-      return { connected: false, qrDataUrl: this.lastQRDataUrl };
-    }
-
-    return new Promise((resolve) => {
-      const waiter = { resolve };
-      this.qrWaiters.push(waiter);
-
-      const timeout = setTimeout(() => {
-        const idx = this.qrWaiters.indexOf(waiter);
-        if (idx !== -1) this.qrWaiters.splice(idx, 1);
-
-        if (this.isReady && this.sock) {
-          resolve({ connected: true, qrDataUrl: null });
-        } else {
-          resolve(addHint({ connected: false, qrDataUrl: this.lastQRDataUrl }));
-        }
-      }, maxWaitMs);
-
-      const originalResolve = waiter.resolve;
-      waiter.resolve = (value) => {
-        clearTimeout(timeout);
-        originalResolve(value);
-      };
-    });
-  }
-
-  async ensureReadyForSend() {
-    if (this.isReady && this.sock) return;
-
-    await this.ensureConnecting();
-
-    await Promise.race([
-      (async () => {
-        this._ensureReadyPromise();
-        await this.readyPromise;
-      })(),
-      new Promise((_, rej) =>
-        setTimeout(
-          () => rej(new Error("WhatsApp connection timeout (45s). حاول مرة أخرى.")),
-          WA_READY_TIMEOUT_MS,
-        ),
-      ),
-    ]);
-
-    if (!this.isReady || !this.sock) {
-      throw new Error("WhatsApp not ready");
-    }
-  }
-
-  async forceReconnect() {
-    this.blockedUntil = 0;
-    this.reconnectAttempts = 0;
-    this.isReady = false;
-    this.lastQRDataUrl = null;
-    this.lastQRAt = 0;
-
-    if (this.sock) {
-      try {
-        this.sock.end(undefined);
-      } catch {
-        // ignore
-      }
-      this.sock = null;
-    }
-
-    await clearMongoAuth().catch((e) => {
-      console.error("❌ فشل مسح الجلسة في forceReconnect:", e.message);
-    });
-    await clearQRFromDB().catch(() => {});
-
-    this.setState(STATES.IDLE);
-    console.log("🔄 تم مسح جلسة واتساب (Baileys). سيتم طلب QR جديد عند فتح صفحة الربط أو عند الإرسال.");
-  }
+function getStore() {
+  return new MongoSessionStore({ mongoose });
 }
 
-// Singleton
-const manager = new BaileysConnectionManager();
+function createClient() {
+  const store = getStore();
+  const authStrategy = new RemoteAuth({
+    clientId: SESSION_ID,
+    store,
+    backupSyncIntervalMs: 300000,
+  });
 
-// ========= واجهات التصدير المتوافقة مع المشروع =========
+  const c = new Client({
+    authStrategy,
+    puppeteer: {
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    },
+  });
 
-/** إرسال OTP كنص عبر واتساب */
+  c.on("qr", async (qr) => {
+    console.log("[WhatsApp] حدث: qr — تم توليد رمز QR (عرضه عبر API فقط).");
+    lastQRRaw = qr;
+    lastQRAt = Date.now();
+    try {
+      lastQRDataUrl = await QRCode.toDataURL(qr, { width: 300, margin: 2 });
+    } catch (e) {
+      lastQRDataUrl = null;
+    }
+    qrWaiters.forEach(({ resolve }) =>
+      resolve({ connected: false, qrDataUrl: lastQRDataUrl, qrRaw: qr || null })
+    );
+    qrWaiters = [];
+  });
+
+  c.on("authenticated", () => {
+    console.log("[WhatsApp] حدث: authenticated — تم المصادقة.");
+  });
+
+  c.on("ready", () => {
+    console.log("[WhatsApp] حدث: ready — واتساب جاهز للإرسال.");
+    isReady = true;
+    lastQRRaw = null;
+    lastQRDataUrl = null;
+    qrWaiters.forEach(({ resolve }) => resolve({ connected: true, qrDataUrl: null, qrRaw: null }));
+    qrWaiters = [];
+  });
+
+  c.on("auth_failure", (msg) => {
+    console.log("[WhatsApp] حدث: auth_failure —", msg || "فشل المصادقة.");
+    isReady = false;
+  });
+
+  c.on("disconnected", (reason) => {
+    console.log("[WhatsApp] حدث: disconnected —", reason || "انقطع الاتصال.");
+    isReady = false;
+    client = null;
+    // لا نمسح الجلسة من MongoDB إلا عند logout فعلي (يتم عبر forceReconnect أو client.logout)
+  });
+
+  return c;
+}
+
+export async function ensureInitialized() {
+  if (client && isReady) return;
+  if (initPromise) return initPromise;
+  initPromise = (async () => {
+    if (client) return;
+    client = createClient();
+    await client.initialize();
+  })().finally(() => {
+    initPromise = null;
+  });
+  return initPromise;
+}
+
+// ----- واجهات التصدير (متوافقة مع المشروع) -----
+
+/** إرسال رسالة نصية عبر واتساب */
 export async function sendWhatsAppMessage(phone, text) {
-  const jid = phoneToJid(phone);
-  if (!jid) throw new Error("Invalid phone number");
-
-  await manager.ensureReadyForSend();
-  await manager.sock.sendMessage(jid, { text });
+  await ensureInitialized();
+  if (!isReady || !client) throw new Error("WhatsApp غير جاهز. يرجى ربط الحساب عبر QR.");
+  const digits = String(phone).replace(/\D/g, "");
+  if (!digits.length) throw new Error("Invalid phone number");
+  const chatId = `${digits}@c.us`;
+  await client.sendMessage(chatId, text);
 }
 
-/** حالة الجاهزية */
+/** هل واتساب متصل وجاهز */
 export function isWhatsAppReady() {
-  return manager.isReady && manager.sock !== null;
+  return isReady && client !== null;
 }
 
-/** إعادة ضبط الجلسة (تستخدمها لوحة الأدمن في /whatsapp-reconnect) */
-export async function forceReconnect() {
-  await manager.forceReconnect();
+/** إرجاع فوري للحالة الحالية و QR إن وُجد (لـ GET /otp/qr) */
+export function getQRForWeb() {
+  const now = Date.now();
+  if (isReady) return { connected: true, qrDataUrl: null };
+  if (lastQRDataUrl && now - lastQRAt <= QR_RECENT_MS) return { connected: false, qrDataUrl: lastQRDataUrl };
+  return { connected: false, qrDataUrl: lastQRDataUrl || null };
 }
 
-/** واجهة GET /admins/whatsapp-qr */
+/** انتظار حتى الاتصال أو ظهور QR (لـ GET /admins/whatsapp-qr و GET /api/whatsapp/qr) */
 export async function getQRForWebOrWait(maxWaitMs = QR_WAIT_MAX_MS_DEFAULT) {
-  return manager.getQRForWebOrWait(maxWaitMs);
+  await ensureInitialized();
+
+  if (isReady) return { connected: true, qrDataUrl: null, qrRaw: null };
+  const now = Date.now();
+  if (lastQRDataUrl && now - lastQRAt <= QR_RECENT_MS)
+    return { connected: false, qrDataUrl: lastQRDataUrl, qrRaw: lastQRRaw || null };
+
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      const idx = qrWaiters.findIndex((w) => w.resolve === resolve);
+      if (idx !== -1) qrWaiters.splice(idx, 1);
+      if (isReady) resolve({ connected: true, qrDataUrl: null, qrRaw: null });
+      else resolve({ connected: false, qrDataUrl: lastQRDataUrl, qrRaw: lastQRRaw || null });
+    }, maxWaitMs);
+    qrWaiters.push({
+      resolve: (value) => {
+        clearTimeout(timeout);
+        resolve(value);
+      },
+    });
+  });
+}
+
+/** إعادة ربط واتساب (مسح الجلسة من MongoDB وطلب QR جديد) */
+export async function forceReconnect() {
+  if (client) {
+    try {
+      await client.destroy();
+    } catch (e) {
+      console.warn("[WhatsApp] forceReconnect: destroy:", e?.message);
+    }
+    client = null;
+  }
+  isReady = false;
+  lastQRRaw = null;
+  lastQRDataUrl = null;
+  initPromise = null;
+  const store = getStore();
+  try {
+    await store.delete({ session: `RemoteAuth-${SESSION_ID}` }); // نفس الاسم الذي يستخدمه RemoteAuth
+  } catch (e) {
+    console.warn("[WhatsApp] forceReconnect: delete session:", e?.message);
+  }
+  console.log("[WhatsApp] تم طلب إعادة الربط. الجلسة محذوفة من MongoDB. سيُطلب QR عند الطلب التالي.");
 }

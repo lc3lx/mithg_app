@@ -1,50 +1,28 @@
-# WhatsApp OTP (Baileys)
+# WhatsApp OTP (whatsapp-web.js)
 
-- **أول تشغيل**: الجلسة تُحفظ في **قاعدة البيانات (MongoDB)** فقط — لا يوجد ملف أو مجلد لحذفه.
-- **ربط واتساب**: من **لوحة الأدمن** → «ربط واتساب و OTP» يعرض رمز QR وسجلات OTP.
+- **الجلسة**: تُحفظ في **MongoDB فقط** — database: `whatsapp`, collection: `sessions`, document: `main-wa`. لا تخزين session على القرص (مصدر الحقيقة هو MongoDB).
+- **QR**: يُعرض **عبر API فقط** (لا طباعة في التيرمنال). استهلاكه من تطبيق Flutter أو من لوحة الأدمن.
 
-## السيرفر على Hostinger أو VPS (Connection Terminated)
+## تشغيل السيرفر
 
-إذا كان الباكند على استضافة مثل Hostinger أو أي VPS، واتساب قد يغلق الاتصال (Connection Terminated) لأن عناوين الداتاسنتر كثيراً ما تُقيّد.
+- عند التشغيل: إن وُجدت جلسة في MongoDB تُستَرجع تلقائياً ولا يُطلب QR.
+- إن لم تكن الجلسة موجودة: يُولَّد QR من حدث `qr` ويُحفظ آخر QR في الذاكرة ويُعاد عبر API.
 
-**الحل: استخدام بروكسي**
+## إعادة الربط
 
-1. اشترِ أو استخدم بروكسي HTTP/HTTPS (مثلاً residential أو بروكسي من مزود يدعم ذلك).
-2. في ملف البيئة (مثلاً `config.env`) أضف:
-   ```env
-   WHATSAPP_PROXY_URL=http://user:password@proxy-host:port
-   ```
-   أو إذا البروكسي بدون اسم وكلمة مرور:
-   ```env
-   WHATSAPP_PROXY_URL=http://proxy-host:port
-   ```
-3. أعد تشغيل السيرفر. اتصال واتساب سيخرج عبر البروكسي؛ إن كان عنوان البروكسي مقبولاً من واتساب، سيعمل الربط.
-
-بدون بروكسي، يمكن تجربة تشغيل البوت من جهاز على شبكة منزلية (IP منزلي) ثم استخدام الجلسة المحفوظة لاحقاً إن أمكن.
-
-## كيف ترجع تشبّك مرة ثانية؟
-
-بعد إعادة تشغيل السيرفر لا تحتاج حذف أي ملف. إذا انقطع واتساب أو أردت ربط رقم/جهاز جديد:
-
-1. **من لوحة الأدمن (مستحسن)**  
-   ادخل إلى **ربط واتساب و OTP** واضغط **«إعادة ربط واتساب»** ثم امسح رمز QR الجديد من واتساب (الأجهزة المرتبطة → ربط جهاز).
-
-2. **من الـ API (مع توكن أدمن)**  
-   - **POST** `/api/v1/admins/whatsapp-reconnect` — لمسح الجلسة وطلب QR جديد.  
-   - **GET** `/api/v1/admins/whatsapp-qr` — لجلب `{ connected, qrDataUrl }` لعرض QR.
+- **من لوحة الأدمن**: «ربط واتساب و OTP» → «إعادة ربط واتساب» ثم امسح رمز QR الجديد.
+- **من API (مع توكن أدمن)**: **POST** `/api/v1/admins/whatsapp-reconnect` لمسح الجلسة من MongoDB وطلب QR جديد.
 
 ## Endpoints
 
-### OTP (تطبيق/مستخدم)
+### QR للتطبيق (Flutter)
 
-| Method | Path | Body | وصف |
-|--------|------|------|-----|
-| POST | `/api/v1/otp/send` | `{ "phone": "+9639xxxxxxxx" }` | إنشاء OTP وإرساله عبر واتساب |
-| POST | `/api/v1/otp/verify` | `{ "phone": "+9639xxxxxxxx", "code": "123456" }` | التحقق من الرمز |
+| Method | Path | وصف |
+|--------|------|-----|
+| GET | `/api/whatsapp/qr` | إرجاع `{ connected, qr, qrRaw }` — صورة QR base64 أو النص الخام. استهلاك من Flutter. |
 
-- OTP: 6 أرقام، صلاحية دقيقتين.
-- حد الطلبات: 100 طلب OTP لكل رقم في الساعة.
-- الرسالة المرسلة للمستخدم بالعربية.
+- `qr`: صورة بصيغة Data URL (base64).
+- `qrRaw`: النص الخام للـ QR إن وُجد.
 
 ### أدمن (QR + سجلات OTP)
 
@@ -52,11 +30,31 @@
 |--------|------|-----|
 | GET | `/api/v1/admins/whatsapp-qr` | حالة الاتصال ورمز QR (يحتاج توكن أدمن) |
 | POST | `/api/v1/admins/whatsapp-reconnect` | إعادة ربط واتساب (يظهر QR جديد) |
-| GET | `/api/v1/admins/otp-records?limit=50` | سجلات OTP (آخر الإرسالات) |
+| GET | `/api/v1/admins/otp-records?limit=50` | سجلات OTP |
 
-## الملفات (ESM)
+### OTP (تطبيق/مستخدم)
 
-- `authStore.mjs` — تخزين/استرجاع الجلسة من MongoDB (WhatsappAuth).
-- `whatsapp.mjs` — اتصال Baileys، QR، لا يستخدم ملفات.
-- `otp.service.mjs` — إنشاء/تخزين/تحقق OTP، حد 100 طلب/رقم/ساعة.
-- `otp.routes.mjs` — مسارات Express لـ send/verify.
+| Method | Path | Body | وصف |
+|--------|------|------|-----|
+| POST | `/api/v1/otp/send` | `{ "phone": "+9639xxxxxxxx" }` | إنشاء OTP وإرساله عبر واتساب |
+| POST | `/api/v1/otp/verify` | `{ "phone", "code" }` | التحقق من الرمز |
+
+## الملفات
+
+- `mongoSessionStore.js` — مخزن جلسة مخصص: db `whatsapp`, collection `sessions`, id `main-wa`.
+- `whatsapp.mjs` — اتصال whatsapp-web.js + RemoteAuth، QR في الذاكرة فقط، تصدير: `sendWhatsAppMessage`, `isWhatsAppReady`, `forceReconnect`, `getQRForWebOrWait`, `getQRForWeb`, `ensureInitialized`.
+- `otp.service.mjs` — إنشاء/تحقق OTP وإرسال عبر واتساب.
+- `otp.routes.mjs` — مسارات send/verify و GET /otp/qr (صفحة HTML).
+
+## Puppeteer (VPS)
+
+- `headless: true`
+- `args: ['--no-sandbox', '--disable-setuid-sandbox']`
+
+## أحداث واتساب (Logs)
+
+- `qr` — تم توليد QR (عرضه عبر API فقط).
+- `authenticated` — تم المصادقة.
+- `ready` — واتساب جاهز للإرسال.
+- `auth_failure` — فشل المصادقة.
+- `disconnected` — انقطع الاتصال (الجلسة لا تُحذف من MongoDB إلا عند logout فعلي أو إعادة ربط من الأدمن).

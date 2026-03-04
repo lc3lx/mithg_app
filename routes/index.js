@@ -9,6 +9,7 @@ const userProfileRoute = require("./userProfileRoute");
 const subscriptionRoute = require("./subscriptionRoute");
 const identityVerificationRoute = require("./identityVerificationRoute");
 const adminRoute = require("./adminRoute");
+const whatsappRoute = require("./whatsappRoute");
 const rechargeRequestRoute = require("./rechargeRequestRoute");
 const guardianRoute = require("./guardianRoute");
 const userWarningsRoute = require("./userWarningsRoute");
@@ -31,6 +32,7 @@ const mountRoutes = (app) => {
   app.use("/api/v1/subscriptions", subscriptionRoute);
   app.use("/api/v1/verification", identityVerificationRoute);
   app.use("/api/v1/admins", adminRoute);
+  app.use("/api/whatsapp", whatsappRoute);
   app.use("/api/v1/recharge-requests", rechargeRequestRoute);
   app.use("/api/v1/guardians", guardianRoute);
   app.use("/api/v1/warnings", userWarningsRoute);
