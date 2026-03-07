@@ -20,7 +20,14 @@ class MongoSessionStore {
   }
 
   _getCollection() {
-    const db = this.mongoose.connection.useDb(DB_NAME).db;
+    const conn = this.mongoose.connection;
+    const client = conn.getClient ? conn.getClient() : conn.client;
+    if (!client) {
+      throw new Error(
+        "MongoDB client not available. Ensure mongoose is connected before using WhatsApp (e.g. wait for dbConnection())."
+      );
+    }
+    const db = client.db(DB_NAME);
     return db.collection(COLLECTION_NAME);
   }
 
