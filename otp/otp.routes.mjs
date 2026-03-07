@@ -173,7 +173,7 @@ router.post("/verify", async (req, res) => {
       message: "رمز التحقق مطلوب (code)",
     });
   }
-  const result = verifyOTP(phone.trim(), String(code));
+  const result = await verifyOTP(phone.trim(), String(code));
   if (!result.success) {
     return res.status(400).json({
       success: false,
