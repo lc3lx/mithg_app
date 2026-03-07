@@ -90,8 +90,9 @@ const userSchema = new mongoose.Schema(
       default: "Muslim",
     },
     hijab: {
-      type: Boolean,
-      default: false,
+      type: String,
+      trim: true,
+      enum: ['محجبة', 'منقبة', 'متحررة', null],
     },
     havingChildren: {
       type: Boolean,
