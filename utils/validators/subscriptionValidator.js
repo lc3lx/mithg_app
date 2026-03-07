@@ -100,7 +100,7 @@ exports.subscribeWithPaymentRequestValidator = [
 
   body("paymentMethod")
     .optional()
-    .isIn(["bank_transfer", "cash", "online_payment", "other"])
+    .isIn(["bank_transfer", "sham_cash", "syriatel_cash", "cash", "online_payment", "other"])
     .withMessage("Invalid payment method"),
 
   body("transactionReference")

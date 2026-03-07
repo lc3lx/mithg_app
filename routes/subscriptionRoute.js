@@ -35,10 +35,13 @@ const {
 const authService = require("../services/authService");
 const adminService = require("../services/adminService");
 
+const { getPaymentMethodSettings } = require("../services/paymentMethodSettingsService");
+
 const router = express.Router();
 
 // Public routes
 router.get("/packages", getSubscriptionPackages);
+router.get("/payment-methods", getPaymentMethodSettings);
 
 // Admin only routes
 router.use("/admin", adminService.protectAdmin);

@@ -47,7 +47,7 @@ const paymentRequestSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ["bank_transfer", "cash", "online_payment", "other"],
+      enum: ["bank_transfer", "sham_cash", "syriatel_cash", "cash", "online_payment", "other"],
       default: "bank_transfer",
     },
     transactionReference: {

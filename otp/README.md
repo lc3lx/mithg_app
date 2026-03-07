@@ -49,7 +49,39 @@
 ## Puppeteer (VPS)
 
 - `headless: true`
+- `executablePath: '/usr/bin/chromium'` (أو من متغير بيئة)
 - `args: ['--no-sandbox', '--disable-setuid-sandbox']`
+
+### خطأ: `libatk-1.0.so.0: cannot open shared object file` (Code 127)
+
+يحدث عندما ينقص السيرفر (Linux) مكتبات تحتاجها Chromium. ثبّت تبعيات Chromium على السيرفر:
+
+**Debian / Ubuntu:**
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+  chromium-browser \
+  libatk1.0-0 \
+  libatk-bridge2.0-0 \
+  libcups2 \
+  libdrm2 \
+  libxkbcommon0 \
+  libxcomposite1 \
+  libxdamage1 \
+  libxfixes3 \
+  libxrandr2 \
+  libgbm1 \
+  libasound2 \
+  libpango-1.0-0 \
+  libcairo2
+```
+
+أو استخدم الحزمة الجاهزة التي تسحب كل التبعيات:
+```bash
+sudo apt-get install -y chromium-browser
+```
+
+بعد التثبيت تأكد أن المسار صحيح، مثلاً: `/usr/bin/chromium` أو `/usr/bin/chromium-browser`. إن اختلف على سيرفرك غيّر `executablePath` في `whatsapp.mjs` أو استخدم متغير بيئة.
 
 ## أحداث واتساب (Logs)
 

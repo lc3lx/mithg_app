@@ -131,6 +131,13 @@ router.get("/otp-records", async (req, res) => {
   }
 });
 
+const {
+  getPaymentMethodSettings,
+  updatePaymentMethodSettings,
+} = require("../services/paymentMethodSettingsService");
+router.get("/payment-methods", getPaymentMethodSettings);
+router.put("/payment-methods", updatePaymentMethodSettings);
+
 // Profile management
 router.get("/profile", getAdminProfile);
 
