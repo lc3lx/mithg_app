@@ -249,6 +249,7 @@ exports.requirePhoneVerified = (req, res, next) => {
     code: "PHONE_NOT_VERIFIED",
     message: "يجب التحقق من رقم الهاتف أولاً",
     phone: req.user.phone || null,
+    registrationStep: req.user.registrationStep ?? 0,
   });
 };
 
