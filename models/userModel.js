@@ -92,7 +92,15 @@ const userSchema = new mongoose.Schema(
     hijab: {
       type: String,
       trim: true,
-      enum: ['محجبة', 'منقبة', 'متحررة', null],
+      set: (v) =>
+        v === false || v === "" || v == null ? undefined : v,
+      validate: {
+        validator: function (v) {
+          if (v == null || v === undefined || v === false) return true;
+          return ["محجبة", "منقبة", "متحررة"].indexOf(String(v)) !== -1;
+        },
+        message: "hijab must be one of: محجبة, منقبة, متحررة",
+      },
     },
     havingChildren: {
       type: Boolean,

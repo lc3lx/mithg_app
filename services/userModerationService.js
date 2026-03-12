@@ -34,36 +34,39 @@ exports.blockUser = asyncHandler(async (req, res, next) => {
   const blockedUntil = new Date();
   blockedUntil.setHours(blockedUntil.getHours() + (blockDurationHours || 24));
 
-  // Update user
-  user.isBlocked = true;
-  user.blockedUntil = blockedUntil;
-  user.blockReason = blockReason || "Manual block by admin";
-  user.blockedBy = adminId;
-
-  // حظر شامل: IP + جهاز + جوال — عند إلغاء الحظر تُرفع كلها
+  // Update only block fields (avoid re-validating whole doc e.g. hijab: false)
+  const update = {
+    isBlocked: true,
+    blockedUntil,
+    blockReason: blockReason || "Manual block by admin",
+    blockedBy: adminId,
+  };
   if (fullBlock) {
     const ips = [].concat(user.lastLoginIp).filter(Boolean);
     const deviceIds = [].concat(user.lastDeviceId).filter(Boolean);
-    user.blockedIdentifiers = {
+    update.blockedIdentifiers = {
       phone: user.phone || undefined,
       ips,
       deviceIds,
     };
   }
 
-  await user.save();
-
-  // Populate admin info
-  await user.populate("blockedBy", "name email");
+  const updated = await User.findByIdAndUpdate(
+    id,
+    { $set: update },
+    { new: true, runValidators: false }
+  )
+    .select("_id isBlocked blockedUntil blockReason blockedBy")
+    .populate("blockedBy", "name email");
 
   res.status(200).json({
     message: "User blocked successfully",
     data: {
-      userId: user._id,
-      isBlocked: user.isBlocked,
-      blockedUntil: user.blockedUntil,
-      blockReason: user.blockReason,
-      blockedBy: user.blockedBy,
+      userId: updated._id,
+      isBlocked: updated.isBlocked,
+      blockedUntil: updated.blockedUntil,
+      blockReason: updated.blockReason,
+      blockedBy: updated.blockedBy,
     },
   });
 });
@@ -91,19 +94,30 @@ exports.unblockUser = asyncHandler(async (req, res, next) => {
     return next(new ApiError("User is not blocked", 400));
   }
 
-  // Update user — إزالة الحظر والحظر الشامل (IP + جهاز + جوال)
-  user.isBlocked = false;
-  user.blockedUntil = null;
-  user.blockReason = null;
-  user.blockedBy = null;
-  user.blockedIdentifiers = undefined;
-  await user.save();
+  // Update only block fields (avoid re-validating whole doc e.g. hijab: false)
+  const updated = await User.findByIdAndUpdate(
+    id,
+    {
+      $set: {
+        isBlocked: false,
+        blockReason: null,
+        blockedBy: null,
+      },
+      $unset: {
+        blockedUntil: 1,
+        blockedIdentifiers: 1,
+      },
+    },
+    { new: true, runValidators: false }
+  )
+    .select("_id isBlocked")
+    .lean();
 
   res.status(200).json({
     message: "User unblocked successfully",
     data: {
-      userId: user._id,
-      isBlocked: user.isBlocked,
+      userId: updated._id,
+      isBlocked: updated.isBlocked,
     },
   });
 });
