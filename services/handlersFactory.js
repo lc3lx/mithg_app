@@ -153,16 +153,16 @@ exports.updateOnePopulated = (Model, population = []) =>
       );
     }
 
-    let populatedDoc = document;
+    let result = document;
     if (population && population.length > 0) {
-      populatedDoc = await Model.findById(document._id);
+      let query = Model.findById(document._id);
       population.forEach((pop) => {
-        populatedDoc = populatedDoc.populate(pop);
+        query = query.populate(pop);
       });
-      populatedDoc = await populatedDoc;
+      result = await query;
     }
 
-    res.status(200).json({ data: populatedDoc });
+    res.status(200).json({ data: result });
   });
 
 // Get one with multiple populations

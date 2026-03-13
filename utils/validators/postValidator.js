@@ -28,13 +28,13 @@ exports.updatePostValidator = [
   body("content")
     .optional()
     .trim()
-    .isLength({ min: 1, max: 2000 })
-    .withMessage("Content must be between 1 and 2000 characters"),
+    .isLength({ min: 0, max: 2000 })
+    .withMessage("Content must be at most 2000 characters"),
 
   body("postType")
     .optional()
-    .isIn(["profile", "story", "interest"])
-    .withMessage("Post type must be profile, story, or interest"),
+    .isIn(["text", "image", "video"])
+    .withMessage("Post type must be text, image, or video"),
 
   body("lookingFor")
     .optional()
