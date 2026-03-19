@@ -3,6 +3,7 @@ const {
   updateAbout,
   addToGallery,
   getUserGallery,
+  viewGalleryItem,
   updateGalleryItem,
   setPrimaryGalleryItem,
   deleteGalleryItem,
@@ -41,6 +42,7 @@ router.post(
 );
 
 router.get("/:userId/gallery", getUserGalleryValidator, getUserGallery);
+router.get("/:userId/gallery/:itemId/view", viewGalleryItem);
 
 router.put("/gallery/:itemId", updateGalleryItemValidator, updateGalleryItem);
 

@@ -8,14 +8,19 @@ const {
   createGalleryViewRejectedNotification,
 } = require("./notificationService");
 
-// @desc    Send gallery view request
+// @desc    Send gallery view request for a specific photo
 // @route   POST /api/v1/users/gallery-view-request/:userId
 // @access  Private
 exports.sendGalleryViewRequest = asyncHandler(async (req, res, next) => {
   const { userId: ownerId } = req.params;
+  const { galleryItemId } = req.body;
   const requesterId = req.user._id.toString();
 
-  const owner = await User.findById(ownerId).select("friends");
+  if (!galleryItemId) {
+    return next(new ApiError("galleryItemId is required", 400));
+  }
+
+  const owner = await User.findById(ownerId).select("friends gallery");
   if (!owner) {
     return next(new ApiError("User not found", 404));
   }
@@ -24,23 +29,29 @@ exports.sendGalleryViewRequest = asyncHandler(async (req, res, next) => {
     return next(new ApiError("You cannot request your own gallery", 400));
   }
 
-  const isFriend = (owner.friends || []).some((f) => f.toString() === requesterId);
-  if (isFriend) {
-    return next(new ApiError("Friends can view gallery directly", 400));
+  const itemExists = owner.gallery.some(
+    (item) => item._id.toString() === galleryItemId
+  );
+  if (!itemExists) {
+    return next(new ApiError("Gallery item not found", 404));
   }
 
   const existing = await GalleryViewRequest.findOne({
     ownerId,
     requesterId: req.user._id,
+    galleryItemId,
     status: "pending",
   });
   if (existing) {
-    return next(new ApiError("You already have a pending gallery view request", 400));
+    return next(
+      new ApiError("You already have a pending request for this photo", 400)
+    );
   }
 
   const request = await GalleryViewRequest.create({
     ownerId,
     requesterId: req.user._id,
+    galleryItemId,
     status: "pending",
   });
 
@@ -70,6 +81,7 @@ exports.getGalleryViewRequests = asyncHandler(async (req, res, next) => {
   const incomingList = incoming.map((r) => ({
     id: r._id,
     requester: r.requesterId,
+    galleryItemId: r.galleryItemId,
     status: r.status,
     usedAt: r.usedAt,
     createdAt: r.createdAt,
@@ -78,6 +90,7 @@ exports.getGalleryViewRequests = asyncHandler(async (req, res, next) => {
   const outgoingList = outgoing.map((r) => ({
     id: r._id,
     owner: r.ownerId,
+    galleryItemId: r.galleryItemId,
     status: r.status,
     usedAt: r.usedAt,
     createdAt: r.createdAt,

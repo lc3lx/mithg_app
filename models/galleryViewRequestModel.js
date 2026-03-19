@@ -12,6 +12,10 @@ const galleryViewRequestSchema = new mongoose.Schema(
       ref: "User",
       required: [true, "Requester is required"],
     },
+    galleryItemId: {
+      type: String,
+      required: [true, "Gallery item ID is required"],
+    },
     status: {
       type: String,
       enum: ["pending", "accepted", "rejected"],
@@ -25,9 +29,8 @@ const galleryViewRequestSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// One pending request per requester-owner pair
 galleryViewRequestSchema.index(
-  { ownerId: 1, requesterId: 1, status: 1 },
+  { ownerId: 1, requesterId: 1, galleryItemId: 1, status: 1 },
   { unique: false }
 );
 galleryViewRequestSchema.index({ ownerId: 1, createdAt: -1 });

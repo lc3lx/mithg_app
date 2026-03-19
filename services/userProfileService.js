@@ -103,61 +103,105 @@ exports.addToGallery = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get user gallery
+// @desc    Get user gallery (returns metadata only for others, full data for self)
 // @route   GET /api/v1/profile/:userId/gallery
-// @access  Private (friends, self, or one-time via accepted gallery view request)
+// @access  Private
 exports.getUserGallery = asyncHandler(async (req, res, next) => {
   const { userId } = req.params;
 
-  const user = await User.findById(userId).select("gallery friends");
+  const user = await User.findById(userId).select("gallery");
 
   if (!user) {
     return next(new ApiError("User not found", 404));
   }
 
   const requesterId = req.user._id.toString();
-  const isFriend =
-    requesterId === userId ||
-    user.friends.some((friend) => {
-      const friendId =
-        friend && typeof friend === "object" && friend._id
-          ? friend._id.toString()
-          : friend.toString();
-      return friendId === requesterId;
-    });
+  const isSelf = requesterId === userId;
 
-  let consumeGrant = false;
-  if (!isFriend) {
-    const grant = await GalleryViewRequest.findOne({
-      ownerId: userId,
-      requesterId: req.user._id,
-      status: "accepted",
-      usedAt: null,
-    });
-    if (!grant) {
-      return next(new ApiError("Gallery is available for friends or by one-time approval only", 403));
-    }
-    consumeGrant = true;
-  }
-
-  // Sort gallery by primary first, then creation date (newest first)
-  const gallery = user.gallery.sort((a, b) => {
+  const sorted = user.gallery.sort((a, b) => {
     if (a.isPrimary && !b.isPrimary) return -1;
     if (!a.isPrimary && b.isPrimary) return 1;
     return new Date(b.createdAt) - new Date(a.createdAt);
   });
 
-  if (consumeGrant) {
-    await GalleryViewRequest.updateOne(
-      { ownerId: userId, requesterId: req.user._id, status: "accepted", usedAt: null },
-      { usedAt: new Date() }
-    );
+  if (isSelf) {
+    return res.status(200).json({ results: sorted.length, data: sorted });
   }
 
-  res.status(200).json({
-    results: gallery.length,
-    data: gallery,
+  const grants = await GalleryViewRequest.find({
+    ownerId: userId,
+    requesterId: req.user._id,
+  }).select("galleryItemId status usedAt");
+
+  const grantMap = {};
+  for (const g of grants) {
+    const key = g.galleryItemId;
+    if (!grantMap[key]) grantMap[key] = [];
+    grantMap[key].push(g);
+  }
+
+  const gallery = sorted.map((item) => {
+    const itemId = item._id.toString();
+    const itemGrants = grantMap[itemId] || [];
+    const hasPending = itemGrants.some((g) => g.status === "pending");
+    const hasUnused = itemGrants.some(
+      (g) => g.status === "accepted" && g.usedAt === null
+    );
+
+    let accessStatus = "locked";
+    if (hasUnused) accessStatus = "granted";
+    else if (hasPending) accessStatus = "pending";
+
+    return {
+      _id: item._id,
+      type: item.type,
+      isPrimary: item.isPrimary,
+      caption: item.caption,
+      createdAt: item.createdAt,
+      accessStatus,
+    };
   });
+
+  res.status(200).json({ results: gallery.length, data: gallery });
+});
+
+// @desc    View a single gallery item (consumes the one-time grant)
+// @route   GET /api/v1/profile/:userId/gallery/:itemId/view
+// @access  Private
+exports.viewGalleryItem = asyncHandler(async (req, res, next) => {
+  const { userId, itemId } = req.params;
+  const requesterId = req.user._id.toString();
+
+  if (requesterId === userId) {
+    const user = await User.findById(userId).select("gallery");
+    if (!user) return next(new ApiError("User not found", 404));
+    const item = user.gallery.id(itemId);
+    if (!item) return next(new ApiError("Gallery item not found", 404));
+    return res.status(200).json({ data: { url: item.url } });
+  }
+
+  const grant = await GalleryViewRequest.findOne({
+    ownerId: userId,
+    requesterId: req.user._id,
+    galleryItemId: itemId,
+    status: "accepted",
+    usedAt: null,
+  });
+
+  if (!grant) {
+    return next(new ApiError("No valid permission for this photo", 403));
+  }
+
+  grant.usedAt = new Date();
+  await grant.save();
+
+  const user = await User.findById(userId).select("gallery");
+  if (!user) return next(new ApiError("User not found", 404));
+
+  const item = user.gallery.id(itemId);
+  if (!item) return next(new ApiError("Gallery item not found", 404));
+
+  res.status(200).json({ data: { url: item.url } });
 });
 
 // @desc    Update gallery item
@@ -304,7 +348,6 @@ exports.getUserProfile = asyncHandler(async (req, res, next) => {
     return next(new ApiError("لا يمكنك مشاهدة هذا البروفيل", 403));
   }
 
-  // Sort gallery by primary first, then by creation date
   const sortedGallery = user.gallery.sort((a, b) => {
     if (a.isPrimary && !b.isPrimary) return -1;
     if (!a.isPrimary && b.isPrimary) return 1;
@@ -313,22 +356,30 @@ exports.getUserProfile = asyncHandler(async (req, res, next) => {
 
   const profileData = {
     ...user.toObject(),
-    gallery: sortedGallery,
     friendsCount: user.friends.length,
   };
 
-  // When friends are populated, each friend is an object with _id; when not, it's ObjectId
   const friendIds = (user.friends || []).map((f) => {
     if (f && typeof f === "object" && f._id) return f._id.toString();
     return f && f.toString ? f.toString() : "";
   });
-  const isFriend =
-    req.user._id.toString() === userId ||
-    friendIds.includes(req.user._id.toString());
+  const isSelf = req.user._id.toString() === userId;
+  const isFriend = isSelf || friendIds.includes(req.user._id.toString());
 
-  if (req.user._id.toString() !== userId && !isFriend) {
+  if (isSelf) {
+    profileData.gallery = sortedGallery;
+  } else {
+    profileData.gallery = sortedGallery.map((item) => ({
+      _id: item._id,
+      type: item.type,
+      isPrimary: item.isPrimary,
+      caption: item.caption,
+      createdAt: item.createdAt,
+    }));
+  }
+
+  if (!isSelf && !isFriend) {
     profileData.coverImg = null;
-    profileData.gallery = [];
     profileData.bio = null;
     profileData.about = null;
     profileData.location = null;
@@ -486,10 +537,14 @@ exports.getAllProfiles = asyncHandler(async (req, res, next) => {
       isFriend,
     };
 
-    // غير الأصدقاء: إخفاء وسائط الحساسة من الباك مباشرة (بدون الاعتماد على الفرونت)
+    profileData.gallery = sortedGallery.map((item) => ({
+      _id: item._id,
+      type: item.type,
+      isPrimary: item.isPrimary,
+    }));
+
     if (!isFriend) {
       profileData.coverImg = null;
-      profileData.gallery = [];
       profileData.canOpenProfile = false;
     } else {
       profileData.canOpenProfile = true;
