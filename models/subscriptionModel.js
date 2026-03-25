@@ -36,6 +36,17 @@ const subscriptionSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    // خصم على الباقة من الأدمن (نسبة مئوية 1–100). null أو 0 = بدون خصم
+    discountPercent: {
+      type: Number,
+      default: null,
+      validate: {
+        validator(v) {
+          return v == null || v === undefined || (v >= 0 && v <= 100);
+        },
+        message: "discountPercent must be between 0 and 100",
+      },
+    },
     isActive: {
       type: Boolean,
       default: true,

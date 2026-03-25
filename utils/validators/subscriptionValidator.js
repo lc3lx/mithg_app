@@ -38,6 +38,11 @@ exports.createSubscriptionPackageValidator = [
     .isInt({ min: 1, max: 3650 })
     .withMessage("Duration in days is required (1–3650)"),
 
+  body("discountPercent")
+    .optional({ nullable: true })
+    .isFloat({ min: 0, max: 100 })
+    .withMessage("Package discount must be between 0 and 100"),
+
   validatorMiddleware,
 ];
 
@@ -83,6 +88,17 @@ exports.updateSubscriptionPackageValidator = [
     .optional()
     .isInt({ min: 1, max: 3650 })
     .withMessage("Duration days must be between 1 and 3650"),
+
+  body("discountPercent")
+    .optional({ nullable: true })
+    .custom((value) => {
+      if (value === null || value === undefined || value === "") return true;
+      const n = Number(value);
+      if (Number.isNaN(n) || n < 0 || n > 100) {
+        throw new Error("Package discount must be between 0 and 100");
+      }
+      return true;
+    }),
 
   validatorMiddleware,
 ];

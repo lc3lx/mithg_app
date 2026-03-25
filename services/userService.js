@@ -810,11 +810,11 @@ exports.getFriendRequests = asyncHandler(async (req, res, next) => {
   const user = await User.findById(req.user._id)
     .populate(
       "friendRequests",
-      "name age gender bio location profileImg coverImg about isOnline lastSeen profileViews"
+      "name age gender bio location country city profileImg coverImg about isOnline lastSeen profileViews"
     )
     .populate(
       "sentFriendRequests",
-      "name age gender bio location profileImg coverImg about isOnline lastSeen profileViews"
+      "name age gender bio location country city profileImg coverImg about isOnline lastSeen profileViews"
     );
   const friendIds = (user.friends || []).map((id) => id.toString());
 

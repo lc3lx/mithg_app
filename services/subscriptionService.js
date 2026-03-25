@@ -50,6 +50,7 @@ exports.createSubscriptionPackage = asyncHandler(async (req, res, next) => {
     currency,
     features,
     durationDays,
+    discountPercent,
   } = req.body;
 
   // Validate package type
@@ -63,6 +64,18 @@ exports.createSubscriptionPackage = asyncHandler(async (req, res, next) => {
     return next(new ApiError("Duration in days is required (min 1)", 400));
   }
 
+  let resolvedDiscount = discountPercent;
+  if (resolvedDiscount === undefined || resolvedDiscount === null || resolvedDiscount === "") {
+    resolvedDiscount = null;
+  } else {
+    resolvedDiscount = Number(resolvedDiscount);
+    if (Number.isNaN(resolvedDiscount) || resolvedDiscount <= 0) {
+      resolvedDiscount = null;
+    } else if (resolvedDiscount > 100) {
+      resolvedDiscount = 100;
+    }
+  }
+
   const subscriptionPackage = await Subscription.create({
     packageType,
     name,
@@ -71,6 +84,7 @@ exports.createSubscriptionPackage = asyncHandler(async (req, res, next) => {
     currency: currency || "USD",
     durationDays: resolvedDurationDays,
     features: features || [],
+    discountPercent: resolvedDiscount,
   });
 
   res.status(201).json({
@@ -84,7 +98,7 @@ exports.createSubscriptionPackage = asyncHandler(async (req, res, next) => {
 // @access  Private/Admin
 exports.updateSubscriptionPackage = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
-  const { name, description, price, currency, features, isActive, durationDays } = req.body;
+  const { name, description, price, currency, features, isActive, durationDays, discountPercent } = req.body;
 
   const subscriptionPackage = await Subscription.findById(id);
   if (!subscriptionPackage) {
@@ -99,6 +113,18 @@ exports.updateSubscriptionPackage = asyncHandler(async (req, res, next) => {
   if (features) subscriptionPackage.features = features;
   if (isActive !== undefined) subscriptionPackage.isActive = isActive;
   if (durationDays != null && durationDays >= 1) subscriptionPackage.durationDays = durationDays;
+  if (discountPercent !== undefined) {
+    if (discountPercent === null || discountPercent === "") {
+      subscriptionPackage.discountPercent = null;
+    } else {
+      const d = Number(discountPercent);
+      if (Number.isNaN(d) || d <= 0) {
+        subscriptionPackage.discountPercent = null;
+      } else {
+        subscriptionPackage.discountPercent = Math.min(100, d);
+      }
+    }
+  }
 
   await subscriptionPackage.save();
 
@@ -173,7 +199,12 @@ exports.subscribeWithPaymentRequest = asyncHandler(async (req, res, next) => {
     );
   }
 
+  const pkgDiscountPct = subscription.discountPercent;
   let amount = subscription.price;
+  if (pkgDiscountPct != null && pkgDiscountPct > 0) {
+    amount = (subscription.price * (100 - Math.min(100, pkgDiscountPct))) / 100;
+  }
+
   let originalAmount = null;
   let referralCodeId = null;
 
@@ -203,7 +234,7 @@ exports.subscribeWithPaymentRequest = asyncHandler(async (req, res, next) => {
       );
     }
 
-    originalAmount = subscription.price;
+    originalAmount = amount;
     const discount = (originalAmount * referralCode.discountPercent) / 100;
     amount = Math.max(0, originalAmount - discount);
     referralCodeId = referralCode._id;
