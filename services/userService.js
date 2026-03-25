@@ -649,24 +649,24 @@ exports.sendFriendRequest = asyncHandler(async (req, res, next) => {
   // Check if user exists
   const user = await User.findById(userId);
   if (!user) {
-    return next(new ApiError("User not found", 404));
+    return next(new ApiError("المستخدم غير موجود", 404));
   }
 
   // Check if they are already friends
   const currentUser = await User.findById(req.user._id);
   if (currentUser.friends.includes(userId)) {
-    return next(new ApiError("You are already friends", 400));
+    return next(new ApiError("أنتم أصدقاء بالفعل", 400));
   }
 
   // Check if request already sent
   if (currentUser.sentFriendRequests.includes(userId)) {
-    return next(new ApiError("Friend request already sent", 400));
+    return next(new ApiError("تم إرسال طلب الصداقة مسبقاً", 400));
   }
 
   // Check if user already sent request to current user
   if (currentUser.friendRequests.includes(userId)) {
     return next(
-      new ApiError("This user already sent you a friend request", 400)
+      new ApiError("هذا المستخدم أرسل لك طلب صداقة مسبقاً", 400)
     );
   }
 
@@ -684,7 +684,7 @@ exports.sendFriendRequest = asyncHandler(async (req, res, next) => {
   await createFriendRequestNotification(req.user._id, userId);
 
   res.status(200).json({
-    message: "Friend request sent successfully",
+    message: "تم إرسال طلب الصداقة بنجاح",
   });
 });
 

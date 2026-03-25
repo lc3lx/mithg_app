@@ -353,23 +353,8 @@ exports.createAdminBroadcastNotification = asyncHandler(async (req, res, next) =
   }));
 
   const inserted = await Notification.insertMany(docs, { ordered: false });
-
-  // إرسال push فوراً للمرسلة فقط؛ المجدولة تُرسل لاحقاً عبر المهمة الدورية
-  const toSendNow = inserted.filter((doc) => doc.status === "sent");
-  const pushPromises = toSendNow.map(async (doc) => {
-    try {
-      const sent = await sendPushToUser(doc.user, doc, null);
-      if (sent) {
-        await Notification.updateOne(
-          { _id: doc._id },
-          { pushSent: true, pushSentAt: new Date() }
-        );
-      }
-    } catch (err) {
-      console.error(`[Push] Admin broadcast to user ${doc.user}:`, err.message);
-    }
-  });
-  await Promise.allSettled(pushPromises);
+  // ملاحظة: إرسال الـ push يتم عبر hook في `notificationModel.js` فقط عندما تكون الحالة "sent".
+  // الإشعارات "scheduled" تُرسل لاحقاً عبر `processScheduledNotifications`.
 
   res.status(201).json({
     message: "Broadcast notifications created",

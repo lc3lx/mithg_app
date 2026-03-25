@@ -174,9 +174,9 @@ exports.viewGalleryItem = asyncHandler(async (req, res, next) => {
 
   if (requesterId === userId) {
     const user = await User.findById(userId).select("gallery");
-    if (!user) return next(new ApiError("User not found", 404));
+    if (!user) return next(new ApiError("المستخدم غير موجود", 404));
     const item = user.gallery.id(itemId);
-    if (!item) return next(new ApiError("Gallery item not found", 404));
+    if (!item) return next(new ApiError("عنصر المعرض غير موجود", 404));
     return res.status(200).json({ data: { url: item.url } });
   }
 
@@ -189,17 +189,17 @@ exports.viewGalleryItem = asyncHandler(async (req, res, next) => {
   });
 
   if (!grant) {
-    return next(new ApiError("No valid permission for this photo", 403));
+    return next(new ApiError("لا توجد صلاحية صالحة لهذه الصورة", 403));
   }
 
   grant.usedAt = new Date();
   await grant.save();
 
   const user = await User.findById(userId).select("gallery");
-  if (!user) return next(new ApiError("User not found", 404));
+  if (!user) return next(new ApiError("المستخدم غير موجود", 404));
 
   const item = user.gallery.id(itemId);
-  if (!item) return next(new ApiError("Gallery item not found", 404));
+  if (!item) return next(new ApiError("عنصر المعرض غير موجود", 404));
 
   res.status(200).json({ data: { url: item.url } });
 });
@@ -230,7 +230,7 @@ exports.updateGalleryItem = asyncHandler(async (req, res, next) => {
   await user.save();
 
   res.status(200).json({
-    message: "Gallery item updated successfully",
+    message: "تم تحديث عنصر المعرض بنجاح",
     data: galleryItem,
   });
 });
@@ -244,13 +244,13 @@ exports.setPrimaryGalleryItem = asyncHandler(async (req, res, next) => {
   const user = await User.findById(req.user._id);
 
   if (!user) {
-    return next(new ApiError("User not found", 404));
+    return next(new ApiError("المستخدم غير موجود", 404));
   }
 
   const galleryItem = user.gallery.id(itemId);
 
   if (!galleryItem) {
-    return next(new ApiError("Gallery item not found", 404));
+    return next(new ApiError("عنصر المعرض غير موجود", 404));
   }
 
   // Remove primary from all items
@@ -264,7 +264,7 @@ exports.setPrimaryGalleryItem = asyncHandler(async (req, res, next) => {
   await user.save();
 
   res.status(200).json({
-    message: "Primary gallery item set successfully",
+    message: "تم تعيين العنصر الأساسي بنجاح",
     data: galleryItem,
   });
 });
@@ -278,13 +278,13 @@ exports.deleteGalleryItem = asyncHandler(async (req, res, next) => {
   const user = await User.findById(req.user._id);
 
   if (!user) {
-    return next(new ApiError("User not found", 404));
+    return next(new ApiError("المستخدم غير موجود", 404));
   }
 
   const galleryItem = user.gallery.id(itemId);
 
   if (!galleryItem) {
-    return next(new ApiError("Gallery item not found", 404));
+    return next(new ApiError("عنصر المعرض غير موجود", 404));
   }
 
   // Remove the file from filesystem
@@ -310,7 +310,7 @@ exports.deleteGalleryItem = asyncHandler(async (req, res, next) => {
   await user.save();
 
   res.status(200).json({
-    message: "Gallery item deleted successfully",
+    message: "تم حذف عنصر المعرض بنجاح",
   });
 });
 

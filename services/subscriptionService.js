@@ -51,6 +51,7 @@ exports.createSubscriptionPackage = asyncHandler(async (req, res, next) => {
     features,
     durationDays,
     discountPercent,
+    discountAudience,
   } = req.body;
 
   // Validate package type
@@ -76,6 +77,11 @@ exports.createSubscriptionPackage = asyncHandler(async (req, res, next) => {
     }
   }
 
+  const resolvedDiscountAudience =
+    discountAudience && ["all", "male", "female"].includes(discountAudience)
+      ? discountAudience
+      : "all";
+
   const subscriptionPackage = await Subscription.create({
     packageType,
     name,
@@ -85,7 +91,33 @@ exports.createSubscriptionPackage = asyncHandler(async (req, res, next) => {
     durationDays: resolvedDurationDays,
     features: features || [],
     discountPercent: resolvedDiscount,
+    discountAudience: resolvedDiscountAudience,
   });
+
+  // إرسال إشعار ترويجي للمستخدمين المستهدفين إذا تم تفعيل خصم على الباقة
+  if (resolvedDiscount != null && resolvedDiscount > 0) {
+    const recipientQuery = {
+      active: true,
+      phoneVerified: true,
+    };
+    if (resolvedDiscountAudience === "male") recipientQuery.gender = "male";
+    if (resolvedDiscountAudience === "female") recipientQuery.gender = "female";
+
+    const recipients = await User.find(recipientQuery).select("_id");
+    const docs = recipients.map((u) => ({
+      user: u._id,
+      type: "promotion",
+      title: "عرض خاص على الاشتراك",
+      message: `تم الإعلان عن خصم ${resolvedDiscount}% على باقة "${name}"`,
+      status: "sent",
+      recipientsCount: 1,
+      openedCount: 0,
+    }));
+
+    if (docs.length > 0) {
+      await Notification.insertMany(docs, { ordered: false });
+    }
+  }
 
   res.status(201).json({
     message: "Subscription package created successfully",
@@ -98,12 +130,30 @@ exports.createSubscriptionPackage = asyncHandler(async (req, res, next) => {
 // @access  Private/Admin
 exports.updateSubscriptionPackage = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
-  const { name, description, price, currency, features, isActive, durationDays, discountPercent } = req.body;
+  const {
+    name,
+    description,
+    price,
+    currency,
+    features,
+    isActive,
+    durationDays,
+    discountPercent,
+    discountAudience,
+  } = req.body;
 
   const subscriptionPackage = await Subscription.findById(id);
   if (!subscriptionPackage) {
     return next(new ApiError("Subscription package not found", 404));
   }
+
+  const oldDiscountPercent = subscriptionPackage.discountPercent;
+  const oldAudience = subscriptionPackage.discountAudience || "all";
+
+  const resolvedDiscountAudience =
+    discountAudience && ["all", "male", "female"].includes(discountAudience)
+      ? discountAudience
+      : subscriptionPackage.discountAudience || "all";
 
   // Update fields
   if (name) subscriptionPackage.name = name;
@@ -126,7 +176,43 @@ exports.updateSubscriptionPackage = asyncHandler(async (req, res, next) => {
     }
   }
 
+  if (discountAudience !== undefined) {
+    subscriptionPackage.discountAudience = resolvedDiscountAudience;
+  }
+
   await subscriptionPackage.save();
+
+  const newDiscountPercent = subscriptionPackage.discountPercent;
+  const newAudience = subscriptionPackage.discountAudience || "all";
+
+  // إشعار ترويجي عند تغيير الخصم أو نطاقه
+  if (
+    newDiscountPercent != null &&
+    newDiscountPercent > 0 &&
+    (oldDiscountPercent !== newDiscountPercent || oldAudience !== newAudience)
+  ) {
+    const recipientQuery = {
+      active: true,
+      phoneVerified: true,
+    };
+    if (newAudience === "male") recipientQuery.gender = "male";
+    if (newAudience === "female") recipientQuery.gender = "female";
+
+    const recipients = await User.find(recipientQuery).select("_id");
+    const docs = recipients.map((u) => ({
+      user: u._id,
+      type: "promotion",
+      title: "عرض خاص على الاشتراك",
+      message: `تم الإعلان عن خصم ${newDiscountPercent}% على باقة "${subscriptionPackage.name}"`,
+      status: "sent",
+      recipientsCount: 1,
+      openedCount: 0,
+    }));
+
+    if (docs.length > 0) {
+      await Notification.insertMany(docs, { ordered: false });
+    }
+  }
 
   res.status(200).json({
     message: "Subscription package updated successfully",
@@ -199,7 +285,14 @@ exports.subscribeWithPaymentRequest = asyncHandler(async (req, res, next) => {
     );
   }
 
-  const pkgDiscountPct = subscription.discountPercent;
+  // خصم الأدمن مشروط بنوع المستخدم (girls/boys/all)
+  const currentUser = await User.findById(userId).select("gender");
+  const userGender = currentUser?.gender;
+  const audience = subscription.discountAudience || "all";
+  const isEligibleForPackageDiscount =
+    audience === "all" || (userGender && audience === userGender);
+
+  const pkgDiscountPct = isEligibleForPackageDiscount ? subscription.discountPercent : null;
   let amount = subscription.price;
   if (pkgDiscountPct != null && pkgDiscountPct > 0) {
     amount = (subscription.price * (100 - Math.min(100, pkgDiscountPct))) / 100;

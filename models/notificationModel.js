@@ -144,7 +144,9 @@ notificationSchema.pre(/^find/, function (next) {
 
 notificationSchema.post("save", async (doc) => {
   try {
-    if (!doc.pushSent) {
+    // أرسل الـ push فقط عندما تكون حالة الإشعار "sent".
+    // هذا يمنع الإرسال المبكر/المكرر لإشعارات الأدمن أثناء البث أو الجدولة.
+    if (!doc.pushSent && doc.status === "sent") {
       let relatedUserInfo = null;
       if (doc.relatedUser) {
         const u = await User.findById(doc.relatedUser)

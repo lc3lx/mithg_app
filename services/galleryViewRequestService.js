@@ -17,23 +17,23 @@ exports.sendGalleryViewRequest = asyncHandler(async (req, res, next) => {
   const requesterId = req.user._id.toString();
 
   if (!galleryItemId) {
-    return next(new ApiError("galleryItemId is required", 400));
+    return next(new ApiError("galleryItemId مطلوب", 400));
   }
 
   const owner = await User.findById(ownerId).select("friends gallery");
   if (!owner) {
-    return next(new ApiError("User not found", 404));
+    return next(new ApiError("المستخدم غير موجود", 404));
   }
 
   if (ownerId === requesterId) {
-    return next(new ApiError("You cannot request your own gallery", 400));
+    return next(new ApiError("لا يمكنك طلب مشاهدة معرضك", 400));
   }
 
   const itemExists = owner.gallery.some(
     (item) => item._id.toString() === galleryItemId
   );
   if (!itemExists) {
-    return next(new ApiError("Gallery item not found", 404));
+    return next(new ApiError("عنصر المعرض غير موجود", 404));
   }
 
   const existing = await GalleryViewRequest.findOne({
@@ -44,7 +44,7 @@ exports.sendGalleryViewRequest = asyncHandler(async (req, res, next) => {
   });
   if (existing) {
     return next(
-      new ApiError("You already have a pending request for this photo", 400)
+      new ApiError("لديك طلب معلّق مسبقاً لهذه الصورة", 400)
     );
   }
 
@@ -58,7 +58,7 @@ exports.sendGalleryViewRequest = asyncHandler(async (req, res, next) => {
   await createGalleryViewRequestNotification(req.user._id, ownerId);
 
   res.status(201).json({
-    message: "Gallery view request sent successfully",
+    message: "تم إرسال طلب مشاهدة الصورة بنجاح",
     data: request,
   });
 });
@@ -118,7 +118,7 @@ exports.acceptGalleryViewRequest = asyncHandler(async (req, res, next) => {
   });
 
   if (!request) {
-    return next(new ApiError("Request not found or already processed", 404));
+    return next(new ApiError("الطلب غير موجود أو تمّت معالجته مسبقاً", 404));
   }
 
   request.status = "accepted";
@@ -127,7 +127,7 @@ exports.acceptGalleryViewRequest = asyncHandler(async (req, res, next) => {
   await createGalleryViewAcceptedNotification(ownerId, request.requesterId);
 
   res.status(200).json({
-    message: "Gallery view request accepted",
+    message: "تم قبول طلب مشاهدة المعرض",
     data: request,
   });
 });
@@ -146,7 +146,7 @@ exports.rejectGalleryViewRequest = asyncHandler(async (req, res, next) => {
   });
 
   if (!request) {
-    return next(new ApiError("Request not found or already processed", 404));
+    return next(new ApiError("الطلب غير موجود أو تمّت معالجته مسبقاً", 404));
   }
 
   request.status = "rejected";
@@ -155,7 +155,7 @@ exports.rejectGalleryViewRequest = asyncHandler(async (req, res, next) => {
   await createGalleryViewRejectedNotification(ownerId, request.requesterId);
 
   res.status(200).json({
-    message: "Gallery view request rejected",
+    message: "تم رفض طلب مشاهدة المعرض",
     data: request,
   });
 });

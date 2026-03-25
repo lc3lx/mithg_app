@@ -43,6 +43,11 @@ exports.createSubscriptionPackageValidator = [
     .isFloat({ min: 0, max: 100 })
     .withMessage("Package discount must be between 0 and 100"),
 
+  body("discountAudience")
+    .optional({ nullable: true })
+    .isIn(["all", "male", "female"])
+    .withMessage("discountAudience must be all, male, or female"),
+
   validatorMiddleware,
 ];
 
@@ -99,6 +104,11 @@ exports.updateSubscriptionPackageValidator = [
       }
       return true;
     }),
+
+  body("discountAudience")
+    .optional({ nullable: true })
+    .isIn(["all", "male", "female"])
+    .withMessage("discountAudience must be all, male, or female"),
 
   validatorMiddleware,
 ];

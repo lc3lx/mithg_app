@@ -47,6 +47,12 @@ const subscriptionSchema = new mongoose.Schema(
         message: "discountPercent must be between 0 and 100",
       },
     },
+    // من يستفيد من خصم الباقة: all = الكل، male = الشباب، female = البنات
+    discountAudience: {
+      type: String,
+      enum: ["all", "male", "female"],
+      default: "all",
+    },
     isActive: {
       type: Boolean,
       default: true,
