@@ -11,7 +11,7 @@ const Transaction = require("../models/transactionModel");
 exports.createRechargeRequest = asyncHandler(async (req, res, next) => {
   const { amount, currency, method, proof, notes } = req.body;
   if (!amount || amount <= 0) {
-    return next(new ApiError("Valid amount is required", 400));
+    return next(new ApiError("يجب أن يتم توفير المبلغ المطلوب", 400));
   }
 
   const request = await RechargeRequest.create({
@@ -33,8 +33,12 @@ exports.createRechargeRequest = asyncHandler(async (req, res, next) => {
 // @route   GET /api/v1/recharge-requests/my
 // @access  Private/User
 exports.getMyRechargeRequests = asyncHandler(async (req, res) => {
-  const requests = await RechargeRequest.find({ user: req.user._id }).sort({ createdAt: -1 });
-  res.status(200).json({ status: "success", results: requests.length, data: requests });
+  const requests = await RechargeRequest.find({ user: req.user._id }).sort({
+    createdAt: -1,
+  });
+  res
+    .status(200)
+    .json({ status: "success", results: requests.length, data: requests });
 });
 
 // @desc    Get all recharge requests (admin)
@@ -42,7 +46,9 @@ exports.getMyRechargeRequests = asyncHandler(async (req, res) => {
 // @access  Private/Admin
 exports.getAllRechargeRequests = asyncHandler(async (req, res) => {
   const requests = await RechargeRequest.find().sort({ createdAt: -1 });
-  res.status(200).json({ status: "success", results: requests.length, data: requests });
+  res
+    .status(200)
+    .json({ status: "success", results: requests.length, data: requests });
 });
 
 // @desc    Approve recharge request (admin)
@@ -51,8 +57,9 @@ exports.getAllRechargeRequests = asyncHandler(async (req, res) => {
 exports.approveRechargeRequest = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
   const request = await RechargeRequest.findById(id);
-  if (!request) return next(new ApiError("Recharge request not found", 404));
-  if (request.status !== "pending") return next(new ApiError("Request already handled", 400));
+  if (!request) return next(new ApiError("لا يوجد طلب شحن لهذا المعرف", 404));
+  if (request.status !== "pending")
+    return next(new ApiError("الطلب تم معالجته مسبقاً", 400));
 
   // mark approved
   request.status = "approved";
@@ -63,7 +70,7 @@ exports.approveRechargeRequest = asyncHandler(async (req, res, next) => {
 
   // grant subscription / credit - use app wallet to record transaction
   const user = await User.findById(request.user);
-  if (!user) return next(new ApiError("User not found", 404));
+  if (!user) return next(new ApiError("لا يوجد مستخدم لهذا المعرف", 404));
 
   // set subscription (30 days) and mark subscribed
   user.isSubscribed = true;
@@ -76,10 +83,18 @@ exports.approveRechargeRequest = asyncHandler(async (req, res, next) => {
   // create transaction against app wallet
   let appWallet = await Wallet.getAppWallet();
   if (!appWallet) {
-    appWallet = await Wallet.create({ walletType: "app", balance: 0, currency: request.currency || "SAR" });
+    appWallet = await Wallet.create({
+      walletType: "app",
+      balance: 0,
+      currency: request.currency || "SAR",
+    });
   }
   // add credit to app wallet (incoming money)
-  await appWallet.addCredit(request.amount, `Manual recharge by ${user.email}`, null);
+  await appWallet.addCredit(
+    request.amount,
+    `Manual recharge by ${user.email}`,
+    null,
+  );
 
   const transaction = await Transaction.create({
     wallet: appWallet._id,
@@ -92,7 +107,13 @@ exports.approveRechargeRequest = asyncHandler(async (req, res, next) => {
     admin: req.admin._id,
   });
 
-  res.status(200).json({ status: "success", message: "Recharge request approved", data: { request, transaction } });
+  res
+    .status(200)
+    .json({
+      status: "success",
+      message: "Recharge request approved",
+      data: { request, transaction },
+    });
 });
 
 // @desc    Reject recharge request (admin)
@@ -102,7 +123,8 @@ exports.rejectRechargeRequest = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
   const request = await RechargeRequest.findById(id);
   if (!request) return next(new ApiError("Recharge request not found", 404));
-  if (request.status !== "pending") return next(new ApiError("Request already handled", 400));
+  if (request.status !== "pending")
+    return next(new ApiError("Request already handled", 400));
 
   request.status = "rejected";
   request.adminHandledBy = req.admin._id;
@@ -110,7 +132,11 @@ exports.rejectRechargeRequest = asyncHandler(async (req, res, next) => {
   request.notes = req.body.notes || request.notes;
   await request.save();
 
-  res.status(200).json({ status: "success", message: "Recharge request rejected", data: request });
+  res
+    .status(200)
+    .json({
+      status: "success",
+      message: "Recharge request rejected",
+      data: request,
+    });
 });
-
-

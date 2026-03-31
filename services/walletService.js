@@ -12,7 +12,7 @@ const User = require("../models/userModel");
 exports.getWallets = asyncHandler(async (req, res) => {
   const features = new ApiFeatures(
     Wallet.find().sort({ createdAt: -1 }),
-    req.query
+    req.query,
   )
     .filter()
     .sort()
@@ -37,7 +37,7 @@ exports.getAppWallet = asyncHandler(async (req, res) => {
   if (!wallet) {
     return res.status(404).json({
       status: "error",
-      message: "App wallet not found",
+      message: "لا يوجد محفظة للتطبيق",
     });
   }
 
@@ -58,7 +58,7 @@ exports.getUserWallet = asyncHandler(async (req, res) => {
   if (!wallet) {
     return res.status(404).json({
       status: "error",
-      message: "User wallet not found",
+      message: "لا يوجد محفظة للمستخدم",
     });
   }
 
@@ -77,7 +77,7 @@ exports.createAppWallet = asyncHandler(async (req, res) => {
   if (existingWallet) {
     return res.status(400).json({
       status: "error",
-      message: "App wallet already exists",
+      message: "محفظة التطبيق موجودة بالفعل",
     });
   }
 
@@ -111,7 +111,7 @@ exports.createUserWallet = asyncHandler(async (req, res) => {
   if (existingWallet) {
     return res.status(400).json({
       status: "error",
-      message: "User wallet already exists",
+      message: "محفظة المستخدم موجودة بالفعل",
     });
   }
 
@@ -136,12 +136,12 @@ exports.addCredit = asyncHandler(async (req, res, next) => {
   const { amount, description, paymentMethod, reference } = req.body;
 
   if (!amount || amount <= 0) {
-    return next(new ApiError("Valid amount is required", 400));
+    return next(new ApiError("يجب أن يكون المبلغ موجب", 400));
   }
 
   const wallet = await Wallet.findById(id);
   if (!wallet) {
-    return next(new ApiError("Wallet not found", 404));
+    return next(new ApiError("لا يوجد محفظة لهذا المعرف", 404));
   }
 
   // Add credit to wallet
@@ -179,16 +179,16 @@ exports.addDebit = asyncHandler(async (req, res, next) => {
   const { amount, description, reference } = req.body;
 
   if (!amount || amount <= 0) {
-    return next(new ApiError("Valid amount is required", 400));
+    return next(new ApiError("يجب أن يكون المبلغ موجب", 400));
   }
 
   const wallet = await Wallet.findById(id);
   if (!wallet) {
-    return next(new ApiError("Wallet not found", 404));
+    return next(new ApiError("لا يوجد محفظة لهذا المعرف", 404));
   }
 
   if (wallet.balance < amount) {
-    return next(new ApiError("Insufficient balance", 400));
+    return next(new ApiError("الرصيد غير كافي", 400));
   }
 
   // Add debit to wallet
@@ -224,18 +224,18 @@ exports.transferBetweenWallets = asyncHandler(async (req, res, next) => {
   const { fromWalletId, toWalletId, amount, description } = req.body;
 
   if (!amount || amount <= 0) {
-    return next(new ApiError("Valid amount is required", 400));
+    return next(new ApiError("يجب أن يكون المبلغ موجب", 400));
   }
 
   const fromWallet = await Wallet.findById(fromWalletId);
   const toWallet = await Wallet.findById(toWalletId);
 
   if (!fromWallet || !toWallet) {
-    return next(new ApiError("Wallet not found", 404));
+    return next(new ApiError("لا يوجد محفظة لهذا المعرف", 404));
   }
 
   if (fromWallet.balance < amount) {
-    return next(new ApiError("Insufficient balance in source wallet", 400));
+    return next(new ApiError("الرصيد غير كافي في المحفظة المصدر", 400));
   }
 
   // Perform transfer
@@ -266,7 +266,7 @@ exports.transferBetweenWallets = asyncHandler(async (req, res, next) => {
 
   res.status(200).json({
     status: "success",
-    message: `Transferred ${amount} ${fromWallet.currency} successfully`,
+    message: `تم التحويل ${amount} ${fromWallet.currency} بنجاح`,
     data: {
       fromWallet,
       toWallet,
@@ -281,7 +281,10 @@ exports.transferBetweenWallets = asyncHandler(async (req, res, next) => {
 exports.getWalletTransactions = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const transactions = await Transaction.getWalletTransactions(id, req.query.limit);
+  const transactions = await Transaction.getWalletTransactions(
+    id,
+    req.query.limit,
+  );
 
   res.status(200).json({
     status: "success",

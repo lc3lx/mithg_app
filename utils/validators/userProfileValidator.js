@@ -5,8 +5,8 @@ exports.updateAboutValidator = [
   body("about")
     .optional()
     .trim()
-    .isLength({ min: 0, max: 1000 })
-    .withMessage("About section must be between 0 and 1000 characters"),
+    .isLength({ min: 0, max: 500 })
+    .withMessage("About section must be between 0 and 500 characters"),
   validatorMiddleware,
 ];
 

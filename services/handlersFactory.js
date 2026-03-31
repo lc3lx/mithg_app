@@ -24,7 +24,7 @@ exports.updateOne = (Model) =>
 
     if (!document) {
       return next(
-        new ApiError(`No document for this id ${req.params.id}`, 404)
+        new ApiError(`No document for this id ${req.params.id}`, 404),
       );
     }
     // Trigger "save" event when update document
@@ -58,11 +58,17 @@ exports.getOne = (Model, populationOpt) =>
     const documentObject = document.toObject();
 
     // For User model, manually set image URLs if they exist
-    if (Model.modelName === 'User') {
-      if (documentObject.profileImg && !documentObject.profileImg.startsWith('http')) {
+    if (Model.modelName === "User") {
+      if (
+        documentObject.profileImg &&
+        !documentObject.profileImg.startsWith("http")
+      ) {
         documentObject.profileImg = `${process.env.BASE_URL}/uploads/users/${documentObject.profileImg}`;
       }
-      if (documentObject.coverImg && !documentObject.coverImg.startsWith('http')) {
+      if (
+        documentObject.coverImg &&
+        !documentObject.coverImg.startsWith("http")
+      ) {
         documentObject.coverImg = `${process.env.BASE_URL}/uploads/users/${documentObject.coverImg}`;
       }
     }
@@ -149,7 +155,7 @@ exports.updateOnePopulated = (Model, population = []) =>
 
     if (!document) {
       return next(
-        new ApiError(`No document for this id ${req.params.id}`, 404)
+        new ApiError(`No document for this id ${req.params.id}`, 404),
       );
     }
 
@@ -181,7 +187,7 @@ exports.getOneMultiplePop = (Model, populations = []) =>
     const document = await query;
 
     if (!document) {
-      return next(new ApiError(`No document for this id ${id}`, 404));
+      return next(new ApiError(`لا يوجد مستند لهذا المعرف ${id}`, 404));
     }
     res.status(200).json({ data: document });
   });
@@ -193,11 +199,11 @@ exports.deactivateOne = (Model) =>
     const document = await Model.findByIdAndUpdate(
       id,
       { active: false },
-      { new: true }
+      { new: true },
     );
 
     if (!document) {
-      return next(new ApiError(`No document for this id ${id}`, 404));
+      return next(new ApiError(`لا يوجد مستند لهذا المعرف ${id}`, 404));
     }
 
     res.status(200).json({ data: document });
@@ -210,14 +216,14 @@ exports.toggleField = (Model, fieldName) =>
     const document = await Model.findById(id);
 
     if (!document) {
-      return next(new ApiError(`No document for this id ${id}`, 404));
+      return next(new ApiError(`لا يوجد مستند لهذا المعرف ${id}`, 404));
     }
 
     document[fieldName] = !document[fieldName];
     await document.save();
 
     res.status(200).json({
-      message: `${fieldName} toggled successfully`,
+      message: `${fieldName} تم تفعيله بنجاح`,
       data: document,
     });
   });
@@ -231,15 +237,15 @@ exports.addToArray = (Model, arrayField) =>
     const document = await Model.findByIdAndUpdate(
       id,
       { $push: { [arrayField]: itemId } },
-      { new: true }
+      { new: true },
     );
 
     if (!document) {
-      return next(new ApiError(`No document for this id ${id}`, 404));
+      return next(new ApiError(`لا يوجد مستند لهذا المعرف ${id}`, 404));
     }
 
     res.status(200).json({
-      message: `Item added to ${arrayField} successfully`,
+      message: `تم إضافة العنصر إلى ${arrayField} بنجاح`,
       data: document,
     });
   });
@@ -253,15 +259,15 @@ exports.removeFromArray = (Model, arrayField) =>
     const document = await Model.findByIdAndUpdate(
       id,
       { $pull: { [arrayField]: itemId } },
-      { new: true }
+      { new: true },
     );
 
     if (!document) {
-      return next(new ApiError(`No document for this id ${id}`, 404));
+      return next(new ApiError(`لا يوجد مستند لهذا المعرف ${id}`, 404));
     }
 
     res.status(200).json({
-      message: `Item removed from ${arrayField} successfully`,
+      message: `تم إزالة العنصر من ${arrayField} بنجاح`,
       data: document,
     });
   });
@@ -275,15 +281,15 @@ exports.incrementField = (Model, fieldName) =>
     const document = await Model.findByIdAndUpdate(
       id,
       { $inc: { [fieldName]: amount } },
-      { new: true }
+      { new: true },
     );
 
     if (!document) {
-      return next(new ApiError(`No document for this id ${id}`, 404));
+      return next(new ApiError(`لا يوجد مستند لهذا المعرف ${id}`, 404));
     }
 
     res.status(200).json({
-      message: `${fieldName} incremented successfully`,
+      message: `${fieldName} تم زيادته بنجاح`,
       data: document,
     });
   });

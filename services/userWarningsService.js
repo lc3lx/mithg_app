@@ -27,7 +27,7 @@ exports.issueWarning = asyncHandler(async (req, res, next) => {
   // Validate user exists
   const user = await User.findById(userId);
   if (!user) {
-    return next(new ApiError("User not found", 404));
+    return next(new ApiError("لا يوجد مستخدم لهذا المعرف", 404));
   }
 
   // Get current warning count for the user
@@ -50,7 +50,7 @@ exports.issueWarning = asyncHandler(async (req, res, next) => {
   });
 
   res.status(201).json({
-    message: "Warning issued successfully",
+    message: "تم إصدار التنبيه بنجاح",
     data: warning,
   });
 });
@@ -61,7 +61,7 @@ exports.issueWarning = asyncHandler(async (req, res, next) => {
 exports.getUserWarnings = asyncHandler(async (req, res) => {
   const features = new ApiFeatures(
     UserWarnings.find().sort({ createdAt: -1 }),
-    req.query
+    req.query,
   )
     .filter()
     .sort()
@@ -85,7 +85,7 @@ exports.getUserWarningsById = asyncHandler(async (req, res, next) => {
   // Validate user exists
   const user = await User.findById(userId);
   if (!user) {
-    return next(new ApiError("User not found", 404));
+    return next(new ApiError("لا يوجد مستخدم لهذا المعرف", 404));
   }
 
   const warnings = await UserWarnings.find({ user: userId }).sort({
@@ -108,17 +108,17 @@ exports.resolveWarning = asyncHandler(async (req, res, next) => {
 
   const warning = await UserWarnings.findById(id);
   if (!warning) {
-    return next(new ApiError("Warning not found", 404));
+    return next(new ApiError("لا يوجد تنبيه لهذا المعرف", 404));
   }
 
   if (warning.status !== "active" && warning.status !== "appealed") {
-    return next(new ApiError("Warning is already resolved", 400));
+    return next(new ApiError("التنبيه محلول بالفعل", 400));
   }
 
   await warning.resolve(adminId, resolutionNotes);
 
   res.status(200).json({
-    message: "Warning resolved successfully",
+    message: "تم حل التنبيه بنجاح",
     data: warning,
   });
 });
@@ -137,23 +137,23 @@ exports.appealWarning = asyncHandler(async (req, res, next) => {
   });
 
   if (!warning) {
-    return next(new ApiError("Warning not found", 404));
+    return next(new ApiError("لا يوجد تنبيه لهذا المعرف", 404));
   }
 
   if (warning.status !== "active") {
-    return next(new ApiError("Warning cannot be appealed", 400));
+    return next(new ApiError("لا يمكن الاستئناف لهذا التنبيه", 400));
   }
 
   if (!appealReason || appealReason.trim().length < 10) {
     return next(
-      new ApiError("Appeal reason must be at least 10 characters", 400)
+      new ApiError("يجب أن يكون سبب الاستئناف على الأقل 10 أحرف", 400),
     );
   }
 
   await warning.appeal(appealReason);
 
   res.status(200).json({
-    message: "Warning appeal submitted successfully",
+    message: "تم إرسال الاستئناف للتنبيه بنجاح",
     data: warning,
   });
 });
@@ -216,9 +216,9 @@ exports.checkMessageAndWarn = asyncHandler(async (req, res, next) => {
     const blockDuration = bannedWord.blockDurationHours;
     await autoBlockUser(
       userId,
-      `Automatic block due to repeated violations (${bannedWord.word})`,
+      `حظر تلقائي بسبب التعديات المتكررة (${bannedWord.word})`,
       blockDuration,
-      null // No admin ID for auto-block
+      null, // No admin ID for auto-block
     );
 
     warning.leadsToBlock = true;
@@ -327,7 +327,7 @@ exports.bulkResolveWarnings = asyncHandler(async (req, res, next) => {
   const adminId = req.admin._id;
 
   if (!warningIds || !Array.isArray(warningIds) || warningIds.length === 0) {
-    return next(new ApiError("Warning IDs array is required", 400));
+    return next(new ApiError("يجب أن يكون لديك مصفوفة من تنبيهات المعرف", 400));
   }
 
   const results = {
@@ -367,7 +367,7 @@ exports.bulkResolveWarnings = asyncHandler(async (req, res, next) => {
   }
 
   res.status(200).json({
-    message: `Bulk operation completed. Resolved: ${results.resolved.length}, Skipped: ${results.skipped.length}, Errors: ${results.errors.length}`,
+    message: `تم إنهاء العملية المجمعة. حل: ${results.resolved.length}, تخطي: ${results.skipped.length}, أخطاء: ${results.errors.length}`,
     data: results,
   });
 });
@@ -381,10 +381,10 @@ exports.expireOldWarnings = asyncHandler(async (req, res) => {
       status: "active",
       expiresAt: { $lt: new Date() },
     },
-    { status: "expired" }
+    { status: "expired" },
   );
 
   res.status(200).json({
-    message: `${expiredCount.modifiedCount} warnings expired successfully`,
+    message: `${expiredCount.modifiedCount} تنبيهات منتهية بنجاح`,
   });
 });

@@ -10,10 +10,9 @@ const emitSupportMessage = (req, messageDoc) => {
   const io = req.app.get("io");
   const payload = messageDoc.toObject();
   const supportNamespace = io.of("/support");
-  supportNamespace.to(`user:${messageDoc.user.toString()}`).emit(
-    "support_message",
-    payload
-  );
+  supportNamespace
+    .to(`user:${messageDoc.user.toString()}`)
+    .emit("support_message", payload);
   supportNamespace.to("admins").emit("support_message", payload);
 };
 
@@ -48,7 +47,7 @@ exports.getUserMessages = asyncHandler(async (req, res) => {
 exports.sendUserMessage = asyncHandler(async (req, res, next) => {
   const { message } = req.body;
   if (!message || !message.trim()) {
-    return next(new ApiError("Message is required", 400));
+    return next(new ApiError("يجب أن يتم توفير الرسالة", 400));
   }
 
   const supportMessage = await SupportMessage.create({
@@ -114,7 +113,7 @@ exports.createGuestConversation = asyncHandler(async (req, res, next) => {
 exports.getGuestMessages = asyncHandler(async (req, res, next) => {
   const { conversationId } = req.params;
   const conversation = await GuestSupportConversation.findById(
-    conversationId
+    conversationId,
   ).lean();
   if (!conversation) {
     return next(new ApiError("المحادثة غير موجودة", 404));
@@ -160,7 +159,10 @@ exports.getAdminThreads = asyncHandler(async (req, res) => {
     .sort({ updatedAt: -1 })
     .lean();
   const guestThreads = guestConvos.map((g) => {
-    const lastMsg = g.messages && g.messages.length > 0 ? g.messages[g.messages.length - 1] : null;
+    const lastMsg =
+      g.messages && g.messages.length > 0
+        ? g.messages[g.messages.length - 1]
+        : null;
     return {
       isGuest: true,
       userId: `guest:${g._id}`,
@@ -201,7 +203,7 @@ exports.getAdminMessages = asyncHandler(async (req, res, next) => {
   if (userId.startsWith("guest:")) {
     const conversationId = userId.replace("guest:", "");
     const conversation = await GuestSupportConversation.findById(
-      conversationId
+      conversationId,
     ).lean();
     if (!conversation) {
       return next(new ApiError("محادثة الضيف غير موجودة", 404));
@@ -224,7 +226,7 @@ exports.getAdminMessages = asyncHandler(async (req, res, next) => {
 
   const user = await User.findById(userId);
   if (!user) {
-    return next(new ApiError("User not found", 404));
+    return next(new ApiError("لا يوجد مستخدم لهذا المعرف", 404));
   }
 
   const messages = await SupportMessage.find({ user: userId }).sort({
@@ -244,13 +246,13 @@ exports.sendAdminMessage = asyncHandler(async (req, res, next) => {
   const { userId } = req.params;
   const { message } = req.body;
   if (!message || !message.trim()) {
-    return next(new ApiError("Message is required", 400));
+    return next(new ApiError("يجب أن يتم توفير الرسالة", 400));
   }
 
   if (userId.startsWith("guest:")) {
     const conversationId = userId.replace("guest:", "");
     const conversation = await GuestSupportConversation.findById(
-      conversationId
+      conversationId,
     );
     if (!conversation) {
       return next(new ApiError("محادثة الضيف غير موجودة", 404));
@@ -273,7 +275,7 @@ exports.sendAdminMessage = asyncHandler(async (req, res, next) => {
     emitGuestSupport(req, "support_message", payload);
 
     return res.status(201).json({
-      message: "Support message sent",
+      message: "تم إرسال الرسالة بنجاح",
       data: {
         _id: lastMsgDoc._id,
         senderType: "admin",
@@ -285,7 +287,7 @@ exports.sendAdminMessage = asyncHandler(async (req, res, next) => {
 
   const user = await User.findById(userId);
   if (!user) {
-    return next(new ApiError("User not found", 404));
+    return next(new ApiError("لا يوجد مستخدم لهذا المعرف", 404));
   }
 
   const supportMessage = await SupportMessage.create({
@@ -298,8 +300,7 @@ exports.sendAdminMessage = asyncHandler(async (req, res, next) => {
   emitSupportMessage(req, supportMessage);
 
   res.status(201).json({
-    message: "Support message sent",
+    message: "تم إرسال الرسالة بنجاح",
     data: supportMessage,
   });
 });
-

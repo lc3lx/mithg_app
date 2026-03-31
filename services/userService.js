@@ -13,7 +13,10 @@ const Message = require("../models/messageModel");
 const DeviceToken = require("../models/deviceTokenModel");
 const Notification = require("../models/notificationModel");
 const UserReport = require("../models/userReportModel");
-const { createFriendRequestNotification, createFriendRequestAcceptedNotification } = require("./notificationService");
+const {
+  createFriendRequestNotification,
+  createFriendRequestAcceptedNotification,
+} = require("./notificationService");
 
 const deleteAllChatsForUser = async (userId) => {
   const chatIds = await Chat.find({
@@ -37,10 +40,7 @@ const PROFILE_MATCH_RELEVANT_FIELDS = [
 ];
 
 const normalizeArabic = (value) =>
-  (value || "")
-    .toString()
-    .trim()
-    .toLowerCase();
+  (value || "").toString().trim().toLowerCase();
 
 const includesPolygamy = (marriageType) =>
   normalizeArabic(marriageType).includes("تعدد");
@@ -64,7 +64,7 @@ const scoreOneSidePreferences = (preferer, candidate) => {
   } else {
     const distance = Math.min(
       Math.abs(candidateAge - minAge),
-      Math.abs(candidateAge - maxAge)
+      Math.abs(candidateAge - maxAge),
     );
     if (distance <= 2) score += 25;
     else if (distance <= 5) score += 15;
@@ -204,7 +204,7 @@ const maybeNotifyNearPreferenceMatches = async (user) => {
     .select(
       "name gender age country nationality religiousCommitment prayerObservance " +
         "preferredPartnerAgeMin preferredPartnerAgeMax preferredPartnerCountry " +
-        "acceptPolygamy marriageType blockedUsers"
+        "acceptPolygamy marriageType blockedUsers",
     )
     .limit(60)
     .lean();
@@ -212,10 +212,10 @@ const maybeNotifyNearPreferenceMatches = async (user) => {
   const jobs = candidates
     .map((candidate) => {
       const iBlockedCandidate = (user.blockedUsers || []).some(
-        (id) => id.toString() === candidate._id.toString()
+        (id) => id.toString() === candidate._id.toString(),
       );
       const candidateBlockedMe = (candidate.blockedUsers || []).some(
-        (id) => id.toString() === user._id.toString()
+        (id) => id.toString() === user._id.toString(),
       );
       if (iBlockedCandidate || candidateBlockedMe) return null;
 
@@ -256,14 +256,14 @@ exports.uploadCoverImage = uploadSingleImage("coverImg");
 
 // Image processing
 exports.resizeImage = asyncHandler(async (req, res, next) => {
-  console.log('🔄 resizeImage called, URL:', req.originalUrl);
-  console.log('📁 req.file:', req.file ? 'EXISTS' : 'NOT FOUND');
-  console.log('📋 req.body:', req.body);
+  console.log("🔄 resizeImage called, URL:", req.originalUrl);
+  console.log("📁 req.file:", req.file ? "EXISTS" : "NOT FOUND");
+  console.log("📋 req.body:", req.body);
 
   const filename = `user-${uuidv4()}-${Date.now()}.jpeg`;
 
   if (req.file) {
-    console.log('🖼️ Processing image file');
+    console.log("🖼️ Processing image file");
     await sharp(req.file.buffer)
       .resize(600, 600)
       .toFormat("jpeg")
@@ -271,15 +271,15 @@ exports.resizeImage = asyncHandler(async (req, res, next) => {
       .toFile(`uploads/users/${filename}`);
 
     // Save image into our db - determine which field to update based on URL
-    if (req.originalUrl.includes('uploadProfileImage')) {
+    if (req.originalUrl.includes("uploadProfileImage")) {
       req.body.profileImg = filename;
-      console.log('✅ Set profileImg:', filename);
-    } else if (req.originalUrl.includes('uploadCoverImage')) {
+      console.log("✅ Set profileImg:", filename);
+    } else if (req.originalUrl.includes("uploadCoverImage")) {
       req.body.coverImg = filename;
-      console.log('✅ Set coverImg:', filename);
+      console.log("✅ Set coverImg:", filename);
     }
   } else {
-    console.log('❌ No file found in request');
+    console.log("❌ No file found in request");
   }
 
   next();
@@ -316,7 +316,7 @@ exports.updateUser = asyncHandler(async (req, res, next) => {
     },
     {
       new: true,
-    }
+    },
   );
 
   if (!document) {
@@ -334,7 +334,7 @@ exports.changeUserPassword = asyncHandler(async (req, res, next) => {
     },
     {
       new: true,
-    }
+    },
   );
 
   if (!document) {
@@ -370,7 +370,7 @@ exports.getLoggedUserData = asyncHandler(async (req, res, next) => {
   const user = await User.findById(req.user._id);
 
   if (!user) {
-    return next(new ApiError('User not found', 404));
+    return next(new ApiError("User not found", 404));
   }
 
   // Auto-expire subscription if end date passed
@@ -383,16 +383,16 @@ exports.getLoggedUserData = asyncHandler(async (req, res, next) => {
   const userObject = user.toObject();
 
   // Manually set image URLs if they exist
-  if (userObject.profileImg && !userObject.profileImg.startsWith('http')) {
+  if (userObject.profileImg && !userObject.profileImg.startsWith("http")) {
     userObject.profileImg = `${process.env.BASE_URL}/uploads/users/${userObject.profileImg}`;
   }
-  if (userObject.coverImg && !userObject.coverImg.startsWith('http')) {
+  if (userObject.coverImg && !userObject.coverImg.startsWith("http")) {
     userObject.coverImg = `${process.env.BASE_URL}/uploads/users/${userObject.coverImg}`;
   }
 
-  console.log('👤 getLoggedUserData - Final data:', {
+  console.log("👤 getLoggedUserData - Final data:", {
     profileImg: userObject.profileImg,
-    coverImg: userObject.coverImg
+    coverImg: userObject.coverImg,
   });
 
   res.status(200).json({ data: userObject });
@@ -411,7 +411,7 @@ exports.updateLoggedUserPassword = asyncHandler(async (req, res, next) => {
     },
     {
       new: true,
-    }
+    },
   );
 
   // 2) Generate token
@@ -428,7 +428,7 @@ exports.updateLoggedUserData = asyncHandler(async (req, res, next) => {
   const user = await User.findById(req.user._id);
 
   if (!user) {
-    return next(new ApiError('User not found', 404));
+    return next(new ApiError("User not found", 404));
   }
 
   // Update only the image fields to avoid validation issues
@@ -442,10 +442,10 @@ exports.updateLoggedUserData = asyncHandler(async (req, res, next) => {
   // Save to trigger post("save") hooks
   const updatedUser = await user.save();
 
-  console.log('✅ User updated successfully:', {
+  console.log("✅ User updated successfully:", {
     id: updatedUser._id,
     profileImg: updatedUser.profileImg,
-    coverImg: updatedUser.coverImg
+    coverImg: updatedUser.coverImg,
   });
   res.status(200).json({ data: updatedUser });
 });
@@ -458,7 +458,7 @@ exports.updateLoggedUserProfileInfo = asyncHandler(async (req, res, next) => {
   const user = await User.findById(req.user._id);
 
   if (!user) {
-    return next(new ApiError('User not found', 404));
+    return next(new ApiError("User not found", 404));
   }
 
   // Update profile info fields
@@ -469,14 +469,19 @@ exports.updateLoggedUserProfileInfo = asyncHandler(async (req, res, next) => {
   if (req.body.age !== undefined) user.age = req.body.age;
   if (req.body.country !== undefined) user.country = req.body.country;
   if (req.body.city !== undefined) user.city = req.body.city;
-  if (req.body.nationality !== undefined) user.nationality = req.body.nationality;
-  if (req.body.educationalLevel !== undefined) user.educationalLevel = req.body.educationalLevel;
-  if (req.body.fieldOfWork !== undefined) user.fieldOfWork = req.body.fieldOfWork;
+  if (req.body.nationality !== undefined)
+    user.nationality = req.body.nationality;
+  if (req.body.educationalLevel !== undefined)
+    user.educationalLevel = req.body.educationalLevel;
+  if (req.body.fieldOfWork !== undefined)
+    user.fieldOfWork = req.body.fieldOfWork;
   if (req.body.gender !== undefined) user.gender = req.body.gender;
-  if (req.body.socialStatus !== undefined) user.socialStatus = req.body.socialStatus;
+  if (req.body.socialStatus !== undefined)
+    user.socialStatus = req.body.socialStatus;
   if (req.body.religion !== undefined) user.religion = req.body.religion;
   if (req.body.hijab !== undefined) user.hijab = req.body.hijab;
-  if (req.body.havingChildren !== undefined) user.havingChildren = req.body.havingChildren;
+  if (req.body.havingChildren !== undefined)
+    user.havingChildren = req.body.havingChildren;
   if (req.body.desire !== undefined) user.desire = req.body.desire;
   if (req.body.polygamy !== undefined) user.polygamy = req.body.polygamy;
   if (req.body.smoking !== undefined) user.smoking = req.body.smoking;
@@ -484,20 +489,30 @@ exports.updateLoggedUserProfileInfo = asyncHandler(async (req, res, next) => {
   if (req.body.height !== undefined) user.height = req.body.height;
   if (req.body.weight !== undefined) user.weight = req.body.weight;
   if (req.body.bodyShape !== undefined) user.bodyShape = req.body.bodyShape;
-  if (req.body.healthProblems !== undefined) user.healthProblems = req.body.healthProblems;
+  if (req.body.healthProblems !== undefined)
+    user.healthProblems = req.body.healthProblems;
   // صفحة 4.5 - تفضيلات الشريك
-  if (req.body.religiousCommitment !== undefined) user.religiousCommitment = req.body.religiousCommitment;
-  if (req.body.prayerObservance !== undefined) user.prayerObservance = req.body.prayerObservance;
-  if (req.body.preferredPartnerAgeMin !== undefined) user.preferredPartnerAgeMin = req.body.preferredPartnerAgeMin;
-  if (req.body.preferredPartnerAgeMax !== undefined) user.preferredPartnerAgeMax = req.body.preferredPartnerAgeMax;
-  if (req.body.preferredPartnerCountry !== undefined) user.preferredPartnerCountry = req.body.preferredPartnerCountry;
+  if (req.body.religiousCommitment !== undefined)
+    user.religiousCommitment = req.body.religiousCommitment;
+  if (req.body.prayerObservance !== undefined)
+    user.prayerObservance = req.body.prayerObservance;
+  if (req.body.preferredPartnerAgeMin !== undefined)
+    user.preferredPartnerAgeMin = req.body.preferredPartnerAgeMin;
+  if (req.body.preferredPartnerAgeMax !== undefined)
+    user.preferredPartnerAgeMax = req.body.preferredPartnerAgeMax;
+  if (req.body.preferredPartnerCountry !== undefined)
+    user.preferredPartnerCountry = req.body.preferredPartnerCountry;
   if (req.body.hijabType !== undefined) user.hijabType = req.body.hijabType;
-  if (req.body.acceptPolygamy !== undefined) user.acceptPolygamy = req.body.acceptPolygamy;
-  if (req.body.partnerTraitsOrConditions !== undefined) user.partnerTraitsOrConditions = req.body.partnerTraitsOrConditions;
-  if (req.body.marriageType !== undefined) user.marriageType = req.body.marriageType;
+  if (req.body.acceptPolygamy !== undefined)
+    user.acceptPolygamy = req.body.acceptPolygamy;
+  if (req.body.partnerTraitsOrConditions !== undefined)
+    user.partnerTraitsOrConditions = req.body.partnerTraitsOrConditions;
+  if (req.body.marriageType !== undefined)
+    user.marriageType = req.body.marriageType;
   if (req.body.registrationStep !== undefined) {
     const step = Number(req.body.registrationStep);
-    if (!Number.isNaN(step) && step >= 0 && step <= 6) user.registrationStep = step;
+    if (!Number.isNaN(step) && step >= 0 && step <= 6)
+      user.registrationStep = step;
   }
 
   // Save to trigger post("save") hooks
@@ -505,7 +520,7 @@ exports.updateLoggedUserProfileInfo = asyncHandler(async (req, res, next) => {
 
   // بعد حفظ تفضيلات صفحة 4.5 نرسل إشعارات المطابقة القريبة (80-90%) للطرفين.
   const hasRelevantPreferenceChange = PROFILE_MATCH_RELEVANT_FIELDS.some(
-    (field) => Object.prototype.hasOwnProperty.call(req.body, field)
+    (field) => Object.prototype.hasOwnProperty.call(req.body, field),
   );
   if (hasRelevantPreferenceChange) {
     maybeNotifyNearPreferenceMatches(updatedUser).catch((err) => {
@@ -513,7 +528,7 @@ exports.updateLoggedUserProfileInfo = asyncHandler(async (req, res, next) => {
     });
   }
 
-  console.log('✅ User profile info updated successfully:', {
+  console.log("✅ User profile info updated successfully:", {
     id: updatedUser._id,
     name: updatedUser.name,
     email: updatedUser.email,
@@ -620,7 +635,7 @@ exports.removeFromFavorites = asyncHandler(async (req, res, next) => {
 exports.getUserFavorites = asyncHandler(async (req, res, next) => {
   const user = await User.findById(req.user._id).populate(
     "favorites",
-    "name age gender bio location profileImg coverImg about isOnline lastSeen profileViews"
+    "name age gender bio location profileImg coverImg about isOnline lastSeen profileViews",
   );
   const friendIds = (user.friends || []).map((id) => id.toString());
   const favorites = (user.favorites || []).map((fav) => {
@@ -665,9 +680,7 @@ exports.sendFriendRequest = asyncHandler(async (req, res, next) => {
 
   // Check if user already sent request to current user
   if (currentUser.friendRequests.includes(userId)) {
-    return next(
-      new ApiError("هذا المستخدم أرسل لك طلب صداقة مسبقاً", 400)
-    );
+    return next(new ApiError("هذا المستخدم أرسل لك طلب صداقة مسبقاً", 400));
   }
 
   // Add to sent requests for current user
@@ -698,12 +711,12 @@ exports.acceptFriendRequest = asyncHandler(async (req, res, next) => {
   const otherUser = await User.findById(userId);
 
   if (!currentUser || !otherUser) {
-    return next(new ApiError("User not found", 404));
+    return next(new ApiError("لا يوجد مستخدم لهذا المعرف", 404));
   }
 
   // Check if request exists
   if (!currentUser.friendRequests.includes(userId)) {
-    return next(new ApiError("No friend request from this user", 400));
+    return next(new ApiError("لا يوجد طلب صداقة من هذا المستخدم", 400));
   }
 
   // Remove from friend requests
@@ -735,7 +748,7 @@ exports.acceptFriendRequest = asyncHandler(async (req, res, next) => {
   await createFriendRequestAcceptedNotification(userId, req.user._id);
 
   res.status(200).json({
-    message: "Friend request accepted successfully",
+    message: "تم قبول طلب الصداقة بنجاح",
   });
 });
 
@@ -748,12 +761,12 @@ exports.rejectFriendRequest = asyncHandler(async (req, res, next) => {
   const currentUser = await User.findById(req.user._id);
 
   if (!currentUser) {
-    return next(new ApiError("User not found", 404));
+    return next(new ApiError("لا يوجد مستخدم لهذا المعرف", 404));
   }
 
   // Check if request exists
   if (!currentUser.friendRequests.includes(userId)) {
-    return next(new ApiError("No friend request from this user", 400));
+    return next(new ApiError("لا يوجد طلب صداقة من هذا المستخدم", 400));
   }
 
   // Remove from friend requests
@@ -767,7 +780,7 @@ exports.rejectFriendRequest = asyncHandler(async (req, res, next) => {
   });
 
   res.status(200).json({
-    message: "Friend request rejected successfully",
+    message: "تم رفض طلب الصداقة بنجاح",
   });
 });
 
@@ -780,12 +793,12 @@ exports.cancelFriendRequest = asyncHandler(async (req, res, next) => {
   const currentUser = await User.findById(req.user._id);
 
   if (!currentUser) {
-    return next(new ApiError("User not found", 404));
+    return next(new ApiError("لا يوجد مستخدم لهذا المعرف", 404));
   }
 
   // Check if request exists
   if (!currentUser.sentFriendRequests.includes(userId)) {
-    return next(new ApiError("No sent friend request to this user", 400));
+    return next(new ApiError("لا يوجد طلب صداقة مرسل إلى هذا المستخدم", 400));
   }
 
   // Remove from sent requests
@@ -799,7 +812,7 @@ exports.cancelFriendRequest = asyncHandler(async (req, res, next) => {
   });
 
   res.status(200).json({
-    message: "Friend request cancelled successfully",
+    message: "تم إلغاء طلب الصداقة بنجاح",
   });
 });
 
@@ -810,11 +823,11 @@ exports.getFriendRequests = asyncHandler(async (req, res, next) => {
   const user = await User.findById(req.user._id)
     .populate(
       "friendRequests",
-      "name age gender bio location country city profileImg coverImg about isOnline lastSeen profileViews"
+      "name age gender bio location country city profileImg coverImg about isOnline lastSeen profileViews",
     )
     .populate(
       "sentFriendRequests",
-      "name age gender bio location country city profileImg coverImg about isOnline lastSeen profileViews"
+      "name age gender bio location country city profileImg coverImg about isOnline lastSeen profileViews",
     );
   const friendIds = (user.friends || []).map((id) => id.toString());
 
@@ -887,18 +900,18 @@ exports.removeFriend = asyncHandler(async (req, res, next) => {
   const { userId } = req.params;
 
   if (userId === req.user._id.toString()) {
-    return next(new ApiError("You cannot remove yourself", 400));
+    return next(new ApiError("لا يمكنك إزالة نفسك", 400));
   }
 
   const currentUser = await User.findById(req.user._id);
   const otherUser = await User.findById(userId);
 
   if (!currentUser || !otherUser) {
-    return next(new ApiError("User not found", 404));
+    return next(new ApiError("لا يوجد مستخدم لهذا المعرف", 404));
   }
 
   if (!currentUser.friends.includes(userId)) {
-    return next(new ApiError("User is not in your friends list", 400));
+    return next(new ApiError("لا يوجد هذا المستخدم في قائمة الأصدقاء", 400));
   }
 
   await User.findByIdAndUpdate(req.user._id, {
@@ -918,7 +931,7 @@ exports.removeFriend = asyncHandler(async (req, res, next) => {
   });
 
   res.status(200).json({
-    message: "Friend removed successfully",
+    message: "تم إزالة الصديق بنجاح",
   });
 });
 
@@ -929,18 +942,18 @@ exports.blockUser = asyncHandler(async (req, res, next) => {
   const { userId } = req.params;
 
   if (userId === req.user._id.toString()) {
-    return next(new ApiError("You cannot block yourself", 400));
+    return next(new ApiError("لا يمكنك حظر نفسك", 400));
   }
 
   const currentUser = await User.findById(req.user._id);
   const otherUser = await User.findById(userId);
 
   if (!currentUser || !otherUser) {
-    return next(new ApiError("User not found", 404));
+    return next(new ApiError("لا يوجد مستخدم لهذا المعرف", 404));
   }
 
   if (currentUser.blockedUsers.includes(userId)) {
-    return next(new ApiError("User is already blocked", 400));
+    return next(new ApiError("المستخدم محظور بالفعل", 400));
   }
 
   await User.findByIdAndUpdate(req.user._id, {
@@ -961,7 +974,7 @@ exports.blockUser = asyncHandler(async (req, res, next) => {
   });
 
   res.status(200).json({
-    message: "User blocked successfully",
+    message: "تم حظر المستخدم بنجاح",
   });
 });
 
@@ -973,12 +986,12 @@ exports.reportUser = asyncHandler(async (req, res, next) => {
   const { reason, details } = req.body || {};
 
   if (userId === req.user._id.toString()) {
-    return next(new ApiError("You cannot report yourself", 400));
+    return next(new ApiError("لا يمكنك الإبلاغ عن نفسك", 400));
   }
 
   const otherUser = await User.findById(userId);
   if (!otherUser) {
-    return next(new ApiError("User not found", 404));
+    return next(new ApiError("لا يوجد مستخدم لهذا المعرف", 404));
   }
 
   const report = await UserReport.create({
@@ -989,7 +1002,7 @@ exports.reportUser = asyncHandler(async (req, res, next) => {
   });
 
   res.status(201).json({
-    message: "Report submitted successfully",
+    message: "تم إرسال الشكوى بنجاح",
     data: report,
   });
 });

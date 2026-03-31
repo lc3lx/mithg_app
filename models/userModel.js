@@ -194,7 +194,7 @@ const userSchema = new mongoose.Schema(
     // About section - نبذة عن المستخدم
     about: {
       type: String,
-      maxlength: [1000, "About section too long"],
+      maxlength: [500, "About section too long"],
       trim: true,
     },
 

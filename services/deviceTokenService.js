@@ -10,7 +10,7 @@ exports.registerDeviceToken = asyncHandler(async (req, res, next) => {
   const userId = req.user._id;
 
   if (!playerId || !platform) {
-    return next(new ApiError("playerId and platform are required", 400));
+    return next(new ApiError("playerId و platform مطلوبين", 400));
   }
 
   const token = await DeviceToken.findOneAndUpdate(
@@ -20,7 +20,7 @@ exports.registerDeviceToken = asyncHandler(async (req, res, next) => {
       isActive: true,
       lastSeenAt: new Date(),
     },
-    { new: true, upsert: true, setDefaultsOnInsert: true }
+    { new: true, upsert: true, setDefaultsOnInsert: true },
   );
 
   res.status(200).json({ data: token });
@@ -34,14 +34,13 @@ exports.removeDeviceToken = asyncHandler(async (req, res, next) => {
   const userId = req.user._id;
 
   if (!playerId) {
-    return next(new ApiError("playerId is required", 400));
+    return next(new ApiError("playerId مطلوب", 400));
   }
 
   await DeviceToken.findOneAndUpdate(
     { user: userId, playerId },
-    { isActive: false, lastSeenAt: new Date() }
+    { isActive: false, lastSeenAt: new Date() },
   );
 
-  res.status(200).json({ message: "Device token removed" });
+  res.status(200).json({ message: "تم إزالة الرمز المرجعي للجهاز" });
 });
-

@@ -1,12 +1,7 @@
 const asyncHandler = require("express-async-handler");
 const ApiError = require("../utils/apiError");
 const ApiFeatures = require("../utils/apiFeatures");
-const {
-  getAll,
-  getOne,
-  deleteOne,
-  updateOne,
-} = require("./handlersFactory");
+const { getAll, getOne, deleteOne, updateOne } = require("./handlersFactory");
 
 const Notification = require("../models/notificationModel");
 const User = require("../models/userModel");
@@ -34,7 +29,7 @@ exports.getNotifications = asyncHandler(async (req, res) => {
   const documentsCounts = await Notification.countDocuments({ user: userId });
   const apiFeatures = new ApiFeatures(
     Notification.find({ user: userId }),
-    req.query
+    req.query,
   )
     .paginate(documentsCounts)
     .filter()
@@ -72,7 +67,7 @@ exports.getNotification = asyncHandler(async (req, res, next) => {
   });
 
   if (!notification) {
-    return next(new ApiError(`No notification found with this id ${id}`, 404));
+    return next(new ApiError(`لا يوجد إشعار بهذا المعرف ${id}`, 404));
   }
 
   res.status(200).json({ data: notification });
@@ -91,15 +86,15 @@ exports.markAsRead = asyncHandler(async (req, res, next) => {
       isRead: true,
       readAt: new Date(),
     },
-    { new: true }
+    { new: true },
   );
 
   if (!notification) {
-    return next(new ApiError(`No notification found with this id ${id}`, 404));
+    return next(new ApiError(`لا يوجد إشعار بهذا المعرف ${id}`, 404));
   }
 
   res.status(200).json({
-    message: "Notification marked as read",
+    message: "تم تحديث الإشعار بنجاح",
     data: notification,
   });
 });
@@ -115,11 +110,11 @@ exports.markAllAsRead = asyncHandler(async (req, res) => {
     {
       isRead: true,
       readAt: new Date(),
-    }
+    },
   );
 
   res.status(200).json({
-    message: "All notifications marked as read",
+    message: "تم تحديث جميع الإشعارات بنجاح",
   });
 });
 
@@ -136,7 +131,7 @@ exports.deleteNotification = asyncHandler(async (req, res, next) => {
   });
 
   if (!notification) {
-    return next(new ApiError(`No notification found with this id ${id}`, 404));
+    return next(new ApiError(`لا يوجد إشعار بهذا المعرف ${id}`, 404));
   }
 
   res.status(204).send();
@@ -154,7 +149,7 @@ exports.deleteReadNotifications = asyncHandler(async (req, res) => {
   });
 
   res.status(200).json({
-    message: "All read notifications deleted",
+    message: "تم حذف جميع الإشعارات المقروءة بنجاح",
   });
 });
 
@@ -201,7 +196,7 @@ exports.createNotification = asyncHandler(async (req, res) => {
   const notification = await Notification.create(req.body);
 
   res.status(201).json({
-    message: "Notification created successfully",
+    message: "تم إنشاء الإشعار بنجاح",
     data: notification,
   });
 });
@@ -216,10 +211,7 @@ exports.createNotification = asyncHandler(async (req, res) => {
 exports.getAllNotificationsAdmin = asyncHandler(async (req, res) => {
   const filter = { type: { $in: ADMIN_BROADCAST_TYPES } };
   const documentsCounts = await Notification.countDocuments(filter);
-  const apiFeatures = new ApiFeatures(
-    Notification.find(filter),
-    req.query
-  )
+  const apiFeatures = new ApiFeatures(Notification.find(filter), req.query)
     .paginate(documentsCounts)
     .filter()
     .search("Notification")
@@ -294,74 +286,79 @@ exports.getNotificationStatsAdmin = asyncHandler(async (req, res) => {
 // @desc    Create admin broadcast notifications
 // @route   POST /api/v1/notifications/admin
 // @access  Private/Admin
-exports.createAdminBroadcastNotification = asyncHandler(async (req, res, next) => {
-  const {
-    recipientType = "all",
-    type,
-    title,
-    message,
-    status,
-    scheduledAt,
-    userIds,
-  } = req.body;
+exports.createAdminBroadcastNotification = asyncHandler(
+  async (req, res, next) => {
+    const {
+      recipientType = "all",
+      type,
+      title,
+      message,
+      status,
+      scheduledAt,
+      userIds,
+    } = req.body;
 
-  // Build recipients query
-  let recipients = [];
-  if (recipientType === "specific") {
-    if (!Array.isArray(userIds) || userIds.length === 0) {
-      return next(
-        new ApiError("userIds must be provided when recipientType is specific", 400)
-      );
+    // Build recipients query
+    let recipients = [];
+    if (recipientType === "specific") {
+      if (!Array.isArray(userIds) || userIds.length === 0) {
+        return next(
+          new ApiError(
+            "يجب أن يتم توفير userIds عندما يكون recipientType خاص",
+            400,
+          ),
+        );
+      }
+      // Ensure unique IDs
+      const uniqueIds = [...new Set(userIds.map(String))];
+      recipients = uniqueIds.map((id) => ({ _id: id }));
+    } else {
+      const query = {};
+      if (recipientType === "premium") {
+        query.isSubscribed = true;
+      } else if (recipientType === "new_users") {
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        query.createdAt = { $gte: thirtyDaysAgo };
+      } else if (recipientType === "inactive") {
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        // Basic heuristic: accounts older than 30 days (no activity tracking field is guaranteed)
+        query.createdAt = { $lte: thirtyDaysAgo };
+      }
+      const users = await User.find(query).select("_id");
+      recipients = users.map((u) => ({ _id: u._id }));
     }
-    // Ensure unique IDs
-    const uniqueIds = [...new Set(userIds.map(String))];
-    recipients = uniqueIds.map((id) => ({ _id: id }));
-  } else {
-    const query = {};
-    if (recipientType === "premium") {
-      query.isSubscribed = true;
-    } else if (recipientType === "new_users") {
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      query.createdAt = { $gte: thirtyDaysAgo };
-    } else if (recipientType === "inactive") {
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      // Basic heuristic: accounts older than 30 days (no activity tracking field is guaranteed)
-      query.createdAt = { $lte: thirtyDaysAgo };
+
+    if (!recipients || recipients.length === 0) {
+      return next(new ApiError("لا يوجد مستخدمون للتوصيل بهذا المعيار", 404));
     }
-    const users = await User.find(query).select("_id");
-    recipients = users.map((u) => ({ _id: u._id }));
-  }
 
-  if (!recipients || recipients.length === 0) {
-    return next(new ApiError("No recipients found for the selected criteria", 404));
-  }
+    const computedStatus = status || (scheduledAt ? "scheduled" : "sent");
+    const parsedScheduledAt = scheduledAt ? new Date(scheduledAt) : undefined;
 
-  const computedStatus = status || (scheduledAt ? "scheduled" : "sent");
-  const parsedScheduledAt = scheduledAt ? new Date(scheduledAt) : undefined;
+    const docs = recipients.map((r) => ({
+      user: r._id,
+      type,
+      title,
+      message,
+      recipientType,
+      status: computedStatus,
+      ...(parsedScheduledAt ? { scheduledAt: parsedScheduledAt } : {}),
+      ...(computedStatus === "sent" ? { sentAt: new Date() } : {}),
+      recipientsCount: 1,
+      openedCount: 0,
+    }));
 
-  const docs = recipients.map((r) => ({
-    user: r._id,
-    type,
-    title,
-    message,
-    recipientType,
-    status: computedStatus,
-    ...(parsedScheduledAt ? { scheduledAt: parsedScheduledAt } : {}),
-    ...(computedStatus === "sent" ? { sentAt: new Date() } : {}),
-    recipientsCount: 1,
-    openedCount: 0,
-  }));
+    const inserted = await Notification.insertMany(docs, { ordered: false });
+    // ملاحظة: إرسال الـ push يتم عبر hook في `notificationModel.js` فقط عندما تكون الحالة "sent".
+    // الإشعارات "scheduled" تُرسل لاحقاً عبر `processScheduledNotifications`.
 
-  const inserted = await Notification.insertMany(docs, { ordered: false });
-  // ملاحظة: إرسال الـ push يتم عبر hook في `notificationModel.js` فقط عندما تكون الحالة "sent".
-  // الإشعارات "scheduled" تُرسل لاحقاً عبر `processScheduledNotifications`.
-
-  res.status(201).json({
-    message: "Broadcast notifications created",
-    results: inserted.length,
-    data: inserted,
-  });
-});
+    res.status(201).json({
+      message: "تم إنشاء الإشعارات المبثوثة بنجاح",
+      results: inserted.length,
+      data: inserted,
+    });
+  },
+);
 
 /**
  * معالجة الإشعارات المجدولة التي حان موعدها: إرسال push وتحديث الحالة إلى sent
@@ -386,13 +383,10 @@ exports.processScheduledNotifications = async () => {
           sentAt: new Date(),
           pushSent: true,
           pushSentAt: new Date(),
-        }
+        },
       );
     } catch (err) {
-      console.error(
-        `[Scheduled notification] Failed for ${doc._id}:`,
-        err.message
-      );
+      console.error(`[الإشعار المجدول] فشل ل ${doc._id}:`, err.message);
     }
   }
 };
@@ -402,46 +396,57 @@ exports.createFriendRequestNotification = async (senderId, receiverId) => {
   try {
     const notification = await Notification.create({
       user: receiverId,
-      type: 'friend_request',
-      title: 'طلب صداقة جديد',
-      message: 'لديك طلب صداقة جديد',
+      type: "friend_request",
+      title: "طلب صداقة جديد",
+      message: "لديك طلب صداقة جديد",
       relatedUser: senderId,
     });
     return notification;
   } catch (error) {
-    console.error('Error creating friend request notification:', error);
+    console.error("فشل إنشاء إشعار الطلب الصداقة:", error);
   }
 };
 
-exports.createFriendRequestAcceptedNotification = async (senderId, receiverId) => {
+exports.createFriendRequestAcceptedNotification = async (
+  senderId,
+  receiverId,
+) => {
   try {
     const notification = await Notification.create({
       user: senderId,
-      type: 'friend_request_accepted',
-      title: 'تم قبول طلب الصداقة',
-      message: 'تم قبول طلب صداقتك',
+      type: "friend_request_accepted",
+      title: "تم قبول طلب الصداقة",
+      message: "تم قبول طلب صداقتك",
       relatedUser: receiverId,
     });
     return notification;
   } catch (error) {
-    console.error('Error creating friend request accepted notification:', error);
+    console.error("فشل إنشاء إشعار قبول الطلب الصداقة:", error);
   }
 };
 
-exports.createMessageNotification = async (senderId, receiverId, chatId, messageContent) => {
+exports.createMessageNotification = async (
+  senderId,
+  receiverId,
+  chatId,
+  messageContent,
+) => {
   try {
     const notification = await Notification.create({
       user: receiverId,
-      type: 'new_message',
-      title: 'رسالة جديدة',
-      message: messageContent.length > 50 ? messageContent.substring(0, 50) + '...' : messageContent,
+      type: "new_message",
+      title: "رسالة جديدة",
+      message:
+        messageContent.length > 50
+          ? messageContent.substring(0, 50) + "..."
+          : messageContent,
       relatedUser: senderId,
       relatedChat: chatId,
       data: { messageContent },
     });
     return notification;
   } catch (error) {
-    console.error('Error creating message notification:', error);
+    console.error("فشل إنشاء إشعار الرسالة:", error);
   }
 };
 
@@ -449,32 +454,40 @@ exports.createLikeNotification = async (likerId, postOwnerId, postId) => {
   try {
     const notification = await Notification.create({
       user: postOwnerId,
-      type: 'post_like',
-      title: 'إعجاب جديد',
-      message: 'أعجب شخص بمنشورك',
+      type: "post_like",
+      title: "إعجاب جديد",
+      message: "أعجب شخص بمنشورك",
       relatedUser: likerId,
       relatedPost: postId,
     });
     return notification;
   } catch (error) {
-    console.error('Error creating like notification:', error);
+    console.error("فشل إنشاء إشعار الإعجاب:", error);
   }
 };
 
-exports.createCommentNotification = async (commenterId, postOwnerId, postId, commentContent) => {
+exports.createCommentNotification = async (
+  commenterId,
+  postOwnerId,
+  postId,
+  commentContent,
+) => {
   try {
     const notification = await Notification.create({
       user: postOwnerId,
-      type: 'post_comment',
-      title: 'تعليق جديد',
-      message: commentContent.length > 50 ? commentContent.substring(0, 50) + '...' : commentContent,
+      type: "post_comment",
+      title: "تعليق جديد",
+      message:
+        commentContent.length > 50
+          ? commentContent.substring(0, 50) + "..."
+          : commentContent,
       relatedUser: commenterId,
       relatedPost: postId,
       data: { commentContent },
     });
     return notification;
   } catch (error) {
-    console.error('Error creating comment notification:', error);
+    console.error("فشل إنشاء إشعار التعليق:", error);
   }
 };
 
@@ -483,9 +496,9 @@ exports.createProfileViewNotification = async (viewerId, profileOwnerId) => {
     // Check if notification already exists for this viewer in the last 24 hours
     const existingNotification = await Notification.findOne({
       user: profileOwnerId,
-      type: 'profile_view',
+      type: "profile_view",
       relatedUser: viewerId,
-      createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+      createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
     });
 
     if (!existingNotification) {
@@ -493,15 +506,15 @@ exports.createProfileViewNotification = async (viewerId, profileOwnerId) => {
       const viewerName = viewer?.name?.trim() || "مستخدم";
       const notification = await Notification.create({
         user: profileOwnerId,
-        type: 'profile_view',
-        title: 'زيارة ملف شخصي',
+        type: "profile_view",
+        title: "زيارة ملف شخصي",
         message: `${viewerName} قام بزيارة ملفك الشخصي`,
         relatedUser: viewerId,
       });
       return notification;
     }
   } catch (error) {
-    console.error('Error creating profile view notification:', error);
+    console.error("فشل إنشاء إشعار زيارة ملف شخصي:", error);
   }
 };
 
@@ -518,14 +531,20 @@ exports.createGalleryViewRequestNotification = async (requesterId, ownerId) => {
     });
     return notification;
   } catch (error) {
-    console.error("Error creating gallery view request notification:", error);
+    console.error("فشل إنشاء إشعار طلب مشاهدة المعرض:", error);
   }
 };
 
 // إشعار القبول/الرفض يُرسل فقط لصاحب الطلب (الطالب) وليس لصاحب المعرض
-exports.createGalleryViewAcceptedNotification = async (ownerId, requesterId) => {
+exports.createGalleryViewAcceptedNotification = async (
+  ownerId,
+  requesterId,
+) => {
   try {
-    const recipientId = requesterId && typeof requesterId === "object" ? requesterId._id ?? requesterId : requesterId;
+    const recipientId =
+      requesterId && typeof requesterId === "object"
+        ? requesterId._id ?? requesterId
+        : requesterId;
     if (!recipientId) return null;
     const owner = await User.findById(ownerId).select("name").lean();
     const ownerName = owner?.name?.trim() || "مستخدم";
@@ -538,13 +557,19 @@ exports.createGalleryViewAcceptedNotification = async (ownerId, requesterId) => 
     });
     return notification;
   } catch (error) {
-    console.error("Error creating gallery view accepted notification:", error);
+    console.error("فشل إنشاء إشعار قبول طلب مشاهدة المعرض:", error);
   }
 };
 
-exports.createGalleryViewRejectedNotification = async (ownerId, requesterId) => {
+exports.createGalleryViewRejectedNotification = async (
+  ownerId,
+  requesterId,
+) => {
   try {
-    const recipientId = requesterId && typeof requesterId === "object" ? requesterId._id ?? requesterId : requesterId;
+    const recipientId =
+      requesterId && typeof requesterId === "object"
+        ? requesterId._id ?? requesterId
+        : requesterId;
     if (!recipientId) return null;
     const owner = await User.findById(ownerId).select("name").lean();
     const ownerName = owner?.name?.trim() || "مستخدم";
@@ -557,7 +582,7 @@ exports.createGalleryViewRejectedNotification = async (ownerId, requesterId) => 
     });
     return notification;
   } catch (error) {
-    console.error("Error creating gallery view rejected notification:", error);
+    console.error("فشل إنشاء إشعار رفض طلب مشاهدة المعرض:", error);
   }
 };
 
@@ -567,24 +592,24 @@ exports.createMatchNotification = async (userId1, userId2, matchData) => {
     const notifications = await Promise.all([
       Notification.create({
         user: userId1,
-        type: 'match_suggestion',
-        title: 'تطابق جديد!',
-        message: 'تم العثور على تطابق مناسب لك',
+        type: "match_suggestion",
+        title: "تطابق جديد!",
+        message: "تم العثور على تطابق مناسب لك",
         relatedUser: userId2,
         data: matchData,
       }),
       Notification.create({
         user: userId2,
-        type: 'match_suggestion',
-        title: 'تطابق جديد!',
-        message: 'تم العثور على تطابق مناسب لك',
+        type: "match_suggestion",
+        title: "تطابق جديد!",
+        message: "تم العثور على تطابق مناسب لك",
         relatedUser: userId1,
         data: matchData,
-      })
+      }),
     ]);
     return notifications;
   } catch (error) {
-    console.error('Error creating match notifications:', error);
+    console.error("فشل إنشاء إشعارات التطابق:", error);
   }
 };
 
@@ -592,13 +617,13 @@ exports.createSecurityNotification = async (userId, title, message) => {
   try {
     const notification = await Notification.create({
       user: userId,
-      type: 'security_update',
+      type: "security_update",
       title: title,
       message: message,
     });
     return notification;
   } catch (error) {
-    console.error('Error creating security notification:', error);
+    console.error("فشل إنشاء إشعار الأمني:", error);
   }
 };
 
@@ -607,22 +632,22 @@ exports.createPeopleNearbyNotification = async (userId, matchCount) => {
   try {
     const existing = await Notification.findOne({
       user: userId,
-      type: 'people_nearby',
+      type: "people_nearby",
       createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
     });
     if (existing) return null;
     const notification = await Notification.createNotification({
       user: userId,
-      type: 'people_nearby',
-      title: 'أشخاص قد يهمك التعرف عليهم',
+      type: "people_nearby",
+      title: "أشخاص قد يهمك التعرف عليهم",
       message:
         matchCount > 1
           ? `لديك ${matchCount} أشخاص بالقرب منك أو يشتركون معك في الاهتمامات`
-          : 'شخص واحد بالقرب منك أو لديه نفس اهتماماتك',
+          : "شخص واحد بالقرب منك أو لديه نفس اهتماماتك",
     });
     return notification;
   } catch (error) {
-    console.error('Error creating people nearby notification:', error);
+    console.error("فشل إنشاء إشعار الأشخاص القريبين:", error);
     return null;
   }
 };
@@ -635,37 +660,37 @@ exports.createTestNotifications = asyncHandler(async (req, res) => {
   const testNotifications = [
     {
       user: userId,
-      type: 'friend_request',
-      title: 'طلب صداقة جديد',
-      message: 'لديك طلب صداقة جديد من أحمد',
+      type: "friend_request",
+      title: "طلب صداقة جديد",
+      message: "لديك طلب صداقة جديد من أحمد",
       isRead: false,
     },
     {
       user: userId,
-      type: 'new_message',
-      title: 'رسالة جديدة',
-      message: 'مرحبا! كيف حالك اليوم؟',
+      type: "new_message",
+      title: "رسالة جديدة",
+      message: "مرحبا! كيف حالك اليوم؟",
       isRead: false,
     },
     {
       user: userId,
-      type: 'post_like',
-      title: 'إعجاب جديد',
-      message: 'أعجب شخص بمنشورك',
+      type: "post_like",
+      title: "إعجاب جديد",
+      message: "أعجب شخص بمنشورك",
       isRead: false,
     },
     {
       user: userId,
-      type: 'security_update',
-      title: 'تحديث أمني',
-      message: 'تم تحديث إعدادات الأمان لحسابك',
+      type: "security_update",
+      title: "تحديث أمني",
+      message: "تم تحديث إعدادات الأمان لحسابك",
       isRead: true,
     },
     {
       user: userId,
-      type: 'match_suggestion',
-      title: 'تطابق جديد!',
-      message: 'تم العثور على تطابق مناسب لك',
+      type: "match_suggestion",
+      title: "تطابق جديد!",
+      message: "تم العثور على تطابق مناسب لك",
       isRead: false,
     },
   ];
@@ -673,7 +698,7 @@ exports.createTestNotifications = asyncHandler(async (req, res) => {
   const notifications = await Notification.insertMany(testNotifications);
 
   res.status(201).json({
-    message: "Test notifications created successfully",
+    message: "تم إنشاء الإشعارات التجريبية بنجاح",
     data: notifications,
   });
 });

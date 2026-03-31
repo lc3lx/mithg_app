@@ -3,9 +3,7 @@ const ApiError = require("../utils/apiError");
 const User = require("../models/userModel");
 const MessagingRequest = require("../models/messagingRequestModel");
 const Notification = require("../models/notificationModel");
-const {
-  createPeopleNearbyNotification,
-} = require("./notificationService");
+const { createPeopleNearbyNotification } = require("./notificationService");
 
 // Calculate compatibility score between two users
 const calculateCompatibilityScore = (user1, user2) => {
@@ -40,7 +38,7 @@ const calculateCompatibilityScore = (user1, user2) => {
     const user1Interests = user1.interests.map((i) => i.toLowerCase());
     const user2Interests = user2.interests.map((i) => i.toLowerCase());
     const commonInterests = user1Interests.filter((interest) =>
-      user2Interests.includes(interest)
+      user2Interests.includes(interest),
     );
     const interestScore =
       (commonInterests.length /
@@ -78,13 +76,13 @@ exports.getMatches = asyncHandler(async (req, res) => {
   // Get current user with preferences
   const currentUser = await User.findById(userId)
     .select(
-      "age gender interestedIn minAgePreference maxAgePreference location friends blockedUsers"
+      "age gender interestedIn minAgePreference maxAgePreference location friends blockedUsers",
     )
     .lean();
 
   if (!currentUser) {
     return res.status(404).json({
-      message: "User not found",
+      message: "المستخدم غير موجود",
     });
   }
 
@@ -113,7 +111,7 @@ exports.getMatches = asyncHandler(async (req, res) => {
   // Get potential matches
   const potentialMatches = await User.find(matchCriteria)
     .select(
-      "name age gender bio location profileImg coverImg interests isOnline lastSeen profileViews likesReceived"
+      "name age gender bio location profileImg coverImg interests isOnline lastSeen profileViews likesReceived",
     )
     .lean();
 
@@ -130,7 +128,7 @@ exports.getMatches = asyncHandler(async (req, res) => {
   // إشعار أشخاص بالقرب منك أو لديهم نفس الاهتمامات (مرة واحدة كل 24 ساعة)
   if (matchesWithScores.length > 0) {
     createPeopleNearbyNotification(userId, matchesWithScores.length).catch(
-      () => {}
+      () => {},
     );
   }
 
@@ -157,10 +155,10 @@ exports.getMatchProfile = asyncHandler(async (req, res, next) => {
     _id: userId,
     // Only allow viewing profiles of subscribed users
     isSubscribed: true,
-    subscriptionEndDate: { $gt: new Date() }
+    subscriptionEndDate: { $gt: new Date() },
   })
     .select(
-      "name age gender bio location profileImg coverImg interests isOnline lastSeen posts friends"
+      "name age gender bio location profileImg coverImg interests isOnline lastSeen posts friends",
     )
     .populate({
       path: "posts",
@@ -176,13 +174,13 @@ exports.getMatchProfile = asyncHandler(async (req, res, next) => {
   // Calculate compatibility score
   const currentUserFull = await User.findById(currentUserId)
     .select(
-      "age gender interestedIn minAgePreference maxAgePreference location interests"
+      "age gender interestedIn minAgePreference maxAgePreference location interests",
     )
     .lean();
 
   const compatibilityScore = calculateCompatibilityScore(
     currentUserFull,
-    matchProfile
+    matchProfile,
   );
 
   // Check if already friends or has pending request
@@ -228,12 +226,12 @@ exports.getMutualFriends = asyncHandler(async (req, res, next) => {
   const targetUser = await User.findById(userId).select("friends").lean();
 
   if (!targetUser) {
-    return next(new ApiError("User not found", 404));
+    return next(new ApiError("المستخدم غير موجود", 404));
   }
 
   // Find mutual friends
   const mutualFriendIds = currentUser.friends.filter((friendId) =>
-    targetUser.friends.includes(friendId)
+    targetUser.friends.includes(friendId),
   );
 
   // Get mutual friends data
@@ -259,13 +257,13 @@ exports.likeProfile = asyncHandler(async (req, res, next) => {
   // Check if user exists
   const targetUser = await User.findById(userId);
   if (!targetUser) {
-    return next(new ApiError("User not found", 404));
+    return next(new ApiError("المستخدم غير موجود", 404));
   }
 
   // Check if already friends
   const currentUser = await User.findById(currentUserId).select("friends");
   if (currentUser.friends.includes(userId)) {
-    return next(new ApiError("Already friends with this user", 400));
+    return next(new ApiError("انتم اصدقاء بالفعل", 400));
   }
 
   // Increment likes received
@@ -276,7 +274,7 @@ exports.likeProfile = asyncHandler(async (req, res, next) => {
     user: userId,
     type: "profile_like",
     title: "Profile Liked",
-    message: `${req.user.name} liked your profile`,
+    message: `${req.user.name} إعجب بملفك الشخصي`,
     relatedUser: currentUserId,
     data: { action: "like" },
   });
@@ -291,14 +289,14 @@ exports.likeProfile = asyncHandler(async (req, res, next) => {
       io.to(socketId).emit("notification", {
         type: "profile_like",
         title: "Profile Liked",
-        message: `${req.user.name} liked your profile`,
+        message: `${req.user.name} إعجب بملفك الشخصي`,
         relatedUser: currentUserId,
       });
     }
   }
 
   res.status(200).json({
-    message: "Profile liked successfully",
+    message: "تم إعجاب بملفك الشخصي بنجاح",
   });
 });
 
@@ -311,6 +309,6 @@ exports.getProfileLikes = asyncHandler(async (req, res) => {
   res.status(200).json({
     results: 0,
     data: [],
-    message: "Profile likes feature requires additional implementation",
+    message: "ميزة إعجاب بملفك الشخصي تتطلب تنفيذ إضافي",
   });
 });

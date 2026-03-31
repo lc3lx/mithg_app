@@ -28,7 +28,7 @@ exports.addGuardian = asyncHandler(async (req, res, next) => {
   // Check if user is subscribed (required for adding guardians)
   const user = await User.findById(userId);
   if (!user.isSubscribed) {
-    return next(new ApiError("You must be subscribed to add guardians", 403));
+    return next(new ApiError("يجب أن تكون مشتركاً  ", 403));
   }
 
   // Check if relationship already exists for this user
@@ -39,7 +39,7 @@ exports.addGuardian = asyncHandler(async (req, res, next) => {
   });
 
   if (existingGuardian) {
-    return next(new ApiError(`You already have a ${relationship} added`, 400));
+    return next(new ApiError(`لديك ${relationship} مضاف بالفعل`, 400));
   }
 
   // Check if phone number is already used
@@ -49,7 +49,7 @@ exports.addGuardian = asyncHandler(async (req, res, next) => {
   });
 
   if (phoneExists) {
-    return next(new ApiError("Phone number is already registered", 400));
+    return next(new ApiError("رقم الهاتف مستخدم بالفعل", 400));
   }
 
   // Create guardian
@@ -74,7 +74,7 @@ exports.addGuardian = asyncHandler(async (req, res, next) => {
 
   res.status(201).json({
     message:
-      "Guardian added successfully. Please wait for identity verification.",
+      "تم إضافة  بنجاح. يرجى الإنتظار لتوثيق الهوية.",
     data: guardian,
   });
 });
@@ -111,7 +111,7 @@ exports.updateGuardian = asyncHandler(async (req, res, next) => {
   });
 
   if (!guardian) {
-    return next(new ApiError("Guardian not found", 404));
+    return next(new ApiError("الولي غير موجود", 404));
   }
 
   // Check if phone is being changed and if it's already used
@@ -123,7 +123,7 @@ exports.updateGuardian = asyncHandler(async (req, res, next) => {
     });
 
     if (phoneExists) {
-      return next(new ApiError("Phone number is already registered", 400));
+      return next(new ApiError("رقم الهاتف مستخدم بالفعل", 400));
     }
   }
 
@@ -137,7 +137,7 @@ exports.updateGuardian = asyncHandler(async (req, res, next) => {
   await guardian.save();
 
   res.status(200).json({
-    message: "Guardian updated successfully",
+    message: "تم تحديث الولي بنجاح",
     data: guardian,
   });
 });
@@ -156,7 +156,7 @@ exports.removeGuardian = asyncHandler(async (req, res, next) => {
   });
 
   if (!guardian) {
-    return next(new ApiError("Guardian not found", 404));
+    return next(new ApiError("الولي غير موجود", 404));
   }
 
   // Deactivate guardian instead of deleting
@@ -175,7 +175,7 @@ exports.removeGuardian = asyncHandler(async (req, res, next) => {
   );
 
   res.status(200).json({
-    message: "Guardian removed successfully",
+    message: "تم إزالة الولي بنجاح",
   });
 });
 
@@ -193,11 +193,11 @@ exports.uploadGuardianDocuments = asyncHandler(async (req, res, next) => {
   });
 
   if (!guardian) {
-    return next(new ApiError("Guardian not found", 404));
+    return next(new ApiError("الولي غير موجود", 404));
   }
 
   if (!req.files || req.files.length === 0) {
-    return next(new ApiError("No files uploaded", 400));
+    return next(new ApiError("لم يتم تحميل أي ملفات", 400));
   }
 
   // Process uploaded files
@@ -218,7 +218,7 @@ exports.uploadGuardianDocuments = asyncHandler(async (req, res, next) => {
 
   res.status(200).json({
     message:
-      "Documents uploaded successfully. Verification process will begin.",
+      "تم تحميل المستندات بنجاح. سيبدأ العملية التوثيقية.",
     data: guardian,
   });
 });
@@ -238,7 +238,7 @@ exports.getGuardianQRCode = asyncHandler(async (req, res, next) => {
   });
 
   if (!guardian) {
-    return next(new ApiError("Guardian not found or not verified", 404));
+    return next(new ApiError("الولي غير موجود أو غير موثق", 404));
   }
 
   // Generate QR code data
@@ -268,7 +268,7 @@ exports.regenerateGuardianQRCode = asyncHandler(async (req, res, next) => {
   });
 
   if (!guardian) {
-    return next(new ApiError("Guardian not found", 404));
+    return next(new ApiError("الولي غير موجود", 404));
   }
 
   // Generate new QR code

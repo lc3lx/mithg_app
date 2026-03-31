@@ -56,17 +56,21 @@ exports.createSubscriptionPackage = asyncHandler(async (req, res, next) => {
 
   // Validate package type
   if (!["basic", "premium"].includes(packageType)) {
-    return next(new ApiError("Invalid package type", 400));
+    return next(new ApiError("نوع الباقة غير صالح", 400));
   }
 
   // المدة بالأيام إجبارية — يمكن للأدمن إضافة عدة باقات من نفس النوع (أساسي 15، أساسي 30، بريميوم 15، إلخ)
   const resolvedDurationDays = durationDays;
   if (!resolvedDurationDays || resolvedDurationDays < 1) {
-    return next(new ApiError("Duration in days is required (min 1)", 400));
+    return next(new ApiError("يجب أن يتم توفير المدة المطلوبة بالأيام", 400));
   }
 
   let resolvedDiscount = discountPercent;
-  if (resolvedDiscount === undefined || resolvedDiscount === null || resolvedDiscount === "") {
+  if (
+    resolvedDiscount === undefined ||
+    resolvedDiscount === null ||
+    resolvedDiscount === ""
+  ) {
     resolvedDiscount = null;
   } else {
     resolvedDiscount = Number(resolvedDiscount);
@@ -120,7 +124,7 @@ exports.createSubscriptionPackage = asyncHandler(async (req, res, next) => {
   }
 
   res.status(201).json({
-    message: "Subscription package created successfully",
+    message: "تم إنشاء الباقة بنجاح",
     data: subscriptionPackage,
   });
 });
@@ -144,7 +148,7 @@ exports.updateSubscriptionPackage = asyncHandler(async (req, res, next) => {
 
   const subscriptionPackage = await Subscription.findById(id);
   if (!subscriptionPackage) {
-    return next(new ApiError("Subscription package not found", 404));
+    return next(new ApiError("لا يوجد باقة لهذا المعرف", 404));
   }
 
   const oldDiscountPercent = subscriptionPackage.discountPercent;
@@ -162,7 +166,8 @@ exports.updateSubscriptionPackage = asyncHandler(async (req, res, next) => {
   if (currency) subscriptionPackage.currency = currency;
   if (features) subscriptionPackage.features = features;
   if (isActive !== undefined) subscriptionPackage.isActive = isActive;
-  if (durationDays != null && durationDays >= 1) subscriptionPackage.durationDays = durationDays;
+  if (durationDays != null && durationDays >= 1)
+    subscriptionPackage.durationDays = durationDays;
   if (discountPercent !== undefined) {
     if (discountPercent === null || discountPercent === "") {
       subscriptionPackage.discountPercent = null;
@@ -215,7 +220,7 @@ exports.updateSubscriptionPackage = asyncHandler(async (req, res, next) => {
   }
 
   res.status(200).json({
-    message: "Subscription package updated successfully",
+    message: "تم تحديث الباقة بنجاح",
     data: subscriptionPackage,
   });
 });
@@ -228,23 +233,23 @@ exports.deleteSubscriptionPackage = asyncHandler(async (req, res, next) => {
 
   const subscriptionPackage = await Subscription.findById(id);
   if (!subscriptionPackage) {
-    return next(new ApiError("Subscription package not found", 404));
+    return next(new ApiError("لا يوجد باقة لهذا المعرف", 404));
   }
 
   // Check if package has active users
   if (subscriptionPackage.currentUsers > 0) {
     return next(
       new ApiError(
-        "Cannot delete package with active users. Please deactivate it instead.",
-        400
-      )
+        "لا يمكن حذف الباقة فيها مشتركون. يرجى تعطيلها بدلاً من ذلك.",
+        400,
+      ),
     );
   }
 
   await Subscription.findByIdAndDelete(id);
 
   res.status(200).json({
-    message: "Subscription package deleted successfully",
+    message: "تم حذف الباقة بنجاح",
   });
 });
 
@@ -264,9 +269,7 @@ exports.subscribeWithPaymentRequest = asyncHandler(async (req, res, next) => {
   // Check if subscription exists
   const subscription = await Subscription.findById(subscriptionId);
   if (!subscription || !subscription.isActive) {
-    return next(
-      new ApiError("Subscription package not found or inactive", 404)
-    );
+    return next(new ApiError("لا يوجد باقة لهذا المعرف أو غير مفعلة", 404));
   }
 
   // Check if user already has a pending request for this subscription
@@ -277,12 +280,7 @@ exports.subscribeWithPaymentRequest = asyncHandler(async (req, res, next) => {
   });
 
   if (existingRequest) {
-    return next(
-      new ApiError(
-        "You already have a pending payment request for this subscription",
-        400
-      )
-    );
+    return next(new ApiError("لديك طلب دفع معلق لهذه الباقة", 400));
   }
 
   // خصم الأدمن مشروط بنوع المستخدم (girls/boys/all)
@@ -292,7 +290,9 @@ exports.subscribeWithPaymentRequest = asyncHandler(async (req, res, next) => {
   const isEligibleForPackageDiscount =
     audience === "all" || (userGender && audience === userGender);
 
-  const pkgDiscountPct = isEligibleForPackageDiscount ? subscription.discountPercent : null;
+  const pkgDiscountPct = isEligibleForPackageDiscount
+    ? subscription.discountPercent
+    : null;
   let amount = subscription.price;
   if (pkgDiscountPct != null && pkgDiscountPct > 0) {
     amount = (subscription.price * (100 - Math.min(100, pkgDiscountPct))) / 100;
@@ -306,9 +306,7 @@ exports.subscribeWithPaymentRequest = asyncHandler(async (req, res, next) => {
     const referralCode = await ReferralCode.findOne({ code: codeStr });
 
     if (!referralCode) {
-      return next(
-        new ApiError("كود الإحالة غير صحيح أو منتهي الصلاحية", 400)
-      );
+      return next(new ApiError("كود الإحالة غير صحيح أو منتهي الصلاحية", 400));
     }
     if (!referralCode.canBeUsed()) {
       if (!referralCode.isActive) {
@@ -323,7 +321,10 @@ exports.subscribeWithPaymentRequest = asyncHandler(async (req, res, next) => {
     const user = await User.findById(userId).select("usedReferralCode");
     if (user.usedReferralCode) {
       return next(
-        new ApiError("لقد استخدمت كود إحالة مسبقاً. الخصم متاح لمرة واحدة فقط.", 400)
+        new ApiError(
+          "لقد استخدمت كود إحالة مسبقاً. الخصم متاح لمرة واحدة فقط.",
+          400,
+        ),
       );
     }
 
@@ -348,7 +349,7 @@ exports.subscribeWithPaymentRequest = asyncHandler(async (req, res, next) => {
 
   res.status(201).json({
     message:
-      "Payment request submitted successfully. Please follow the payment instructions and wait for admin approval.",
+      "تم إرسال طلب الدفع بنجاح. يرجى اتباع تعليمات الدفع والإنتظار للموافقة من الأدمن.",
     data: paymentRequest,
   });
 });
@@ -372,17 +373,17 @@ exports.subscribeWithCode = asyncHandler(async (req, res, next) => {
 
   if (!subscriptionCode.canBeUsed()) {
     if (subscriptionCode.isUsed) {
-      return next(new ApiError("Subscription code has already been used", 400));
+      return next(new ApiError("كود الاشتراك قد تم استخدامه مسبقاً", 400));
     }
     if (subscriptionCode.isExpired()) {
-      return next(new ApiError("Subscription code has expired", 400));
+      return next(new ApiError("كود الاشتراك قد انتهى", 400));
     }
-    return next(new ApiError("Subscription code is no longer valid", 400));
+    return next(new ApiError("كود الاشتراك غير صالح", 400));
   }
 
   const { subscription } = subscriptionCode;
   if (!subscription || !subscription.isActive) {
-    return next(new ApiError("Subscription package is not available", 400));
+    return next(new ApiError("الباقة غير متاحة", 400));
   }
 
   // Calculate subscription end date
@@ -425,7 +426,7 @@ exports.subscribeWithCode = asyncHandler(async (req, res, next) => {
   await appWallet.addCredit(
     subscription.price,
     `Subscription code used: ${subscriptionCode.code}`,
-    subscriptionCode.code
+    subscriptionCode.code,
   );
   await Transaction.create({
     wallet: appWallet._id,
@@ -442,7 +443,7 @@ exports.subscribeWithCode = asyncHandler(async (req, res, next) => {
   });
 
   res.status(200).json({
-    message: "Subscription activated successfully!",
+    message: "تم تفعيل الاشتراك بنجاح",
     data: {
       subscriptionPackage: subscription.packageType,
       endDate,
@@ -458,7 +459,7 @@ exports.getUserSubscriptionStatus = asyncHandler(async (req, res) => {
   const userId = req.user._id;
 
   const user = await User.findById(userId).select(
-    "isSubscribed subscriptionEndDate subscriptionPackage identityVerified identityVerificationStatus"
+    "isSubscribed subscriptionEndDate subscriptionPackage identityVerified identityVerificationStatus",
   );
 
   // Check if subscription is expired
@@ -510,25 +511,26 @@ exports.approvePaymentRequest = asyncHandler(async (req, res, next) => {
 
   const paymentRequest = await PaymentRequest.findById(id);
   if (!paymentRequest) {
-    return next(new ApiError("Payment request not found", 404));
+    return next(new ApiError("لا يوجد طلب دفع لهذا المعرف", 404));
   }
 
   if (paymentRequest.status !== "pending") {
-    return next(new ApiError("Request has already been processed", 400));
+    return next(new ApiError("الطلب تم معالجته مسبقاً", 400));
   }
 
   // Get subscription ID (handle both ObjectId and populated object)
-  const subscriptionId = paymentRequest.subscription?._id || paymentRequest.subscription;
-  
+  const subscriptionId =
+    paymentRequest.subscription?._id || paymentRequest.subscription;
+
   // Fetch subscription directly to ensure we have the latest data including isActive
   const subscription = await Subscription.findById(subscriptionId);
   if (!subscription) {
-    return next(new ApiError("Subscription package not found", 404));
+    return next(new ApiError("لا يوجد باقة لهذا المعرف", 404));
   }
 
   // Ensure subscription is active
   if (subscription.isActive !== true) {
-    return next(new ApiError("Subscription package is not active", 400));
+    return next(new ApiError("الباقة غير مفعلة", 400));
   }
 
   // Calculate subscription end date
@@ -573,7 +575,7 @@ exports.approvePaymentRequest = asyncHandler(async (req, res, next) => {
   await appWallet.addCredit(
     paymentRequest.amount,
     `Manual subscription payment approved: ${paymentRequest._id}`,
-    paymentRequest.transactionReference
+    paymentRequest.transactionReference,
   );
   await Transaction.create({
     wallet: appWallet._id,
@@ -600,7 +602,7 @@ exports.approvePaymentRequest = asyncHandler(async (req, res, next) => {
   });
 
   res.status(200).json({
-    message: "Payment request approved and subscription activated",
+    message: "تمت الموافقة على طلب الدفع وتفعيل الاشتراك",
     data: paymentRequest,
   });
 });
@@ -615,11 +617,11 @@ exports.rejectPaymentRequest = asyncHandler(async (req, res, next) => {
 
   const paymentRequest = await PaymentRequest.findById(id);
   if (!paymentRequest) {
-    return next(new ApiError("Payment request not found", 404));
+    return next(new ApiError("لا يوجد طلب دفع لهذا المعرف", 404));
   }
 
   if (paymentRequest.status !== "pending") {
-    return next(new ApiError("Request has already been processed", 400));
+    return next(new ApiError("الطلب تم معالجته مسبقاً", 400));
   }
 
   // Update request status
@@ -642,7 +644,7 @@ exports.rejectPaymentRequest = asyncHandler(async (req, res, next) => {
   });
 
   res.status(200).json({
-    message: "Payment request rejected",
+    message: "تم رفض طلب الدفع",
     data: paymentRequest,
   });
 });
@@ -653,7 +655,7 @@ exports.rejectPaymentRequest = asyncHandler(async (req, res, next) => {
 exports.getPaymentRequests = asyncHandler(async (req, res) => {
   const features = new ApiFeatures(
     PaymentRequest.find().sort({ createdAt: -1 }),
-    req.query
+    req.query,
   )
     .filter()
     .sort()
@@ -695,9 +697,7 @@ exports.createSubscriptionCode = asyncHandler(async (req, res, next) => {
   // Check if subscription exists
   const subscription = await Subscription.findById(subscriptionId);
   if (!subscription || !subscription.isActive) {
-    return next(
-      new ApiError("Subscription package not found or inactive", 404)
-    );
+    return next(new ApiError("لا يوجد باقة لهذا المعرف أو غير مفعلة", 404));
   }
 
   // Generate unique code
@@ -720,7 +720,7 @@ exports.createSubscriptionCode = asyncHandler(async (req, res, next) => {
 
     if (attempts >= maxAttempts) {
       return next(
-        new ApiError("Failed to generate unique code. Please try again.", 500)
+        new ApiError("فشل إنشاء كود فريد. يرجى المحاولة مرة أخرى.", 500),
       );
     }
   }
@@ -735,7 +735,7 @@ exports.createSubscriptionCode = asyncHandler(async (req, res, next) => {
   });
 
   res.status(201).json({
-    message: "Subscription code created successfully",
+    message: "تم إنشاء كود الاشتراب بنجاح",
     data: subscriptionCode,
   });
 });
@@ -746,7 +746,7 @@ exports.createSubscriptionCode = asyncHandler(async (req, res, next) => {
 exports.getSubscriptionCodes = asyncHandler(async (req, res) => {
   const features = new ApiFeatures(
     SubscriptionCode.find().sort({ createdAt: -1 }),
-    req.query
+    req.query,
   )
     .filter()
     .sort()
@@ -800,7 +800,7 @@ exports.createReferralCode = asyncHandler(async (req, res, next) => {
 exports.getReferralCodes = asyncHandler(async (req, res) => {
   const features = new ApiFeatures(
     ReferralCode.find().sort({ createdAt: -1 }),
-    req.query
+    req.query,
   )
     .filter()
     .sort()

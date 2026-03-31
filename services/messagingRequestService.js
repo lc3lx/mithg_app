@@ -50,30 +50,28 @@ exports.sendMessagingRequest = asyncHandler(async (req, res, next) => {
   const senderId = req.user._id;
 
   if (!receiverId) {
-    return next(new ApiError("Receiver ID is required", 400));
+    return next(new ApiError("رقم المستقبل مطلوب", 400));
   }
 
   if (receiverId === senderId.toString()) {
-    return next(new ApiError("Cannot send messaging request to yourself", 400));
+    return next(new ApiError("لا يمكنك إرسال طلب المراسلة لنفسك", 400));
   }
 
   // Check if receiver exists and is subscribed
   const receiver = await User.findById(receiverId);
   if (!receiver) {
-    return next(new ApiError("User not found", 404));
+    return next(new ApiError("المستخدم غير موجود", 404));
   }
 
   // Check if user is subscribed (required to send messaging requests)
   const sender = await User.findById(senderId);
   if (!sender.isSubscribed) {
-    return next(
-      new ApiError("You must be subscribed to send messaging requests", 403)
-    );
+    return next(new ApiError("يجب أن تكون مشتركاً لإرسال طلبات المراسلة", 403));
   }
 
   // Check if receiver is subscribed (required to receive messaging requests)
   if (!receiver.isSubscribed) {
-    return next(new ApiError("User is not subscribed", 403));
+    return next(new ApiError("المستخدم غير مشترك", 403));
   }
 
   const isFriend = sender.friends
@@ -81,7 +79,7 @@ exports.sendMessagingRequest = asyncHandler(async (req, res, next) => {
     .includes(receiverId.toString());
 
   if (!isFriend) {
-    return next(new ApiError("You can only message friends", 403));
+    return next(new ApiError("يمكنك فقط المراسلة بين صديقين", 403));
   }
 
   // Check if request already exists
@@ -94,12 +92,10 @@ exports.sendMessagingRequest = asyncHandler(async (req, res, next) => {
 
   if (existingRequest) {
     if (existingRequest.status === "pending") {
-      return next(new ApiError("Messaging request already exists", 400));
+      return next(new ApiError("طلب المراسلة موجود بالفعل", 400));
     }
     if (existingRequest.status === "accepted") {
-      return next(
-        new ApiError("You already have an active chat with this user", 400)
-      );
+      return next(new ApiError("لديك محادثة نشطة مع هذا المستخدم", 400));
     }
     // If rejected, allow sending new request
   }
@@ -142,8 +138,8 @@ exports.sendMessagingRequest = asyncHandler(async (req, res, next) => {
     if (socketId) {
       io.to(socketId).emit("notification", {
         type: "messaging_request",
-        title: "New Messaging Request",
-        message: `${req.user.name} wants to start a conversation with you`,
+        title: "طلب تواصل جديد",
+        message: `${req.user.name} يريد بدء محادثة معك`,
         relatedUser: senderId,
         requestId: messagingRequest._id,
       });
@@ -151,7 +147,7 @@ exports.sendMessagingRequest = asyncHandler(async (req, res, next) => {
   }
 
   res.status(201).json({
-    message: "Messaging request sent successfully",
+    message: "تم إرسال طلب المراسلة بنجاح",
     data: messagingRequest,
   });
 });
@@ -165,25 +161,21 @@ exports.respondToMessagingRequest = asyncHandler(async (req, res, next) => {
   const userId = req.user._id;
 
   if (!["accept", "reject"].includes(action)) {
-    return next(new ApiError("Action must be either accept or reject", 400));
+    return next(new ApiError("يجب أن يكون الإجراء إما موافقة أو رفض", 400));
   }
 
   const messagingRequest = await MessagingRequest.findById(id);
 
   if (!messagingRequest) {
-    return next(new ApiError("Messaging request not found", 404));
+    return next(new ApiError("طلب المراسلة غير موجود", 404));
   }
 
   if (messagingRequest.receiver.toString() !== userId.toString()) {
-    return next(
-      new ApiError("You can only respond to requests sent to you", 403)
-    );
+    return next(new ApiError("يمكنك فقط الرد على طلبات تم إرسالها إليك", 403));
   }
 
   if (messagingRequest.status !== "pending") {
-    return next(
-      new ApiError("This request has already been responded to", 400)
-    );
+    return next(new ApiError("طلب المراسلة تم مراجعته بالفعل", 400));
   }
 
   const senderId = messagingRequest.sender;
@@ -247,10 +239,10 @@ exports.respondToMessagingRequest = asyncHandler(async (req, res, next) => {
     await Notification.createNotification({
       user: senderId,
       type: "messaging_request_accepted",
-      title: "Messaging Request Accepted",
+      title: "تم قبول طلب المراسلة",
       message: includeGuardians
-        ? `${req.user.name} accepted your messaging request. Family chat created!`
-        : `${req.user.name} accepted your messaging request. You can now chat!`,
+        ? `${req.user.name} قبل طلب المراسلة الخاص بك. تم إنشاء محادثة عائلية!`
+        : `${req.user.name} قبل طلب المراسلة الخاص بك. يمكنك الآن المراسلة!`,
       relatedUser: userId,
       data: { requestId: id, chatId: chat._id, includeGuardians },
     });
@@ -264,10 +256,10 @@ exports.respondToMessagingRequest = asyncHandler(async (req, res, next) => {
       if (socketId) {
         io.to(socketId).emit("notification", {
           type: "messaging_request_accepted",
-          title: "Messaging Request Accepted",
+          title: "تم قبول طلب المراسلة",
           message: includeGuardians
-            ? `${req.user.name} accepted your messaging request. Family chat created!`
-            : `${req.user.name} accepted your messaging request. You can now chat!`,
+            ? `${req.user.name} قبل طلب المراسلة الخاص بك. تم إنشاء محادثة عائلية!`
+            : `${req.user.name} قبل طلب المراسلة الخاص بك. يمكنك الآن المراسلة!`,
           relatedUser: userId,
           requestId: id,
           chatId: chat._id,
@@ -278,8 +270,8 @@ exports.respondToMessagingRequest = asyncHandler(async (req, res, next) => {
 
     res.status(200).json({
       message: includeGuardians
-        ? "Messaging request accepted successfully. Family chat created!"
-        : "Messaging request accepted successfully. Chat created!",
+        ? "تم قبول طلب المراسلة بنجاح. تم إنشاء محادثة عائلية!"
+        : "تم قبول طلب المراسلة بنجاح. تم إنشاء محادثة!",
       status: "accepted",
       chatId: chat._id,
       includeGuardians,
@@ -294,8 +286,8 @@ exports.respondToMessagingRequest = asyncHandler(async (req, res, next) => {
     await Notification.createNotification({
       user: senderId,
       type: "messaging_request_rejected",
-      title: "Messaging Request Declined",
-      message: `${req.user.name} declined your messaging request`,
+      title: "تم رفض طلب المراسلة",
+      message: `${req.user.name} رفض طلب المراسلة الخاص بك`,
       relatedUser: userId,
       data: { requestId: id },
     });
@@ -309,8 +301,8 @@ exports.respondToMessagingRequest = asyncHandler(async (req, res, next) => {
       if (socketId) {
         io.to(socketId).emit("notification", {
           type: "messaging_request_rejected",
-          title: "Messaging Request Declined",
-          message: `${req.user.name} declined your messaging request`,
+          title: "تم رفض طلب المراسلة",
+          message: `${req.user.name} رفض طلب المراسلة الخاص بك`,
           relatedUser: userId,
           requestId: id,
         });
@@ -334,23 +326,21 @@ exports.cancelMessagingRequest = asyncHandler(async (req, res, next) => {
   const messagingRequest = await MessagingRequest.findById(id);
 
   if (!messagingRequest) {
-    return next(new ApiError("Messaging request not found", 404));
+    return next(new ApiError("طلب المراسلة غير موجود", 404));
   }
 
   if (messagingRequest.sender.toString() !== userId.toString()) {
-    return next(new ApiError("You can only cancel your own requests", 403));
+    return next(new ApiError("يمكنك فقط الإلغاء لطلباتك الخاصة", 403));
   }
 
   if (messagingRequest.status !== "pending") {
-    return next(
-      new ApiError("Cannot cancel a request that has been responded to", 400)
-    );
+    return next(new ApiError("لا يمكنك الإلغاء لطلب تم مراجعته بالفعل", 400));
   }
 
   await MessagingRequest.findByIdAndDelete(id);
 
   res.status(200).json({
-    message: "Messaging request cancelled successfully",
+    message: "تم إلغاء طلب المراسلة بنجاح",
   });
 });
 
@@ -396,7 +386,7 @@ exports.getUserChats = asyncHandler(async (req, res) => {
           lastMessageTime: request.chat.lastMessageTime,
           unreadCount:
             request.chat.unreadCount?.find(
-              (uc) => uc.user.toString() === userId.toString()
+              (uc) => uc.user.toString() === userId.toString(),
             )?.count || 0,
           isActive: request.chat.isActive,
         };

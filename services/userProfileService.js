@@ -6,9 +6,7 @@ const asyncHandler = require("express-async-handler");
 const ApiError = require("../utils/apiError");
 const User = require("../models/userModel");
 const GalleryViewRequest = require("../models/galleryViewRequestModel");
-const {
-  createProfileViewNotification,
-} = require("./notificationService");
+const { createProfileViewNotification } = require("./notificationService");
 
 // @desc    Update user about section
 // @route   PUT /api/v1/users/about
@@ -19,15 +17,15 @@ exports.updateAbout = asyncHandler(async (req, res, next) => {
   const user = await User.findByIdAndUpdate(
     req.user._id,
     { about },
-    { new: true, runValidators: true }
+    { new: true, runValidators: true },
   ).select("about");
 
   if (!user) {
-    return next(new ApiError("User not found", 404));
+    return next(new ApiError("لا يوجد مستخدم لهذا المعرف", 404));
   }
 
   res.status(200).json({
-    message: "About section updated successfully",
+    message: "تم تحديث قسم المعلومات بنجاح",
     data: user,
   });
 });
@@ -39,24 +37,24 @@ exports.addToGallery = asyncHandler(async (req, res, next) => {
   const { caption, type = "image" } = req.body;
 
   if (!req.file) {
-    return next(new ApiError("File is required", 400));
+    return next(new ApiError("يجب أن يتم توفير الملف", 400));
   }
 
   const user = await User.findById(req.user._id);
   if (!user) {
-    return next(new ApiError("User not found", 404));
+    return next(new ApiError("لا يوجد مستخدم لهذا المعرف", 404));
   }
 
   // Limit gallery to 20 items
   if (user.gallery && user.gallery.length >= 20) {
-    return next(new ApiError("Gallery is full (maximum 20 items)", 400));
+    return next(new ApiError("المعرض ممتلئ (الحد الأقصى 20 عنصر)", 400));
   }
 
   let filename;
   const allowedTypes = ["image", "video"];
 
   if (!allowedTypes.includes(type)) {
-    return next(new ApiError("Invalid media type", 400));
+    return next(new ApiError("نوع الوسائط غير صالح", 400));
   }
 
   if (type === "image") {
@@ -72,14 +70,11 @@ exports.addToGallery = asyncHandler(async (req, res, next) => {
     // For videos, we'll just save the uploaded file
     // In a real app, you'd want to process videos too
     filename = `gallery-${uuidv4()}-${Date.now()}${req.file.originalname.substring(
-      req.file.originalname.lastIndexOf(".")
+      req.file.originalname.lastIndexOf("."),
     )}`;
 
     // For now, just save the file as-is
-    fs.writeFileSync(
-      `uploads/users/gallery/${filename}`,
-      req.file.buffer
-    );
+    fs.writeFileSync(`uploads/users/gallery/${filename}`, req.file.buffer);
   }
 
   const galleryItem = {
@@ -98,7 +93,7 @@ exports.addToGallery = asyncHandler(async (req, res, next) => {
   await user.save();
 
   res.status(201).json({
-    message: "Item added to gallery successfully",
+    message: "تم إضافة العنصر إلى المعرض بنجاح",
     data: galleryItem,
   });
 });
@@ -112,7 +107,7 @@ exports.getUserGallery = asyncHandler(async (req, res, next) => {
   const user = await User.findById(userId).select("gallery");
 
   if (!user) {
-    return next(new ApiError("User not found", 404));
+    return next(new ApiError("لا يوجد مستخدم لهذا المعرف", 404));
   }
 
   const requesterId = req.user._id.toString();
@@ -145,7 +140,7 @@ exports.getUserGallery = asyncHandler(async (req, res, next) => {
     const itemGrants = grantMap[itemId] || [];
     const hasPending = itemGrants.some((g) => g.status === "pending");
     const hasUnused = itemGrants.some(
-      (g) => g.status === "accepted" && g.usedAt === null
+      (g) => g.status === "accepted" && g.usedAt === null,
     );
 
     let accessStatus = "locked";
@@ -214,13 +209,13 @@ exports.updateGalleryItem = asyncHandler(async (req, res, next) => {
   const user = await User.findById(req.user._id);
 
   if (!user) {
-    return next(new ApiError("User not found", 404));
+    return next(new ApiError("لا يوجد مستخدم لهذا المعرف", 404));
   }
 
   const galleryItem = user.gallery.id(itemId);
 
   if (!galleryItem) {
-    return next(new ApiError("Gallery item not found", 404));
+    return next(new ApiError("عنصر المعرض غير موجود", 404));
   }
 
   if (caption !== undefined) {
@@ -296,7 +291,7 @@ exports.deleteGalleryItem = asyncHandler(async (req, res, next) => {
       fs.unlinkSync(filePath);
     }
   } catch (error) {
-    console.log("Error deleting file:", error);
+    console.log("خطأ في حذف الملف:", error);
   }
 
   // Remove from gallery array
@@ -334,12 +329,12 @@ exports.getUserProfile = asyncHandler(async (req, res, next) => {
       "name username age gender bio about profileImg coverImg gallery country city nationality " +
         "educationalLevel fieldOfWork socialStatus religion hijab havingChildren desire polygamy smoking " +
         "hairColor height weight bodyShape isOnline lastSeen friends profileViews likesReceived blockedUsers " +
-        "isSubscribed identityVerified createdAt"
+        "isSubscribed identityVerified createdAt",
     )
     .populate("friends", "name profileImg isOnline");
 
   if (!user) {
-    return next(new ApiError("User not found", 404));
+    return next(new ApiError("لا يوجد مستخدم لهذا المعرف", 404));
   }
 
   // إذا حظرك صاحب البروفيل فلا يمكنك مشاهدته
@@ -439,9 +434,10 @@ exports.getAllProfiles = asyncHandler(async (req, res, next) => {
   }
 
   // فلترة بالبحث: نفس حقول الفلتر النصية (اسم، مدينة، دولة، جنسية، مجال عمل، نبذة، لون شعر، دين)
-  const searchTerm = (req.query.search && typeof req.query.search === "string")
-    ? req.query.search.trim()
-    : "";
+  const searchTerm =
+    req.query.search && typeof req.query.search === "string"
+      ? req.query.search.trim()
+      : "";
   if (searchTerm.length > 0) {
     const escaped = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const searchRegex = new RegExp(escaped, "i");
@@ -458,27 +454,49 @@ exports.getAllProfiles = asyncHandler(async (req, res, next) => {
         { religion: { $regex: searchRegex } },
       ],
     };
-    filter.$and = filter.$and ? [...filter.$and, searchCondition] : [searchCondition];
+    filter.$and = filter.$and
+      ? [...filter.$and, searchCondition]
+      : [searchCondition];
   }
 
   // فلاتر إضافية: مدينة، عمر، طول، لون شعر، دين، جنسية
-  const city = (req.query.city && typeof req.query.city === "string") ? req.query.city.trim() : "";
+  const city =
+    req.query.city && typeof req.query.city === "string"
+      ? req.query.city.trim()
+      : "";
   if (city.length > 0) {
-    const cityRegex = new RegExp(city.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    const cityRegex = new RegExp(
+      city.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+      "i",
+    );
     filter.city = { $regex: cityRegex };
   }
-  const country = (req.query.country && typeof req.query.country === "string") ? req.query.country.trim() : "";
+  const country =
+    req.query.country && typeof req.query.country === "string"
+      ? req.query.country.trim()
+      : "";
   if (country.length > 0) {
-    const countryRegex = new RegExp(country.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    const countryRegex = new RegExp(
+      country.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+      "i",
+    );
     filter.country = { $regex: countryRegex };
   }
-  const nationality = (req.query.nationality && typeof req.query.nationality === "string") ? req.query.nationality.trim() : "";
+  const nationality =
+    req.query.nationality && typeof req.query.nationality === "string"
+      ? req.query.nationality.trim()
+      : "";
   if (nationality.length > 0) {
-    const nationalityRegex = new RegExp(nationality.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    const nationalityRegex = new RegExp(
+      nationality.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+      "i",
+    );
     filter.nationality = { $regex: nationalityRegex };
   }
-  const ageMin = req.query.ageMin != null ? parseInt(req.query.ageMin, 10) : NaN;
-  const ageMax = req.query.ageMax != null ? parseInt(req.query.ageMax, 10) : NaN;
+  const ageMin =
+    req.query.ageMin != null ? parseInt(req.query.ageMin, 10) : NaN;
+  const ageMax =
+    req.query.ageMax != null ? parseInt(req.query.ageMax, 10) : NaN;
   if (!Number.isNaN(ageMin) && ageMin >= 18) {
     filter.age = filter.age || {};
     filter.age.$gte = ageMin;
@@ -487,8 +505,10 @@ exports.getAllProfiles = asyncHandler(async (req, res, next) => {
     filter.age = filter.age || {};
     filter.age.$lte = ageMax;
   }
-  const heightMin = req.query.heightMin != null ? parseInt(req.query.heightMin, 10) : NaN;
-  const heightMax = req.query.heightMax != null ? parseInt(req.query.heightMax, 10) : NaN;
+  const heightMin =
+    req.query.heightMin != null ? parseInt(req.query.heightMin, 10) : NaN;
+  const heightMax =
+    req.query.heightMax != null ? parseInt(req.query.heightMax, 10) : NaN;
   if (!Number.isNaN(heightMin) && heightMin >= 100) {
     filter.height = filter.height || {};
     filter.height.$gte = heightMin;
@@ -497,14 +517,26 @@ exports.getAllProfiles = asyncHandler(async (req, res, next) => {
     filter.height = filter.height || {};
     filter.height.$lte = heightMax;
   }
-  const hairColor = (req.query.hairColor && typeof req.query.hairColor === "string") ? req.query.hairColor.trim() : "";
+  const hairColor =
+    req.query.hairColor && typeof req.query.hairColor === "string"
+      ? req.query.hairColor.trim()
+      : "";
   if (hairColor.length > 0) {
-    const hairRegex = new RegExp(hairColor.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    const hairRegex = new RegExp(
+      hairColor.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+      "i",
+    );
     filter.hairColor = { $regex: hairRegex };
   }
-  const religion = (req.query.religion && typeof req.query.religion === "string") ? req.query.religion.trim() : "";
+  const religion =
+    req.query.religion && typeof req.query.religion === "string"
+      ? req.query.religion.trim()
+      : "";
   if (religion.length > 0) {
-    const religionRegex = new RegExp(religion.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    const religionRegex = new RegExp(
+      religion.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+      "i",
+    );
     filter.religion = { $regex: religionRegex };
   }
 
@@ -515,7 +547,7 @@ exports.getAllProfiles = asyncHandler(async (req, res, next) => {
 
   const users = await User.find(filter)
     .select(
-      "name age gender bio city country nationality profileImg coverImg gallery about isOnline lastSeen profileViews friends isSubscribed identityVerified height hairColor religion"
+      "name age gender bio city country nationality profileImg coverImg gallery about isOnline lastSeen profileViews friends isSubscribed identityVerified height hairColor religion",
     )
     .sort({ createdAt: -1 });
 

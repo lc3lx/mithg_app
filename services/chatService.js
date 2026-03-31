@@ -58,7 +58,7 @@ exports.getChats = asyncHandler(async (req, res) => {
         },
       })
       .sort({ lastMessageTime: -1 }),
-    req.query
+    req.query,
   );
 
   const { mongooseQuery, paginationResult } = apiFeatures;
@@ -68,37 +68,37 @@ exports.getChats = asyncHandler(async (req, res) => {
   let chatsWithUnread = await Promise.all(
     chats.map(async (chat) => {
       const unreadCount = chat.unreadCount.find(
-        (count) => count.user.toString() === req.user._id.toString()
+        (count) => count.user.toString() === req.user._id.toString(),
       );
 
       return {
         ...chat.toObject(),
         unreadCount: unreadCount ? unreadCount.count : 0,
       };
-    })
+    }),
   );
 
   // استبعاد المحادثات التي حظرك فيها الطرف الآخر (لا تظهر في القائمة)
   const otherParticipantIds = chatsWithUnread
     .map((chat) => {
       const other = (chat.participants || []).find(
-        (p) => (p._id || p).toString() !== req.user._id.toString()
+        (p) => (p._id || p).toString() !== req.user._id.toString(),
       );
-      return other ? (other._id || other) : null;
+      return other ? other._id || other : null;
     })
     .filter(Boolean);
 
   if (otherParticipantIds.length > 0) {
     const usersWhoBlockedMe = await User.find(
       { _id: { $in: otherParticipantIds }, blockedUsers: req.user._id },
-      { _id: 1 }
+      { _id: 1 },
     )
       .lean()
       .then((list) => list.map((u) => u._id.toString()));
 
     chatsWithUnread = chatsWithUnread.filter((chat) => {
       const other = (chat.participants || []).find(
-        (p) => (p._id || p).toString() !== req.user._id.toString()
+        (p) => (p._id || p).toString() !== req.user._id.toString(),
       );
       if (!other) return true;
       const otherId = (other._id || other).toString();
@@ -107,14 +107,16 @@ exports.getChats = asyncHandler(async (req, res) => {
   }
 
   // استبعاد المحادثات المباشرة عندما أُلغيت الصداقة (المحادثة تختفي من عند الاثنين)
-  const currentUser = await User.findById(req.user._id).select("friends").lean();
+  const currentUser = await User.findById(req.user._id)
+    .select("friends")
+    .lean();
   const friendIds = (currentUser?.friends || []).map((id) => id.toString());
 
   chatsWithUnread = chatsWithUnread.filter((chat) => {
     const participants = chat.participants || [];
     if (participants.length !== 2) return true; // محادثة جماعية: نبقّيها
     const other = participants.find(
-      (p) => (p._id || p).toString() !== req.user._id.toString()
+      (p) => (p._id || p).toString() !== req.user._id.toString(),
     );
     if (!other) return true;
     const otherId = (other._id || other).toString();
@@ -138,10 +140,7 @@ exports.getChat = asyncHandler(async (req, res, next) => {
   const chat = await Chat.findOne({
     _id: id,
     isActive: true,
-    $or: [
-      { participants: req.user._id },
-      { guardians: req.user._id },
-    ],
+    $or: [{ participants: req.user._id }, { guardians: req.user._id }],
   })
     .populate({
       path: "participants",
@@ -153,12 +152,14 @@ exports.getChat = asyncHandler(async (req, res, next) => {
     });
 
   if (!chat) {
-    return next(new ApiError("Chat not found or access denied", 404));
+    return next(
+      new ApiError("المحادثة غير موجودة أو ليس لديك صلاحية لفتحها", 404),
+    );
   }
 
   // التحقق: الطرف الآخر لم يحظرك وأنكما لا تزالان صديقين
   const otherParticipantId = chat.participants.find(
-    (p) => p._id.toString() !== req.user._id.toString()
+    (p) => p._id.toString() !== req.user._id.toString(),
   );
   if (otherParticipantId) {
     const otherId = (otherParticipantId._id || otherParticipantId).toString();
@@ -166,13 +167,19 @@ exports.getChat = asyncHandler(async (req, res, next) => {
       .select("blockedUsers friends")
       .lean();
     if (otherUser) {
-      const blockedIds = (otherUser.blockedUsers || []).map((id) => id.toString());
+      const blockedIds = (otherUser.blockedUsers || []).map((id) =>
+        id.toString(),
+      );
       if (blockedIds.includes(req.user._id.toString())) {
         return next(new ApiError("لا يمكنك فتح هذه المحادثة", 403));
       }
-      const myFriends = await User.findById(req.user._id).select("friends").lean();
+      const myFriends = await User.findById(req.user._id)
+        .select("friends")
+        .lean();
       const myFriendIds = (myFriends?.friends || []).map((id) => id.toString());
-      const otherFriendIds = (otherUser.friends || []).map((id) => id.toString());
+      const otherFriendIds = (otherUser.friends || []).map((id) =>
+        id.toString(),
+      );
       if (
         !myFriendIds.includes(otherId) ||
         !otherFriendIds.includes(req.user._id.toString())
@@ -205,7 +212,7 @@ exports.getChat = asyncHandler(async (req, res, next) => {
       sender: { $ne: req.user._id },
       isRead: false,
     },
-    { isRead: true, readAt: new Date() }
+    { isRead: true, readAt: new Date() },
   );
 
   // Reset unread count for user
@@ -230,14 +237,14 @@ exports.createChat = asyncHandler(async (req, res, next) => {
 
   // Check if participant exists
   const participant = await User.findById(participantId).select(
-    "friends blockedUsers"
+    "friends blockedUsers",
   );
   if (!participant) {
     return next(new ApiError("Participant not found", 404));
   }
 
   const currentUser = await User.findById(req.user._id).select(
-    "friends blockedUsers"
+    "friends blockedUsers",
   );
   if (!currentUser) {
     return next(new ApiError("User not found", 404));
@@ -246,23 +253,21 @@ exports.createChat = asyncHandler(async (req, res, next) => {
   // يجب أن تكونا أصدقاء لبدء المحادثة
   const currentFriends = (currentUser.friends || []).map((id) => id.toString());
   const participantFriends = (participant.friends || []).map((id) =>
-    id.toString()
+    id.toString(),
   );
   if (
     !currentFriends.includes(participantId) ||
     !participantFriends.includes(req.user._id.toString())
   ) {
-    return next(
-      new ApiError("يجب أن تكونا أصدقاء لبدء المحادثة", 403)
-    );
+    return next(new ApiError("يجب أن تكونا أصدقاء لبدء المحادثة", 403));
   }
 
   // لا يمكن المراسلة إذا حظر أحد الطرفين الآخر
   const participantBlocked = (participant.blockedUsers || []).map((id) =>
-    id.toString()
+    id.toString(),
   );
   const currentBlocked = (currentUser.blockedUsers || []).map((id) =>
-    id.toString()
+    id.toString(),
   );
   if (participantBlocked.includes(req.user._id.toString())) {
     return next(new ApiError("لا يمكنك مراسلة هذا المستخدم", 403));
@@ -309,53 +314,63 @@ exports.createChat = asyncHandler(async (req, res, next) => {
 // @access  Private
 exports.sendMessage = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
-  const { content, messageType = "text", mediaUrl, mediaName, mediaSize } = req.body;
+  const {
+    content,
+    messageType = "text",
+    mediaUrl,
+    mediaName,
+    mediaSize,
+  } = req.body;
 
   // Check if user is participant in chat
   const chat = await Chat.findOne({
     _id: id,
     isActive: true,
-    $or: [
-      { participants: req.user._id },
-      { guardians: req.user._id },
-    ],
+    $or: [{ participants: req.user._id }, { guardians: req.user._id }],
   });
 
   if (!chat) {
-    return next(new ApiError("Chat not found or access denied", 404));
+    return next(
+      new ApiError("المحادثة غير موجودة أو ليس لديك صلاحية لفتحها", 404),
+    );
   }
 
   // Check user subscription and block status
   if (!req.user.isSubscribed) {
-    return next(new ApiError("You must be subscribed to send messages", 403));
+    return next(new ApiError("يجب أن تكون مشتركاً لإرسال الرسائل", 403));
   }
 
   if (req.user.isBlocked && req.user.blockedUntil > new Date()) {
     const blockedMessage = isFullOrPermanentBlock(req.user)
       ? "تم حظر حسابك بشكل كامل"
       : `You are blocked until ${req.user.blockedUntil.toLocaleString()}`;
-    return next(
-      new ApiError(blockedMessage, 403)
-    );
+    return next(new ApiError(blockedMessage, 403));
   }
 
   // التحقق من أن الطرف الآخر لا يزال صديقاً ولم يحظر المرسل
   const otherId = chat.participants.find(
-    (p) => (p._id ? p._id.toString() : p.toString()) !== req.user._id.toString()
+    (p) =>
+      (p._id ? p._id.toString() : p.toString()) !== req.user._id.toString(),
   );
   if (otherId) {
-    const otherUserId = otherId._id ? otherId._id.toString() : otherId.toString();
+    const otherUserId = otherId._id
+      ? otherId._id.toString()
+      : otherId.toString();
     const otherUser = await User.findById(otherUserId)
       .select("friends blockedUsers")
       .lean();
     if (otherUser) {
-      const otherBlocked = (otherUser.blockedUsers || []).map((id) => id.toString());
+      const otherBlocked = (otherUser.blockedUsers || []).map((id) =>
+        id.toString(),
+      );
       if (otherBlocked.includes(req.user._id.toString())) {
         return next(new ApiError("تم حظرك من قبل هذا المستخدم", 403));
       }
       const otherFriends = (otherUser.friends || []).map((id) => id.toString());
       if (!otherFriends.includes(req.user._id.toString())) {
-        return next(new ApiError("لا يمكنك إرسال رسائل بعد إلغاء الصداقة", 403));
+        return next(
+          new ApiError("لا يمكنك إرسال رسائل بعد إلغاء الصداقة", 403),
+        );
       }
     }
   }
@@ -405,7 +420,7 @@ exports.sendMessage = asyncHandler(async (req, res, next) => {
   }
 
   res.status(201).json({
-    message: "Message sent successfully",
+    message: "تم إرسال الرسالة بنجاح",
     data: message,
   });
 });
@@ -419,19 +434,17 @@ exports.getChatMessages = asyncHandler(async (req, res, next) => {
   const chat = await Chat.findOne({
     _id: id,
     isActive: true,
-    $or: [
-      { participants: req.user._id },
-      { guardians: req.user._id },
-    ],
-  })
-    .populate({ path: "participants", select: "_id" });
+    $or: [{ participants: req.user._id }, { guardians: req.user._id }],
+  }).populate({ path: "participants", select: "_id" });
 
   if (!chat) {
-    return next(new ApiError("Chat not found or access denied", 404));
+    return next(
+      new ApiError("المحادثة غير موجودة أو ليس لديك صلاحية لفتحها", 404),
+    );
   }
 
   const otherParticipant = (chat.participants || []).find(
-    (p) => (p._id || p).toString() !== req.user._id.toString()
+    (p) => (p._id || p).toString() !== req.user._id.toString(),
   );
   if (otherParticipant) {
     const otherId = (otherParticipant._id || otherParticipant).toString();
@@ -439,13 +452,19 @@ exports.getChatMessages = asyncHandler(async (req, res, next) => {
       .select("blockedUsers friends")
       .lean();
     if (otherUser) {
-      const blockedIds = (otherUser.blockedUsers || []).map((id) => id.toString());
+      const blockedIds = (otherUser.blockedUsers || []).map((id) =>
+        id.toString(),
+      );
       if (blockedIds.includes(req.user._id.toString())) {
         return next(new ApiError("لا يمكنك فتح هذه المحادثة", 403));
       }
-      const myFriends = await User.findById(req.user._id).select("friends").lean();
+      const myFriends = await User.findById(req.user._id)
+        .select("friends")
+        .lean();
       const myFriendIds = (myFriends?.friends || []).map((id) => id.toString());
-      const otherFriendIds = (otherUser.friends || []).map((id) => id.toString());
+      const otherFriendIds = (otherUser.friends || []).map((id) =>
+        id.toString(),
+      );
       if (
         !myFriendIds.includes(otherId) ||
         !otherFriendIds.includes(req.user._id.toString())
@@ -466,7 +485,7 @@ exports.getChatMessages = asyncHandler(async (req, res, next) => {
         select: "content sender messageType",
       })
       .sort({ createdAt: -1 }),
-    req.query
+    req.query,
   ).paginate();
 
   const { mongooseQuery, paginationResult } = apiFeatures;
@@ -488,19 +507,17 @@ exports.markAsRead = asyncHandler(async (req, res, next) => {
   const chat = await Chat.findOne({
     _id: id,
     isActive: true,
-    $or: [
-      { participants: req.user._id },
-      { guardians: req.user._id },
-    ],
-  })
-    .populate({ path: "participants", select: "_id" });
+    $or: [{ participants: req.user._id }, { guardians: req.user._id }],
+  }).populate({ path: "participants", select: "_id" });
 
   if (!chat) {
-    return next(new ApiError("Chat not found or access denied", 404));
+    return next(
+      new ApiError("المحادثة غير موجودة أو ليس لديك صلاحية لفتحها", 404),
+    );
   }
 
   const otherParticipant = (chat.participants || []).find(
-    (p) => (p._id || p).toString() !== req.user._id.toString()
+    (p) => (p._id || p).toString() !== req.user._id.toString(),
   );
   if (otherParticipant) {
     const otherId = (otherParticipant._id || otherParticipant).toString();
@@ -508,13 +525,19 @@ exports.markAsRead = asyncHandler(async (req, res, next) => {
       .select("blockedUsers friends")
       .lean();
     if (otherUser) {
-      const blockedIds = (otherUser.blockedUsers || []).map((id) => id.toString());
+      const blockedIds = (otherUser.blockedUsers || []).map((id) =>
+        id.toString(),
+      );
       if (blockedIds.includes(req.user._id.toString())) {
         return next(new ApiError("لا يمكنك فتح هذه المحادثة", 403));
       }
-      const myFriends = await User.findById(req.user._id).select("friends").lean();
+      const myFriends = await User.findById(req.user._id)
+        .select("friends")
+        .lean();
       const myFriendIds = (myFriends?.friends || []).map((id) => id.toString());
-      const otherFriendIds = (otherUser.friends || []).map((id) => id.toString());
+      const otherFriendIds = (otherUser.friends || []).map((id) =>
+        id.toString(),
+      );
       if (
         !myFriendIds.includes(otherId) ||
         !otherFriendIds.includes(req.user._id.toString())
@@ -531,7 +554,7 @@ exports.markAsRead = asyncHandler(async (req, res, next) => {
       sender: { $ne: req.user._id },
       isRead: false,
     },
-    { isRead: true, readAt: new Date() }
+    { isRead: true, readAt: new Date() },
   );
 
   // Reset unread count for user
@@ -540,7 +563,7 @@ exports.markAsRead = asyncHandler(async (req, res, next) => {
   });
 
   res.status(200).json({
-    message: "Messages marked as read",
+    message: "تم تحديد الرسائل كمقروءة",
   });
 });
 
@@ -551,25 +574,27 @@ exports.pollMessages = asyncHandler(async (req, res) => {
   const userId = req.user._id;
   const { since } = req.query; // timestamp in milliseconds
 
-  const sinceDate = since ? new Date(parseInt(since)) : new Date(Date.now() - 30000); // Default to last 30 seconds
+  const sinceDate = since
+    ? new Date(parseInt(since))
+    : new Date(Date.now() - 30000); // Default to last 30 seconds
 
   // Get new messages for user's chats
   const userChats = await Chat.find({
     participants: userId,
     isActive: true,
-  }).select('_id');
+  }).select("_id");
 
-  const chatIds = userChats.map(chat => chat._id);
+  const chatIds = userChats.map((chat) => chat._id);
 
   const newMessages = await Message.find({
     chat: { $in: chatIds },
     sender: { $ne: userId }, // Messages from other users
     createdAt: { $gt: sinceDate },
-    isRead: false
+    isRead: false,
   })
-  .populate('chat', 'participants')
-  .populate('sender', 'name profileImg')
-  .sort({ createdAt: 1 });
+    .populate("chat", "participants")
+    .populate("sender", "name profileImg")
+    .sort({ createdAt: 1 });
 
   // Get unread counts for each chat
   const unreadCounts = {};
@@ -577,7 +602,7 @@ exports.pollMessages = asyncHandler(async (req, res) => {
     const count = await Message.countDocuments({
       chat: chatId,
       sender: { $ne: userId },
-      isRead: false
+      isRead: false,
     });
     unreadCounts[chatId] = count;
   }
@@ -587,8 +612,8 @@ exports.pollMessages = asyncHandler(async (req, res) => {
     data: {
       newMessages,
       unreadCounts,
-      timestamp: Date.now()
-    }
+      timestamp: Date.now(),
+    },
   });
 });
 
@@ -597,7 +622,9 @@ exports.pollMessages = asyncHandler(async (req, res) => {
 // @access  Private
 exports.getFriends = asyncHandler(async (req, res) => {
   // Get current user with friends populated
-  const currentUser = await User.findById(req.user._id).select("friends").lean();
+  const currentUser = await User.findById(req.user._id)
+    .select("friends")
+    .lean();
 
   if (!currentUser.friends || currentUser.friends.length === 0) {
     return res.status(200).json({
@@ -634,7 +661,9 @@ exports.deleteChat = asyncHandler(async (req, res, next) => {
   });
 
   if (!chat) {
-    return next(new ApiError("Chat not found or access denied", 404));
+    return next(
+      new ApiError("المحادثة غير موجودة أو ليس لديك صلاحية لفتحها", 404),
+    );
   }
 
   // Soft delete chat
@@ -644,7 +673,7 @@ exports.deleteChat = asyncHandler(async (req, res, next) => {
   await Message.updateMany({ chat: id }, { isArchived: true });
 
   res.status(200).json({
-    message: "Chat deleted successfully",
+    message: "تم حذف المحادثة بنجاح",
   });
 });
 
@@ -671,7 +700,7 @@ exports.getAllChats = asyncHandler(async (req, res) => {
         },
       })
       .sort({ lastMessageTime: -1 }),
-    req.query
+    req.query,
   ).paginate(documentsCounts);
 
   const { mongooseQuery, paginationResult } = apiFeatures;
@@ -691,7 +720,7 @@ exports.getAllChats = asyncHandler(async (req, res) => {
         totalMessages,
         unreadMessages,
       };
-    })
+    }),
   );
 
   res.status(200).json({
@@ -715,7 +744,7 @@ exports.archiveOldMessages = asyncHandler(async (req, res) => {
       createdAt: { $lt: cutoffDate },
       isArchived: false,
     },
-    { isArchived: true, archivedAt: new Date() }
+    { isArchived: true, archivedAt: new Date() },
   );
 
   res.status(200).json({
@@ -730,7 +759,9 @@ exports.getMessageStats = asyncHandler(async (req, res) => {
   const totalChats = await Chat.countDocuments({ isActive: true });
   const totalMessages = await Message.countDocuments();
   const totalUnreadMessages = await Message.countDocuments({ isRead: false });
-  const totalArchivedMessages = await Message.countDocuments({ isArchived: true });
+  const totalArchivedMessages = await Message.countDocuments({
+    isArchived: true,
+  });
 
   // Get messages by type
   const messagesByType = await Message.aggregate([
@@ -764,7 +795,7 @@ exports.getMessageStats = asyncHandler(async (req, res) => {
       },
     },
     {
-      $sort: { "_id": 1 },
+      $sort: { _id: 1 },
     },
   ]);
 
@@ -795,7 +826,7 @@ exports.cleanupChatMessages = asyncHandler(async (req, res) => {
   });
 
   res.status(200).json({
-    message: `Deleted ${result.deletedCount} archived messages older than ${daysOld} days`,
+    message: `تم حذف ${result.deletedCount} رسائل محفوظة أقدم من ${daysOld} يوم`,
   });
 });
 
@@ -808,7 +839,7 @@ exports.getChatMessagesForAdmin = asyncHandler(async (req, res, next) => {
   // Get chat
   const chat = await Chat.findById(id);
   if (!chat) {
-    return next(new ApiError("Chat not found", 404));
+    return next(new ApiError("المحادثة غير موجودة", 404));
   }
 
   const apiFeatures = new ApiFeatures(
@@ -822,7 +853,7 @@ exports.getChatMessagesForAdmin = asyncHandler(async (req, res, next) => {
         select: "content sender messageType",
       })
       .sort({ createdAt: -1 }),
-    req.query
+    req.query,
   ).paginate();
 
   const { mongooseQuery, paginationResult } = apiFeatures;
@@ -856,7 +887,7 @@ exports.getChatForAdmin = asyncHandler(async (req, res, next) => {
     });
 
   if (!chat) {
-    return next(new ApiError("Chat not found", 404));
+    return next(new ApiError("المحادثة غير موجودة", 404));
   }
 
   // Get message counts
@@ -905,7 +936,9 @@ exports.getChatViolations = asyncHandler(async (req, res) => {
     .sort({ createdAt: -1 });
 
   // Get unique chat IDs from warnings
-  const chatIds = [...new Set(warnings.map(w => w.chat?._id?.toString()).filter(Boolean))];
+  const chatIds = [
+    ...new Set(warnings.map((w) => w.chat?._id?.toString()).filter(Boolean)),
+  ];
 
   // Get chats with violations
   const chatsWithViolations = await Chat.find({
@@ -927,12 +960,12 @@ exports.getChatViolations = asyncHandler(async (req, res) => {
     .sort({ lastMessageTime: -1 });
 
   // Add violation details to each chat
-  const chatsWithDetails = chatsWithViolations.map(chat => {
+  const chatsWithDetails = chatsWithViolations.map((chat) => {
     const chatWarnings = warnings.filter(
-      w => w.chat?._id?.toString() === chat._id.toString()
+      (w) => w.chat?._id?.toString() === chat._id.toString(),
     );
-    
-    const violationMessages = chatWarnings.map(w => ({
+
+    const violationMessages = chatWarnings.map((w) => ({
       id: w._id,
       userId: w.user?._id,
       userName: w.user?.name,
@@ -967,25 +1000,23 @@ exports.blockChatParticipant = asyncHandler(async (req, res, next) => {
   // Get chat
   const chat = await Chat.findById(id);
   if (!chat) {
-    return next(new ApiError("Chat not found", 404));
+    return next(new ApiError("المحادثة غير موجودة", 404));
   }
 
   // Get user
   const user = await User.findById(userId);
   if (!user) {
-    return next(new ApiError("User not found", 404));
+    return next(new ApiError("المستخدم غير موجود", 404));
   }
 
   // Check admin permissions
   if (adminType !== "super" && user.gender !== adminType) {
-    return next(
-      new ApiError("You do not have permission to block this user", 403)
-    );
+    return next(new ApiError("ليس لديك صلاحية لحظر هذا المستخدم", 403));
   }
 
   // Check if user is participant in chat
   if (!chat.participants.includes(userId)) {
-    return next(new ApiError("User is not a participant in this chat", 400));
+    return next(new ApiError("المستخدم ليس مشاركا في هذه المحادثة", 400));
   }
 
   // Block user permanently (set blockedUntil to far future)
@@ -994,18 +1025,18 @@ exports.blockChatParticipant = asyncHandler(async (req, res, next) => {
 
   user.isBlocked = true;
   user.blockedUntil = blockedUntil;
-  user.blockReason = blockReason || "Permanent block from chat monitoring";
+  user.blockReason = blockReason || "حظر دائم من قبل المشرفين";
   user.blockedBy = adminId;
   await user.save();
 
   // Deactivate all chats for this user
   await Chat.updateMany(
     { participants: userId, isActive: true },
-    { isActive: false }
+    { isActive: false },
   );
 
   res.status(200).json({
-    message: "User blocked permanently and removed from all chats",
+    message: "تم حظر المستخدم بشكل دائم وإزالته من جميع المحادثات",
     data: {
       userId: user._id,
       userName: user.name,
@@ -1030,7 +1061,9 @@ exports.blockBothParticipants = asyncHandler(async (req, res, next) => {
   }
 
   if (chat.participants.length !== 2) {
-    return next(new ApiError("This endpoint is only for direct chats with 2 participants", 400));
+    return next(
+      new ApiError("هذا النقطة فقط للمحادثات المباشرة مع 2 مشاركين", 400),
+    );
   }
 
   // Get both participants
@@ -1040,7 +1073,7 @@ exports.blockBothParticipants = asyncHandler(async (req, res, next) => {
   ]);
 
   if (!user1 || !user2) {
-    return next(new ApiError("One or both participants not found", 404));
+    return next(new ApiError("أحد المشاركين غير موجود", 404));
   }
 
   // Check admin permissions
@@ -1048,11 +1081,9 @@ exports.blockBothParticipants = asyncHandler(async (req, res, next) => {
     // Admin can only block users of their gender type
     const canBlockUser1 = user1.gender === adminType;
     const canBlockUser2 = user2.gender === adminType;
-    
+
     if (!canBlockUser1 && !canBlockUser2) {
-      return next(
-        new ApiError("You do not have permission to block these users", 403)
-      );
+      return next(new ApiError("ليس لديك صلاحية لحظر هذين المستخدمين", 403));
     }
   }
 
@@ -1060,7 +1091,7 @@ exports.blockBothParticipants = asyncHandler(async (req, res, next) => {
   const blockedUntil = new Date();
   blockedUntil.setFullYear(blockedUntil.getFullYear() + 100); // 100 years = permanent
 
-  const blockReasonFinal = blockReason || "Permanent block from chat monitoring";
+  const blockReasonFinal = blockReason || "حظر دائم من قبل المشرفين";
 
   // Block user1 if admin has permission
   if (adminType === "super" || user1.gender === adminType) {
@@ -1073,7 +1104,7 @@ exports.blockBothParticipants = asyncHandler(async (req, res, next) => {
     // Deactivate all chats for user1
     await Chat.updateMany(
       { participants: user1._id, isActive: true },
-      { isActive: false }
+      { isActive: false },
     );
   }
 
@@ -1088,7 +1119,7 @@ exports.blockBothParticipants = asyncHandler(async (req, res, next) => {
     // Deactivate all chats for user2
     await Chat.updateMany(
       { participants: user2._id, isActive: true },
-      { isActive: false }
+      { isActive: false },
     );
   }
 
@@ -1097,7 +1128,7 @@ exports.blockBothParticipants = asyncHandler(async (req, res, next) => {
   await chat.save();
 
   res.status(200).json({
-    message: "Both participants blocked permanently and chat deactivated",
+    message: "تم حظر كلا المشاركين بشكل دائم وإزالة المحادثة",
     data: {
       chatId: chat._id,
       blockedUsers: [

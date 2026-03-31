@@ -29,9 +29,9 @@ exports.addBannedWord = asyncHandler(async (req, res, next) => {
   if (existingWord) {
     return next(
       new ApiError(
-        "This word or variation already exists in the banned words list",
-        400
-      )
+        "هذا الكلمة أو التغيير موجود في قائمة الكلمات المحظورة",
+        400,
+      ),
     );
   }
 
@@ -50,7 +50,7 @@ exports.addBannedWord = asyncHandler(async (req, res, next) => {
   });
 
   res.status(201).json({
-    message: "Banned word added successfully",
+    message: "تم إضافة الكلمة المحظورة بنجاح",
     data: bannedWord,
   });
 });
@@ -61,7 +61,7 @@ exports.addBannedWord = asyncHandler(async (req, res, next) => {
 exports.getBannedWords = asyncHandler(async (req, res) => {
   const features = new ApiFeatures(
     BannedWords.find().sort({ createdAt: -1 }),
-    req.query
+    req.query,
   )
     .filter()
     .sort()
@@ -73,8 +73,8 @@ exports.getBannedWords = asyncHandler(async (req, res) => {
     const keyword = req.query.keyword || req.query.search;
     features.mongooseQuery = features.mongooseQuery.find({
       $or: [
-        { word: { $regex: keyword, $options: 'i' } },
-        { variations: { $regex: keyword, $options: 'i' } },
+        { word: { $regex: keyword, $options: "i" } },
+        { variations: { $regex: keyword, $options: "i" } },
       ],
     });
   }
@@ -98,7 +98,8 @@ exports.getBannedWords = asyncHandler(async (req, res) => {
     stats: {
       total: totalWords,
       active: activeWords,
-      totalViolations: totalViolations.length > 0 ? totalViolations[0].total : 0,
+      totalViolations:
+        totalViolations.length > 0 ? totalViolations[0].total : 0,
     },
   });
 });
@@ -122,7 +123,7 @@ exports.updateBannedWord = asyncHandler(async (req, res, next) => {
 
   const bannedWord = await BannedWords.findById(id);
   if (!bannedWord) {
-    return next(new ApiError("Banned word not found", 404));
+    return next(new ApiError("الكلمة المحظورة غير موجودة", 404));
   }
 
   // Check if new word conflicts with existing ones
@@ -141,7 +142,7 @@ exports.updateBannedWord = asyncHandler(async (req, res, next) => {
 
     if (existingWord) {
       return next(
-        new ApiError("This word already exists in the banned words list", 400)
+        new ApiError("هذا الكلمة موجودة في قائمة الكلمات المحظورة", 400),
       );
     }
   }
@@ -161,7 +162,7 @@ exports.updateBannedWord = asyncHandler(async (req, res, next) => {
   await bannedWord.save();
 
   res.status(200).json({
-    message: "Banned word updated successfully",
+    message: "تم تحديث الكلمة المحظورة بنجاح",
     data: bannedWord,
   });
 });
@@ -174,13 +175,13 @@ exports.deleteBannedWord = asyncHandler(async (req, res, next) => {
 
   const bannedWord = await BannedWords.findById(id);
   if (!bannedWord) {
-    return next(new ApiError("Banned word not found", 404));
+    return next(new ApiError("الكلمة المحظورة غير موجودة", 404));
   }
 
   await BannedWords.findByIdAndDelete(id);
 
   res.status(200).json({
-    message: "Banned word deleted successfully",
+    message: "تم حذف الكلمة المحظورة بنجاح",
   });
 });
 
@@ -192,7 +193,7 @@ exports.toggleBannedWord = asyncHandler(async (req, res, next) => {
 
   const bannedWord = await BannedWords.findById(id);
   if (!bannedWord) {
-    return next(new ApiError("Banned word not found", 404));
+    return next(new ApiError("الكلمة المحظورة غير موجودة", 404));
   }
 
   bannedWord.isActive = !bannedWord.isActive;
@@ -214,7 +215,7 @@ exports.bulkAddBannedWords = asyncHandler(async (req, res, next) => {
   const adminId = req.admin._id;
 
   if (!words || !Array.isArray(words) || words.length === 0) {
-    return next(new ApiError("Words array is required", 400));
+    return next(new ApiError("مصفوفة الكلمات مطلوبة", 400));
   }
 
   const results = {
@@ -259,7 +260,7 @@ exports.bulkAddBannedWords = asyncHandler(async (req, res, next) => {
   }
 
   res.status(200).json({
-    message: `Bulk operation completed. Added: ${results.added.length}, Skipped: ${results.skipped.length}, Errors: ${results.errors.length}`,
+    message: `تم إنهاء العملية المجمعة. إضافة: ${results.added.length}, تخطي: ${results.skipped.length}, أخطاء: ${results.errors.length}`,
     data: results,
   });
 });
@@ -306,7 +307,7 @@ exports.getBannedWordsStats = asyncHandler(async (req, res) => {
 exports.exportBannedWords = asyncHandler(async (req, res) => {
   const bannedWords = await BannedWords.find({ isActive: true })
     .select(
-      "word variations category severity warningMessage autoBlockThreshold"
+      "word variations category severity warningMessage autoBlockThreshold",
     )
     .sort({ word: 1 });
 

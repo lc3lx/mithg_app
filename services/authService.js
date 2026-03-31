@@ -27,7 +27,7 @@ const buildBlockMessage = (user) => {
     return "تم حظر حسابك بشكل كامل. تواصل مع الدعم.";
   }
   return `الحساب محظور حتى ${user.blockedUntil.toLocaleString(
-    "ar-SA"
+    "ar-SA",
   )}. تواصل مع الدعم.`;
 };
 
@@ -56,7 +56,7 @@ exports.signup = asyncHandler(async (req, res, next) => {
     } catch (notificationError) {
       console.error(
         "Signup welcome notification error:",
-        notificationError.message
+        notificationError.message,
       );
     }
 
@@ -118,7 +118,7 @@ exports.login = asyncHandler(async (req, res, next) => {
     );
   }
   if (!(await bcrypt.compare(req.body.password, user.password))) {
-    return next(new ApiError("Incorrect password", 401));
+    return next(new ApiError("كلمة المرور غير صحيحة", 401));
   }
 
   // التحقق من الحظر (حساب أو حظر شامل: جوال / IP / جهاز)
@@ -187,10 +187,7 @@ exports.protect = asyncHandler(async (req, res, next) => {
   }
   if (!token) {
     return next(
-      new ApiError(
-        "You are not login, Please login to get access this route",
-        401,
-      ),
+      new ApiError("أنت غير مسجل. يرجى تسجيل الدخول للحصول على الوصول.", 401),
     );
   }
 
@@ -201,10 +198,7 @@ exports.protect = asyncHandler(async (req, res, next) => {
   const currentUser = await User.findById(decoded.userId);
   if (!currentUser) {
     return next(
-      new ApiError(
-        "The user that belong to this token does no longer exist",
-        401,
-      ),
+      new ApiError("المستخدم الذي ينتمي إلى هذا الرمز لم يعد موجودا", 401),
     );
   }
   if (currentUser.active === false) {
@@ -223,7 +217,7 @@ exports.protect = asyncHandler(async (req, res, next) => {
     if (passChangedTimestamp > decoded.iat) {
       return next(
         new ApiError(
-          "User recently changed his password. please login again..",
+          "تم تغيير كلمة المرور الخاص بالمستخدم مؤخرا. يرجى تسجيل الدخول مرة أخرى.",
           401,
         ),
       );
@@ -239,7 +233,7 @@ exports.protect = asyncHandler(async (req, res, next) => {
 exports.requirePhoneVerified = (req, res, next) => {
   if (!req.user) {
     return next(
-      new ApiError("You are not logged in. Please log in to get access.", 401),
+      new ApiError("أنت غير مسجل. يرجى تسجيل الدخول للحصول على الوصول.", 401),
     );
   }
   if (req.user.phoneVerified === true) {
@@ -260,9 +254,7 @@ exports.allowedTo = (...roles) =>
     // 1) access roles
     // 2) access registered user (req.user.role)
     if (!roles.includes(req.user.role)) {
-      return next(
-        new ApiError("You are not allowed to access this route", 403),
-      );
+      return next(new ApiError("ليس لديك صلاحية للوصول لهذه الصفحة", 403));
     }
     next();
   });
@@ -294,11 +286,11 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
   await user.save();
 
   // 3) Send the reset code via email
-  const message = `Hi ${user.name},\n We received a request to reset the password on your Mithaqsyr Account. \n ${resetCode} \n Enter this code to complete the reset. \n Thanks for helping us keep your account secure.\n The Mithaqsyr Team`;
+  const message = `السلام عليكم ${user.name},\n أحصلنا على طلب لإعادة تعيين كلمة المرور على حسابك في Mithaqsyr. \n ${resetCode} \n أدخل هذا الرمز لإنهاء الإعادة تعيين. \n شكرا لمساعدتنا في الحفاظ على حسابك آمن.\n فريق Mithaqsyr`;
   try {
     await sendEmail({
       email: user.email,
-      subject: "Your password reset code (valid for 10 min)",
+      subject: "رمز تعيين كلمة المرور (متوفر لمدة 10 دقيقة)",
       message,
     });
   } catch (err) {
@@ -307,12 +299,15 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
     user.passwordResetVerified = undefined;
 
     await user.save();
-    return next(new ApiError("There is an error in sending email", 500));
+    return next(new ApiError("حدث خطأ في إرسال البريد الإلكتروني", 500));
   }
 
   res
     .status(200)
-    .json({ status: "Success", message: "Reset code sent to email" });
+    .json({
+      status: "Success",
+      message: "تم إرسال رمز التعيين إلى البريد الإلكتروني",
+    });
 });
 
 // @desc    Verify password reset code
@@ -330,7 +325,7 @@ exports.verifyPassResetCode = asyncHandler(async (req, res, next) => {
     passwordResetExpires: { $gt: Date.now() },
   });
   if (!user) {
-    return next(new ApiError("Reset code invalid or expired"));
+    return next(new ApiError("رمز التعيين غير صحيح أو منتهي الصلاحية"));
   }
 
   // 2) Reset code valid
@@ -350,13 +345,16 @@ exports.resetPassword = asyncHandler(async (req, res, next) => {
   const user = await User.findOne({ email: req.body.email });
   if (!user) {
     return next(
-      new ApiError(`There is no user with email ${req.body.email}`, 404),
+      new ApiError(
+        `لا يوجد مستخدم بهذا البريد الإلكتروني ${req.body.email}`,
+        404,
+      ),
     );
   }
 
   // 2) Check if reset code verified
   if (!user.passwordResetVerified) {
-    return next(new ApiError("Reset code not verified", 400));
+    return next(new ApiError("رمز التعيين غير مؤكد", 400));
   }
 
   user.password = req.body.newPassword;

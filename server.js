@@ -1,11 +1,10 @@
 const path = require("path");
-
+const mongoose = require("mongoose");
 const express = require("express");
 const dotenv = require("dotenv");
 const morgan = require("morgan");
 const cors = require("cors");
 const compression = require("compression");
-const rateLimit = require("express-rate-limit");
 const hpp = require("hpp");
 const helmet = require("helmet");
 const mongoSanitize = require("express-mongo-sanitize");
@@ -31,7 +30,7 @@ const mountRoutes = require("./routes");
 dbConnection();
 
 // تهيئة واتساب (whatsapp-web.js): استرجاع الجلسة من MongoDB إن وُجدت — بعد اتصال MongoDB فقط
-const mongoose = require("mongoose");
+
 function initWhatsApp() {
   import("./otp/whatsapp.mjs")
     .then(({ ensureInitialized }) => ensureInitialized())
@@ -191,54 +190,6 @@ if (process.env.NODE_ENV === "development") {
   app.use(morgan("dev"));
   console.log(`mode: ${process.env.NODE_ENV}`);
 }
-
-// General rate limiter - Limit each IP to 100 requests per 15 minutes
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000,
-  message: {
-    error: "Too many requests from this IP, please try again after 15 minutes",
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Stricter limiter for authentication routes (disabled for development)
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1500, // Increased to 50 attempts per 15 minutes for development
-  message: {
-    error:
-      "Too many authentication attempts, please try again after 15 minutes",
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Limiter for chat/message sending
-const chatLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 1000, // 20 messages per minute
-  message: {
-    error: "Too many messages sent, please slow down",
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Limiter for profile views and likes
-const interactionLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 1000, // 10 interactions per minute
-  message: {
-    error: "Too many interactions, please slow down",
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Apply the rate limiting middleware to all requests
-app.use("/api", limiter);
 
 // Middleware to protect against HTTP Parameter Pollution attacks
 app.use(

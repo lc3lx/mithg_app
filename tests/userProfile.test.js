@@ -47,7 +47,7 @@ describe("User Profile API", () => {
     });
 
     it("should reject about text that is too long", async () => {
-      const longText = "a".repeat(1001); // More than 1000 characters
+      const longText = "a".repeat(501); // More than 500 characters
 
       await request(app)
         .put("/api/v1/profile/about")

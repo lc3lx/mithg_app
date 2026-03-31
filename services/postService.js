@@ -32,7 +32,7 @@ exports.createFilterObj = (req, res, next) => {
 // @route   GET /api/v1/posts
 // @access  Public
 exports.getPosts = asyncHandler(async (req, res) => {
-  console.log('📋 Fetching posts...');
+  console.log("📋 Fetching posts...");
   const documentsCounts = await Post.countDocuments();
   console.log(`📊 Found ${documentsCounts} posts`);
   const apiFeatures = new ApiFeatures(Post.find(), req.query)
@@ -52,14 +52,21 @@ exports.getPosts = asyncHandler(async (req, res) => {
 
   console.log(`🎬 Posts fetched: ${posts.length}`);
   if (posts.length > 0) {
-    console.log('📹 First post media:', JSON.stringify(posts[0].media, null, 2));
+    console.log(
+      "📹 First post media:",
+      JSON.stringify(posts[0].media, null, 2),
+    );
   }
 
   const userId = req.user?._id?.toString();
   const data = posts.map((p) => {
     const po = p.toObject ? p.toObject() : { ...p };
-    po.isLiked = !!userId && (p.likes || []).some((l) => (l._id || l).toString() === userId);
-    po.isDisliked = !!userId && (p.dislikes || []).some((l) => (l._id || l).toString() === userId);
+    po.isLiked =
+      !!userId &&
+      (p.likes || []).some((l) => (l._id || l).toString() === userId);
+    po.isDisliked =
+      !!userId &&
+      (p.dislikes || []).some((l) => (l._id || l).toString() === userId);
     return po;
   });
 
@@ -67,10 +74,7 @@ exports.getPosts = asyncHandler(async (req, res) => {
   if (req.user && data.length > 0) {
     const postIds = data.map((p) => p._id).filter(Boolean);
     if (postIds.length > 0) {
-      await Post.updateMany(
-        { _id: { $in: postIds } },
-        { $inc: { views: 1 } }
-      );
+      await Post.updateMany({ _id: { $in: postIds } }, { $inc: { views: 1 } });
     }
   }
 
@@ -152,11 +156,11 @@ exports.togglePostStatus = asyncHandler(async (req, res, next) => {
   const post = await Post.findByIdAndUpdate(
     id,
     { isActive },
-    { new: true, runValidators: true }
+    { new: true, runValidators: true },
   );
 
   if (!post) {
-    return next(new ApiError(`No post for this id ${id}`, 404));
+    return next(new ApiError(`لا يوجد بوست لهذا المعرف ${id}`, 404));
   }
 
   res.status(200).json({
@@ -174,11 +178,13 @@ exports.toggleLike = asyncHandler(async (req, res, next) => {
 
   const post = await Post.findById(id);
   if (!post) {
-    return next(new ApiError(`No post for this id ${id}`, 404));
+    return next(new ApiError(`لا يوجد بوست لهذا المعرف ${id}`, 404));
   }
 
   const isLiked = post.likes.includes(userId);
-  const isDisliked = (post.dislikes || []).some((d) => d.toString() === userId.toString());
+  const isDisliked = (post.dislikes || []).some(
+    (d) => d.toString() === userId.toString(),
+  );
 
   if (isLiked) {
     await Post.findByIdAndUpdate(id, {
@@ -186,7 +192,7 @@ exports.toggleLike = asyncHandler(async (req, res, next) => {
       $inc: { likesCount: -1 },
     });
     res.status(200).json({
-      message: "Post unliked successfully",
+      message: "تم إلغاء الإعجاب بالبوست بنجاح",
       liked: false,
     });
   } else {
@@ -205,7 +211,7 @@ exports.toggleLike = asyncHandler(async (req, res, next) => {
         user: post.admin,
         type: "post_like",
         title: "New Like",
-        message: `${req.user.name} liked your post`,
+        message: `${req.user.name} إعجب بمنشورك`,
         relatedUser: userId,
         relatedPost: id,
         data: { postId: id },
@@ -213,7 +219,7 @@ exports.toggleLike = asyncHandler(async (req, res, next) => {
     }
 
     res.status(200).json({
-      message: "Post liked successfully",
+      message: "تم إعجاب بالبوست بنجاح",
       liked: true,
     });
   }
@@ -228,10 +234,12 @@ exports.toggleDislike = asyncHandler(async (req, res, next) => {
 
   const post = await Post.findById(id);
   if (!post) {
-    return next(new ApiError(`No post for this id ${id}`, 404));
+    return next(new ApiError(`لا يوجد بوست لهذا المعرف ${id}`, 404));
   }
 
-  const isDisliked = (post.dislikes || []).some((d) => d.toString() === userId.toString());
+  const isDisliked = (post.dislikes || []).some(
+    (d) => d.toString() === userId.toString(),
+  );
   const isLiked = post.likes.includes(userId);
 
   if (isDisliked) {
@@ -240,7 +248,7 @@ exports.toggleDislike = asyncHandler(async (req, res, next) => {
       $inc: { dislikesCount: -1 },
     });
     res.status(200).json({
-      message: "Post undisliked successfully",
+      message: "تم إلغاء الإعجاب بالبوست بنجاح",
       disliked: false,
     });
   } else {
@@ -255,7 +263,7 @@ exports.toggleDislike = asyncHandler(async (req, res, next) => {
     await Post.findByIdAndUpdate(id, update);
 
     res.status(200).json({
-      message: "Post disliked successfully",
+      message: "تم إعجاب بالبوست بنجاح",
       disliked: true,
     });
   }
@@ -274,7 +282,7 @@ exports.processPostMedia = asyncHandler(async (req, res, next) => {
       name: f.originalname,
       mimetype: f.mimetype,
       size: f.size,
-    }))
+    })),
   );
 
   req.body.media = [];
@@ -286,12 +294,12 @@ exports.processPostMedia = asyncHandler(async (req, res, next) => {
       const isVideo = file.mimetype.startsWith("video");
 
       console.log(
-        `🔍 File ${index}: ${file.originalname} - ${file.mimetype} - Image: ${isImage}, Video: ${isVideo}`
+        `🔍 File ${index}: ${file.originalname} - ${file.mimetype} - Image: ${isImage}, Video: ${isVideo}`,
       );
 
       if (!isImage && !isVideo) {
         console.log(
-          `❌ Skipping file ${file.originalname} - unsupported mimetype: ${file.mimetype}`
+          `❌ Skipping file ${file.originalname} - unsupported mimetype: ${file.mimetype}`,
         );
         return;
       }
@@ -324,7 +332,7 @@ exports.processPostMedia = asyncHandler(async (req, res, next) => {
           type: "video",
         });
       }
-    })
+    }),
   );
 
   // تحديد نوع البوست تلقائياً

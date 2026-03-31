@@ -14,7 +14,7 @@ const User = require("../models/userModel");
 exports.getRechargeCodes = asyncHandler(async (req, res) => {
   const features = new ApiFeatures(
     RechargeCode.find().sort({ createdAt: -1 }),
-    req.query
+    req.query,
   )
     .filter()
     .sort()
@@ -37,14 +37,16 @@ exports.generateRechargeCodes = asyncHandler(async (req, res, next) => {
   const { count, amount, currency, expiresAt, description } = req.body;
 
   if (!count || count <= 0 || count > 1000) {
-    return next(new ApiError("Count must be between 1 and 1000", 400));
+    return next(new ApiError("يجب أن يكون العدد بين 1 و 1000", 400));
   }
 
   if (!amount || amount <= 0) {
-    return next(new ApiError("Valid amount is required", 400));
+    return next(new ApiError("يجب أن يتم توفير المبلغ المطلوب", 400));
   }
 
-  const batchId = `BATCH_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const batchId = `BATCH_${Date.now()}_${Math.random()
+    .toString(36)
+    .substr(2, 9)}`;
 
   const codes = await RechargeCode.generateBatch(
     count,
@@ -53,15 +55,15 @@ exports.generateRechargeCodes = asyncHandler(async (req, res, next) => {
     expiresAt ? new Date(expiresAt) : null,
     req.admin._id,
     description,
-    batchId
+    batchId,
   );
 
   res.status(201).json({
     status: "success",
-    message: `Generated ${count} recharge codes with amount ${amount} ${currency || "SAR"}`,
+    message: `تم إنشاء ${count} كود شحن بمبلغ ${amount} ${currency || "SAR"}`,
     data: {
       batchId,
-      codes: codes.map(code => ({
+      codes: codes.map((code) => ({
         code: code.code,
         amount: code.amount,
         currency: code.currency,
@@ -80,7 +82,7 @@ exports.getRechargeCode = asyncHandler(async (req, res, next) => {
   const code = await RechargeCode.findById(id);
 
   if (!code) {
-    return next(new ApiError("Recharge code not found", 404));
+    return next(new ApiError("لا يوجد كود شحن لهذا المعرف", 404));
   }
 
   res.status(200).json({
@@ -99,7 +101,7 @@ exports.updateRechargeCode = asyncHandler(async (req, res, next) => {
   const code = await RechargeCode.findById(id);
 
   if (!code) {
-    return next(new ApiError("Recharge code not found", 404));
+    return next(new ApiError("لا يوجد كود شحن لهذا المعرف", 404));
   }
 
   // Update allowed fields
@@ -110,7 +112,7 @@ exports.updateRechargeCode = asyncHandler(async (req, res, next) => {
 
   res.status(200).json({
     status: "success",
-    message: "Recharge code updated successfully",
+    message: "تم تحديث كود الشحن بنجاح",
     data: code,
   });
 });
@@ -124,19 +126,19 @@ exports.deleteRechargeCode = asyncHandler(async (req, res, next) => {
   const code = await RechargeCode.findById(id);
 
   if (!code) {
-    return next(new ApiError("Recharge code not found", 404));
+    return next(new ApiError("لا يوجد كود شحن لهذا المعرف", 404));
   }
 
   // Don't allow deleting used codes
   if (code.currentUses > 0) {
-    return next(new ApiError("Cannot delete used recharge code", 400));
+    return next(new ApiError("لا يمكن حذف كود شحن تم استخدامه", 400));
   }
 
   await RechargeCode.findByIdAndDelete(id);
 
   res.status(200).json({
     status: "success",
-    message: "Recharge code deleted successfully",
+    message: "تم حذف كود الشحن بنجاح",
   });
 });
 
@@ -147,27 +149,27 @@ exports.useRechargeCode = asyncHandler(async (req, res, next) => {
   const { code, packageId } = req.body;
 
   if (!code) {
-    return next(new ApiError("Recharge code is required", 400));
+    return next(new ApiError("يجب أن يتم توفير كود الشحن", 400));
   }
 
   // Find the code
   const rechargeCode = await RechargeCode.findOne({
-    code: code.toUpperCase().trim()
+    code: code.toUpperCase().trim(),
   });
 
   if (!rechargeCode) {
-    return next(new ApiError("Invalid recharge code", 400));
+    return next(new ApiError("كود الشحن غير صالح", 400));
   }
 
   // Check if code can be used
   if (!rechargeCode.canBeUsed()) {
-    let message = "Recharge code cannot be used";
+    let message = "لا يمكن استخدام كود الشحن";
     if (rechargeCode.status !== "active") {
-      message = "Recharge code is not active";
+      message = "كود الشحن غير مفعل";
     } else if (rechargeCode.isExpired) {
-      message = "Recharge code has expired";
+      message = "كود الشحن قد انتهى";
     } else if (rechargeCode.currentUses >= rechargeCode.maxUses) {
-      message = "Recharge code has reached maximum uses";
+      message = "كود الشحن قد تم استخدامه العدد المحدد من المرات";
     }
 
     return next(new ApiError(message, 400));
@@ -175,9 +177,7 @@ exports.useRechargeCode = asyncHandler(async (req, res, next) => {
 
   // التحقق: قيمة الكود يجب أن تكون مساوية لسعر الباقة التي اختارها المستخدم (نفس العملة)
   if (!packageId) {
-    return next(
-      new ApiError("يجب اختيار الباقة قبل استخدام الكود.", 400)
-    );
+    return next(new ApiError("يجب اختيار الباقة قبل استخدام الكود.", 400));
   }
 
   const subscription = await Subscription.findOne({
@@ -197,10 +197,7 @@ exports.useRechargeCode = asyncHandler(async (req, res, next) => {
 
   if (codeCurrency !== "USD" || packageCurrency !== "USD") {
     return next(
-      new ApiError(
-        "قيمة الكود وسعر الباقة يجب أن يكونا بالدولار (USD).",
-        400
-      )
+      new ApiError("قيمة الكود وسعر الباقة يجب أن يكونا بالدولار (USD).", 400),
     );
   }
 
@@ -208,10 +205,7 @@ exports.useRechargeCode = asyncHandler(async (req, res, next) => {
   const priceDiff = Math.abs(codeAmount - packagePrice);
   if (priceDiff > 0.001) {
     return next(
-      new ApiError(
-        "قيمة الكود لا تكفي لشحن الباقة. قم بمراسلة الدعم.",
-        400
-      )
+      new ApiError("قيمة الكود لا تكفي لشحن الباقة. قم بمراسلة الدعم.", 400),
     );
   }
 
@@ -227,7 +221,11 @@ exports.useRechargeCode = asyncHandler(async (req, res, next) => {
   }
 
   // Add credit to wallet
-  await wallet.addCredit(rechargeCode.amount, `Recharge code: ${rechargeCode.code}`, null);
+  await wallet.addCredit(
+    rechargeCode.amount,
+    `Recharge code: ${rechargeCode.code}`,
+    null,
+  );
 
   // Use the code
   await rechargeCode.useCode(req.user._id);
@@ -252,18 +250,18 @@ exports.useRechargeCode = asyncHandler(async (req, res, next) => {
       const now = new Date();
       const durationDays = subscription.durationDays || 30;
       user.subscriptionEndDate = new Date(
-        now.getTime() + durationDays * 24 * 60 * 60 * 1000
+        now.getTime() + durationDays * 24 * 60 * 60 * 1000,
       );
       user.subscriptionPackage = subscription.packageType;
       await user.save();
     }
   } catch (err) {
-    console.error("Error granting subscription after recharge code:", err);
+    console.error("فشل تفعيل الاشتراك بعد استخدام كود الشحن:", err);
   }
 
   res.status(200).json({
     status: "success",
-    message: `Successfully added ${rechargeCode.amount} ${rechargeCode.currency} to your wallet`,
+    message: `تم إضافة ${rechargeCode.amount} ${rechargeCode.currency} إلى محفظتك`,
     data: {
       wallet,
       transaction,
@@ -315,13 +313,13 @@ exports.getRechargeStats = asyncHandler(async (req, res) => {
 // @access  Private/Admin
 exports.exportRechargeCodes = asyncHandler(async (req, res) => {
   const codes = await RechargeCode.find({
-    status: { $in: ["active", "used"] }
+    status: { $in: ["active", "used"] },
   })
     .sort({ createdAt: -1 })
     .populate("createdBy", "name")
     .populate("usedBy", "name");
 
-  const csvData = codes.map(code => ({
+  const csvData = codes.map((code) => ({
     code: code.code,
     amount: code.amount,
     currency: code.currency,
@@ -335,7 +333,7 @@ exports.exportRechargeCodes = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     status: "success",
-    message: "Recharge codes exported successfully",
+    message: "تم تصدير كود الشحن بنجاح",
     data: csvData,
   });
 });

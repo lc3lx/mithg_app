@@ -64,7 +64,7 @@ const logAdminAction = async (
   action,
   targetType,
   targetId,
-  details
+  details,
 ) => {
   if (!adminId) return;
   try {
@@ -100,9 +100,7 @@ exports.createAdmin = asyncHandler(async (req, res, next) => {
 
   // Only super admin can create other super admins
   if (adminType === "super" && req.admin.adminType !== "super") {
-    return next(
-      new ApiError("Only super admin can create super admin accounts", 403)
-    );
+    return next(new ApiError("فقط الأدمن الرئيسي يمكنه إنشاء أدمن رئيسي", 403));
   }
 
   const admin = await Admin.create({
@@ -136,7 +134,7 @@ exports.createAdmin = asyncHandler(async (req, res, next) => {
 exports.getAdmins = asyncHandler(async (req, res) => {
   const features = new ApiFeatures(
     Admin.find().select("-password").sort({ createdAt: -1 }),
-    req.query
+    req.query,
   )
     .filter()
     .sort()
@@ -169,12 +167,10 @@ exports.updateAdmin = asyncHandler(async (req, res, next) => {
   // Only super admin can update admin types and permissions
   if (currentAdmin.adminType !== "super") {
     if (id !== currentAdmin._id.toString()) {
-      return next(new ApiError("You can only update your own profile", 403));
+      return next(new ApiError("يمكنك تحديث الحساب الخاص بك فقط", 403));
     }
     if (adminType || permissions) {
-      return next(
-        new ApiError("You cannot update admin type or permissions", 403)
-      );
+      return next(new ApiError("يمكنك تحديث نوع الأدمن أو الصلاحيات فقط", 403));
     }
   }
 
@@ -221,19 +217,17 @@ exports.deleteAdmin = asyncHandler(async (req, res, next) => {
 
   // Prevent deleting self
   if (id === req.admin._id.toString()) {
-    return next(new ApiError("You cannot delete your own account", 400));
+    return next(new ApiError("يمكنك حذف الحساب الخاص بك فقط", 400));
   }
 
   const admin = await Admin.findById(id);
   if (!admin) {
-    return next(new ApiError("Admin not found", 404));
+    return next(new ApiError("الأدمن غير موجود", 404));
   }
 
   // Prevent deleting other super admins
   if (admin.adminType === "super" && req.admin.adminType !== "super") {
-    return next(
-      new ApiError("Only super admin can delete super admin accounts", 403)
-    );
+    return next(new ApiError("فقط الأدمن الرئيسي يمكنه حذف أدمن رئيسي", 403));
   }
 
   await Admin.findByIdAndDelete(id);
@@ -241,7 +235,7 @@ exports.deleteAdmin = asyncHandler(async (req, res, next) => {
   await logAdminAction(req.admin?._id, "delete_admin", "admin", id, {});
 
   res.status(200).json({
-    message: "Admin deleted successfully",
+    message: "تم حذف الأدمن بنجاح",
   });
 });
 
@@ -250,17 +244,21 @@ exports.deleteAdmin = asyncHandler(async (req, res, next) => {
 // @access  Public
 exports.adminLogin = asyncHandler(async (req, res, next) => {
   const { email, password } = req.body;
-  console.log(req.body)
+  console.log(req.body);
 
   if (!email || !password) {
-    return next(new ApiError("Please provide email and password", 400));
+    return next(new ApiError("يرجى تقديم البريد الإلكتروني وكلمة المرور", 400));
   }
 
   // Check if admin exists and get password
-  const admin = await Admin.findOne({ email: email.trim() }).select("+password");
+  const admin = await Admin.findOne({ email: email.trim() }).select(
+    "+password",
+  );
 
   if (!admin) {
-    return next(new ApiError("Incorrect email or password", 401));
+    return next(
+      new ApiError("البريد الإلكتروني أو كلمة المرور غير صحيحة", 401),
+    );
   }
 
   // Normalize incoming password for comparison (avoid accidental non-string / surrounding whitespace)
@@ -284,21 +282,23 @@ exports.adminLogin = asyncHandler(async (req, res, next) => {
 
   if (!isValidPassword) {
     console.log(admin);
-    return next(new ApiError("Incorrect email or password", 401));
+    return next(
+      new ApiError("البريد الإلكتروني أو كلمة المرور غير صحيحة", 401),
+    );
   }
 
   // Check if account is active
   if (!admin.isActive) {
-    return next(new ApiError("Account is deactivated", 401));
+    return next(new ApiError("الحساب معطل", 401));
   }
 
   // Check if account is locked
   if (admin.lockUntil && admin.lockUntil > Date.now()) {
     return next(
       new ApiError(
-        "Account is temporarily locked due to too many failed login attempts",
-        423
-      )
+        "الحساب مؤقتا مقفل بسبب عدد غير مسموح من محاولات تسجيل الدخول الفاشلة",
+        423,
+      ),
     );
   }
 
@@ -312,7 +312,7 @@ exports.adminLogin = asyncHandler(async (req, res, next) => {
   admin.password = undefined;
 
   res.status(200).json({
-    message: "Login successful",
+    message: "تم تسجيل الدخول بنجاح",
     token,
     data: admin,
   });
@@ -445,7 +445,7 @@ exports.getRecentActivity = asyncHandler(async (req, res) => {
     .sort({ reviewedAt: -1 })
     .limit(10)
     .select(
-      "status reviewedAt user reviewedBy subscription amount paymentInstructions"
+      "status reviewedAt user reviewedBy subscription amount paymentInstructions",
     );
 
   // Recent user registrations
@@ -559,7 +559,7 @@ exports.protectAdmin = asyncHandler(async (req, res, next) => {
 
   if (!token) {
     return next(
-      new ApiError("You are not logged in. Please log in to get access.", 401)
+      new ApiError("أنت غير مسجل. يرجى تسجيل الدخول للحصول على الوصول.", 401),
     );
   }
 
@@ -571,30 +571,27 @@ exports.protectAdmin = asyncHandler(async (req, res, next) => {
     const currentAdmin = await Admin.findById(decoded.adminId);
     if (!currentAdmin) {
       return next(
-        new ApiError(
-          "The admin belonging to this token does no longer exist.",
-          401
-        )
+        new ApiError("الأدمن الذي ينتمي إلى هذا الرمز غير موجود.", 401),
       );
     }
 
     // Check if admin is active
     if (!currentAdmin.isActive) {
-      return next(new ApiError("Your account has been deactivated.", 401));
+      return next(new ApiError("الحساب الخاص بك تم إيقافه.", 401));
     }
 
     // Check if password was changed after token was issued
     if (currentAdmin.passwordChangedAt) {
       const passChangedTimestamp = parseInt(
         currentAdmin.passwordChangedAt.getTime() / 1000,
-        10
+        10,
       );
       if (decoded.iat < passChangedTimestamp) {
         return next(
           new ApiError(
-            "Admin recently changed password. Please log in again.",
-            401
-          )
+            "تم تغيير كلمة المرور الخاص بالأدمن مؤخرا. يرجى تسجيل الدخول مرة أخرى.",
+            401,
+          ),
         );
       }
     }
@@ -602,7 +599,7 @@ exports.protectAdmin = asyncHandler(async (req, res, next) => {
     req.admin = currentAdmin;
     next();
   } catch (err) {
-    return next(new ApiError("Invalid token. Please log in again.", 401));
+    return next(new ApiError("رمز غير صالح. يرجى تسجيل الدخول مرة أخرى.", 401));
   }
 });
 
@@ -610,9 +607,7 @@ exports.protectAdmin = asyncHandler(async (req, res, next) => {
 // @access  Private/SuperAdmin
 exports.restrictToSuperAdmin = asyncHandler(async (req, res, next) => {
   if (req.admin.adminType !== "super") {
-    return next(
-      new ApiError("You do not have permission to perform this action", 403)
-    );
+    return next(new ApiError("ليس لديك صلاحية لتنفيذ هذا الإجراء", 403));
   }
   next();
 });
@@ -647,7 +642,9 @@ exports.getAdminUsers = asyncHandler(async (req, res) => {
   }
 
   // بحث بالاسم / البريد / الهاتف / اسم المستخدم
-  const searchTerm = (req.query.search || req.query.keyword || "").toString().trim();
+  const searchTerm = (req.query.search || req.query.keyword || "")
+    .toString()
+    .trim();
   if (searchTerm.length > 0) {
     const escaped = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const searchRegex = new RegExp(escaped, "i");
@@ -692,9 +689,7 @@ exports.toggleUserSubscription = asyncHandler(async (req, res, next) => {
   // Check admin permissions based on admin type
   const { adminType } = req.admin;
   if (adminType !== "super" && user.gender !== adminType) {
-    return next(
-      new ApiError("You do not have permission to manage this user", 403)
-    );
+    return next(new ApiError("ليس لديك صلاحية لإدارة هذا المستخدم", 403));
   }
 
   const newIsSubscribed =
@@ -714,7 +709,7 @@ exports.toggleUserSubscription = asyncHandler(async (req, res, next) => {
 
   // Fetch updated user
   const updatedUser = await User.findById(id).select(
-    "_id isSubscribed subscriptionEndDate"
+    "_id isSubscribed subscriptionEndDate",
   );
 
   res.status(200).json({
@@ -748,9 +743,7 @@ exports.toggleUserActive = asyncHandler(async (req, res, next) => {
   // Check admin permissions based on admin type
   const { adminType } = req.admin;
   if (adminType !== "super" && user.gender !== adminType) {
-    return next(
-      new ApiError("You do not have permission to manage this user", 403)
-    );
+    return next(new ApiError("ليس لديك صلاحية لإدارة هذا المستخدم", 403));
   }
 
   // الحقل في الموديل هو active (تجميد الحساب يضع active: false)
@@ -789,9 +782,7 @@ exports.verifyUserIdentity = asyncHandler(async (req, res, next) => {
   // Check admin permissions based on admin type
   const { adminType } = req.admin;
   if (adminType !== "super" && user.gender !== adminType) {
-    return next(
-      new ApiError("You do not have permission to manage this user", 403)
-    );
+    return next(new ApiError("ليس لديك صلاحية لإدارة هذا المستخدم", 403));
   }
 
   await User.updateOne(
@@ -802,7 +793,7 @@ exports.verifyUserIdentity = asyncHandler(async (req, res, next) => {
         identityVerificationStatus: "approved",
         identityVerificationSubmitted: true,
       },
-    }
+    },
   );
 
   res.status(200).json({
@@ -833,9 +824,7 @@ exports.unverifyUserIdentity = asyncHandler(async (req, res, next) => {
   // Check admin permissions based on admin type
   const { adminType } = req.admin;
   if (adminType !== "super" && user.gender !== adminType) {
-    return next(
-      new ApiError("You do not have permission to manage this user", 403)
-    );
+    return next(new ApiError("ليس لديك صلاحية لإدارة هذا المستخدم", 403));
   }
 
   await User.updateOne(
@@ -846,11 +835,11 @@ exports.unverifyUserIdentity = asyncHandler(async (req, res, next) => {
         identityVerificationStatus: "new",
         identityVerificationSubmitted: false,
       },
-    }
+    },
   );
 
   res.status(200).json({
-    message: "User verification revoked successfully",
+    message: "تم إلغاء توثيق الحساب بنجاح",
     data: {
       userId: id,
       identityVerified: false,

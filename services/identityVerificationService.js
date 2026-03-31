@@ -21,7 +21,7 @@ exports.submitIdentityVerification = asyncHandler(async (req, res, next) => {
   if (!user.isSubscribed) {
     return next(
       new ApiError(
-        "You must be subscribed to submit identity verification",
+        "يجب أن تكون مشتركاً لتقديم طلب التوثيق",
         403
       )
     );
@@ -31,7 +31,7 @@ exports.submitIdentityVerification = asyncHandler(async (req, res, next) => {
   if (adminType !== user.gender) {
     return next(
       new ApiError(
-        `You can only submit verification to ${user.gender} admin`,
+        `يمكنك فقط تقديم طلب التوثيق ل ${user.gender} إدمن`,
         400
       )
     );
@@ -45,13 +45,13 @@ exports.submitIdentityVerification = asyncHandler(async (req, res, next) => {
 
   if (existingPending) {
     return next(
-      new ApiError("You already have a pending verification request", 400)
+      new ApiError("لديك طلب توثيق معلق بالفعل", 400)
     );
   }
 
   // Check if user is already verified
   if (user.identityVerified) {
-    return next(new ApiError("Your identity is already verified", 400));
+    return next(new ApiError("هويتك موثقة بالفعل", 400));
   }
 
   // Process uploaded files from req.files
@@ -113,7 +113,7 @@ exports.submitIdentityVerification = asyncHandler(async (req, res, next) => {
 
   // Validate that we have at least one document
   if (processedDocuments.length === 0) {
-    return next(new ApiError("At least one document is required", 400));
+    return next(new ApiError("يجب أن يكون لديك على الأقل صورة واحدة", 400));
   }
 
   // Create verification request
@@ -131,7 +131,7 @@ exports.submitIdentityVerification = asyncHandler(async (req, res, next) => {
 
   res.status(201).json({
     message:
-      "Identity verification request submitted successfully. Please wait for admin review.",
+      "تم إرسال طلب التوثيق بنجاح. يرجى الإنتظار لمراجعة الإدمن",
     data: verificationRequest,
   });
 });
@@ -253,25 +253,25 @@ exports.reviewVerificationRequest = asyncHandler(async (req, res, next) => {
   const { _id: adminId, adminType } = req.admin;
 
   if (!["approve", "reject"].includes(action)) {
-    return next(new ApiError("Action must be either approve or reject", 400));
+    return next(new ApiError("يجب أن يكون الإجراء إما موافقة أو رفض", 400));
   }
 
   const verificationRequest = await IdentityVerification.findById(id).populate(
     "user"
   );
   if (!verificationRequest) {
-    return next(new ApiError("Verification request not found", 404));
+    return next(new ApiError("طلب التوثيق غير موجود", 404));
   }
 
   if (verificationRequest.status !== "pending") {
-    return next(new ApiError("Request has already been reviewed", 400));
+    return next(new ApiError("طلب التوثيق تم مراجعته بالفعل", 400));
   }
 
   // Check if admin has permission for this request type
   if (adminType !== "super" && verificationRequest.adminType !== adminType) {
     return next(
       new ApiError(
-        "You can only review requests assigned to your admin type",
+        "يمكنك فقط مراجعة طلبات تعينت لنوع الإدمن الخاص بك",
         403
       )
     );
@@ -319,13 +319,13 @@ exports.reviewVerificationRequest = asyncHandler(async (req, res, next) => {
     }
 
     res.status(200).json({
-      message: "Identity verification approved successfully",
+      message: "تم توثيق الهوية بنجاح",
       data: verificationRequest,
     });
   } else {
     // Reject verification
     if (!rejectionReason) {
-      return next(new ApiError("Rejection reason is required", 400));
+      return next(new ApiError("يجب أن يكون سبب الرفض موجود", 400));
     }
 
     verificationRequest.status = "rejected";
@@ -389,13 +389,13 @@ exports.getVerificationRequestDetails = asyncHandler(async (req, res, next) => {
     .populate("reviewedBy", "name email adminType");
 
   if (!verificationRequest) {
-    return next(new ApiError("Verification request not found", 404));
+    return next(new ApiError("طلب التوثيق غير موجود", 404));
   }
 
   // Check if admin has permission
   if (adminType !== "super" && verificationRequest.adminType !== adminType) {
     return next(
-      new ApiError("You don't have permission to view this request", 403)
+      new ApiError("ليس لديك صلاحية لعرض هذا الطلب", 403)
     );
   }
 

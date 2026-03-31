@@ -21,13 +21,11 @@ exports.blockUser = asyncHandler(async (req, res, next) => {
   // Check admin permissions based on admin type
   const { adminType } = req.admin;
   if (adminType !== "super" && user.gender !== adminType) {
-    return next(
-      new ApiError("You do not have permission to manage this user", 403)
-    );
+    return next(new ApiError("ليس لديك صلاحية لإدارة هذا المستخدم", 403));
   }
 
   if (user.isBlocked) {
-    return next(new ApiError("User is already blocked", 400));
+    return next(new ApiError("المستخدم محظور بالفعل", 400));
   }
 
   // Calculate block end date
@@ -37,7 +35,7 @@ exports.blockUser = asyncHandler(async (req, res, next) => {
   // Update user
   user.isBlocked = true;
   user.blockedUntil = blockedUntil;
-  user.blockReason = blockReason || "Manual block by admin";
+  user.blockReason = blockReason || "حظر دائم من قبل المشرفين";
   user.blockedBy = adminId;
 
   // حظر شامل: IP + جهاز + جوال — عند إلغاء الحظر تُرفع كلها
@@ -57,7 +55,7 @@ exports.blockUser = asyncHandler(async (req, res, next) => {
   await user.populate("blockedBy", "name email");
 
   res.status(200).json({
-    message: "User blocked successfully",
+    message: "تم حظر المستخدم بنجاح",
     data: {
       userId: user._id,
       isBlocked: user.isBlocked,
@@ -82,13 +80,11 @@ exports.unblockUser = asyncHandler(async (req, res, next) => {
   // Check admin permissions based on admin type
   const { adminType } = req.admin;
   if (adminType !== "super" && user.gender !== adminType) {
-    return next(
-      new ApiError("You do not have permission to manage this user", 403)
-    );
+    return next(new ApiError("ليس لديك صلاحية لإدارة هذا المستخدم", 403));
   }
 
   if (!user.isBlocked) {
-    return next(new ApiError("User is not blocked", 400));
+    return next(new ApiError("المستخدم غير محظور", 400));
   }
 
   // Update user — إزالة الحظر والحظر الشامل (IP + جهاز + جوال)
@@ -100,7 +96,7 @@ exports.unblockUser = asyncHandler(async (req, res, next) => {
   await user.save();
 
   res.status(200).json({
-    message: "User unblocked successfully",
+    message: "تم إلغاء حظر المستخدم بنجاح",
     data: {
       userId: user._id,
       isBlocked: user.isBlocked,
@@ -117,7 +113,7 @@ exports.getBlockedUsers = asyncHandler(async (req, res) => {
       isBlocked: true,
       blockedUntil: { $gt: new Date() },
     }).populate("blockedBy", "name email adminType"),
-    req.query
+    req.query,
   )
     .filter()
     .sort()
@@ -138,7 +134,7 @@ exports.autoBlockUser = asyncHandler(
   async (userId, blockReason, blockDurationHours, blockedBy) => {
     const user = await User.findById(userId);
     if (!user) {
-      throw new ApiError("User not found", 404);
+      throw new ApiError("لا يوجد مستخدم لهذا المعرف", 404);
     }
 
     if (user.isBlocked) {
@@ -157,7 +153,7 @@ exports.autoBlockUser = asyncHandler(
     await user.save();
 
     return user;
-  }
+  },
 );
 
 // @desc    Check and unblock expired blocks
@@ -174,11 +170,11 @@ exports.unblockExpiredBlocks = asyncHandler(async (req, res) => {
       blockedUntil: null,
       blockReason: null,
       blockedBy: null,
-    }
+    },
   );
 
   res.status(200).json({
-    message: `${result.modifiedCount} expired blocks removed`,
+    message: `${result.modifiedCount} حظر منتهي الصلاحية إزال بنجاح`,
   });
 });
 
@@ -250,7 +246,7 @@ exports.resetUserWarnings = asyncHandler(async (req, res, next) => {
 
   const user = await User.findById(id);
   if (!user) {
-    return next(new ApiError("User not found", 404));
+    return next(new ApiError("لا يوجد مستخدم لهذا المعرف", 404));
   }
 
   // Reset warning count and unblock if blocked
@@ -268,7 +264,7 @@ exports.resetUserWarnings = asyncHandler(async (req, res, next) => {
   await user.save();
 
   res.status(200).json({
-    message: "User warnings reset successfully",
+    message: "تم إعادة تعيين تحذيرات المستخدم بنجاح",
     data: {
       userId: user._id,
       warningCount: user.warningCount,
