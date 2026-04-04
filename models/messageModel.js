@@ -78,48 +78,57 @@ const messageSchema = new mongoose.Schema(
 
 // Indexes for performance
 messageSchema.index({ chat: 1, createdAt: 1 });
+messageSchema.index({ chat: 1, sender: 1, isRead: 1 }); // mark_as_read hot path
 messageSchema.index({ sender: 1, createdAt: -1 });
 messageSchema.index({ isArchived: 1, archivedAt: 1 });
 messageSchema.index({ createdAt: 1, isArchived: 1 });
 
-// Update chat's last message when a new message is created (بدون استدعاء chat.save() لتجنب خطأ التحقق من عدد المشاركين)
+// Post-save: update chat metadata + unread counts.
+// NOTE: Socket handler also calls Chat.findByIdAndUpdate for lastMessage/lastMessageTime
+// in setImmediate, but this hook ensures REST API message creation also works correctly.
+// The hook uses _skipAutoPopulate to avoid triggering heavy Chat populate hooks.
 messageSchema.post("save", async function () {
   const Chat = mongoose.model("Chat");
 
+  // Single atomic update for lastMessage + lastMessageTime
   await Chat.findByIdAndUpdate(this.chat, {
     lastMessage: this._id,
     lastMessageTime: this.createdAt,
   });
 
-  // تحديث عداد غير المقروءة عبر findByIdAndUpdate فقط (لا تحميل المستند ولا .save())
+  // Increment unread counts — use lean + skipAutoPopulate to avoid populating participants
   const chatDoc = await Chat.findById(this.chat)
     .select("participants unreadCount")
+    .setOptions({ _skipAutoPopulate: true })
     .lean();
+
   if (chatDoc && chatDoc.participants && chatDoc.participants.length) {
     const senderStr = this.sender.toString();
     const otherIds = chatDoc.participants
       .map((p) => (p && p._id ? p._id.toString() : p.toString()))
       .filter((id) => id !== senderStr);
 
-    for (const otherId of otherIds) {
-      const otherOid = mongoose.Types.ObjectId.isValid(otherId)
-        ? new mongoose.Types.ObjectId(otherId)
-        : otherId;
-      const hasEntry = (chatDoc.unreadCount || []).some(
-        (uc) => (uc.user && uc.user.toString()) === otherId
-      );
-      if (hasEntry) {
-        await Chat.findByIdAndUpdate(
-          this.chat,
-          { $inc: { "unreadCount.$[elem].count": 1 } },
-          { arrayFilters: [{ "elem.user": otherOid }] }
+    // Batch all unread updates into a single Promise.all
+    await Promise.all(
+      otherIds.map((otherId) => {
+        const otherOid = mongoose.Types.ObjectId.isValid(otherId)
+          ? new mongoose.Types.ObjectId(otherId)
+          : otherId;
+        const hasEntry = (chatDoc.unreadCount || []).some(
+          (uc) => (uc.user && uc.user.toString()) === otherId
         );
-      } else {
-        await Chat.findByIdAndUpdate(this.chat, {
+        if (hasEntry) {
+          return Chat.findByIdAndUpdate(
+            this.chat,
+            { $inc: { "unreadCount.$[elem].count": 1 } },
+            { arrayFilters: [{ "elem.user": otherOid }] }
+          );
+        }
+        return Chat.findByIdAndUpdate(this.chat, {
           $push: { unreadCount: { user: otherOid, count: 1 } },
         });
-      }
-    }
+      })
+    );
   }
 
   await mongoose.model("User").findByIdAndUpdate(this.sender, {
@@ -127,8 +136,10 @@ messageSchema.post("save", async function () {
   });
 });
 
-// Populate sender when querying
+// Auto-populate on find queries (REST API).
+// Socket handlers set { _skipAutoPopulate: true } to avoid unnecessary joins.
 messageSchema.pre(/^find/, function (next) {
+  if (this.getOptions && this.getOptions()._skipAutoPopulate) return next();
   this.populate({
     path: "sender",
     select: "name profileImg isOnline",

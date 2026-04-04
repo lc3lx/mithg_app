@@ -88,9 +88,9 @@ chatSchema.pre("save", function (next) {
   next();
 });
 
-// Indexes
-chatSchema.index({ participants: 1 });
-chatSchema.index({ lastMessageTime: -1 });
+// Indexes — compound index covers the hot query path:
+// Chat.find({ participants, isActive }).sort({ lastMessageTime: -1 })
+chatSchema.index({ participants: 1, isActive: 1, lastMessageTime: -1 });
 chatSchema.index({ "unreadCount.user": 1 });
 
 // Virtual populate for messages
@@ -101,8 +101,10 @@ chatSchema.virtual("messages", {
   options: { sort: { createdAt: 1 } },
 });
 
-// Populate participants when querying
+// Auto-populate on find queries (REST API).
+// Socket handlers set { _skipAutoPopulate: true } to avoid unnecessary joins.
 chatSchema.pre(/^find/, function (next) {
+  if (this.getOptions && this.getOptions()._skipAutoPopulate) return next();
   this.populate({
     path: "participants",
     select: "name profileImg isOnline lastSeen",
