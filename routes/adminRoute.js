@@ -57,42 +57,57 @@ const router = express.Router();
 // Public routes
 router.post("/login", adminLoginValidator, adminLogin);
 
-// Temporary route to create default admin (remove after first use)
-router.post("/create-default-admin", async (req, res) => {
-  try {
-    const Admin = require('../models/adminModel');
-    const bcrypt = require('bcryptjs');
-
-    const existingAdmin = await Admin.findOne({ email: 'admin@mithaq-syr.com' });
-    if (existingAdmin) {
-      return res.status(400).json({ message: 'Admin already exists' });
-    }
-
-    const salt = await bcrypt.genSalt(12);
-    const hashedPassword = await bcrypt.hash('admin123', salt);
-
-    const defaultAdmin = await Admin.create({
-      name: 'Super Admin',
-      email: 'admin@mithaq-syr.com',
-      password: hashedPassword,
-      adminType: 'super',
-      phone: '+966500000000',
-      isActive: true,
-    });
-
-    res.status(201).json({
-      message: 'Admin created successfully',
-      admin: {
-        id: defaultAdmin._id,
-        name: defaultAdmin.name,
-        email: defaultAdmin.email,
-        adminType: defaultAdmin.adminType
+// Bootstrap أدمن افتراضي: معطّل في الإنتاج. فعّل فقط بـ ALLOW_DEFAULT_ADMIN_BOOTSTRAP=true ثم عطّله بعد الاستخدام.
+if (process.env.ALLOW_DEFAULT_ADMIN_BOOTSTRAP === "true") {
+  router.post("/create-default-admin", async (req, res) => {
+    try {
+      const Admin = require("../models/adminModel");
+      const bcrypt = require("bcryptjs");
+      const bootstrapSecret = process.env.ADMIN_BOOTSTRAP_SECRET;
+      if (
+        !bootstrapSecret ||
+        req.headers["x-bootstrap-secret"] !== bootstrapSecret
+      ) {
+        return res.status(404).json({ message: "Not found" });
       }
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Error creating admin', error: error.message });
-  }
-});
+
+      const existingAdmin = await Admin.findOne({
+        email: "admin@mithaq-syr.com",
+      });
+      if (existingAdmin) {
+        return res.status(400).json({ message: "Admin already exists" });
+      }
+
+      const initialPassword =
+        process.env.DEFAULT_ADMIN_INITIAL_PASSWORD || "admin123";
+      const salt = await bcrypt.genSalt(12);
+      const hashedPassword = await bcrypt.hash(initialPassword, salt);
+
+      const defaultAdmin = await Admin.create({
+        name: "Super Admin",
+        email: "admin@mithaq-syr.com",
+        password: hashedPassword,
+        adminType: "super",
+        phone: "+966500000000",
+        isActive: true,
+      });
+
+      res.status(201).json({
+        message: "Admin created successfully",
+        admin: {
+          id: defaultAdmin._id,
+          name: defaultAdmin.name,
+          email: defaultAdmin.email,
+          adminType: defaultAdmin.adminType,
+        },
+      });
+    } catch (error) {
+      res
+        .status(500)
+        .json({ message: "Error creating admin", error: error.message });
+    }
+  });
+}
 
 // Protected admin routes
 router.use(adminService.protectAdmin);
@@ -228,15 +243,40 @@ router.get(
   walletService.getWallets
 );
 
-router.get("/wallets/stats", walletService.getWalletStats);
-router.get("/wallets/app", walletService.getAppWallet);
-router.get("/wallets/user/:userId", walletService.getUserWallet);
-router.post("/wallets/app", walletService.createAppWallet);
-router.post("/wallets/user/:userId", walletService.createUserWallet);
-router.put("/wallets/:id/credit", walletService.addCredit);
-router.put("/wallets/:id/debit", walletService.addDebit);
-router.post("/wallets/transfer", walletService.transferBetweenWallets);
-router.get("/wallets/:id/transactions", walletService.getWalletTransactions);
+const requireManageWallets = (req, res, next) => {
+  if (!req.admin.permissions.manageWallets) {
+    return res.status(403).json({
+      message: "You don't have permission to manage wallets",
+    });
+  }
+  next();
+};
+
+router.get("/wallets/stats", requireManageWallets, walletService.getWalletStats);
+router.get("/wallets/app", requireManageWallets, walletService.getAppWallet);
+router.get(
+  "/wallets/user/:userId",
+  requireManageWallets,
+  walletService.getUserWallet,
+);
+router.post("/wallets/app", requireManageWallets, walletService.createAppWallet);
+router.post(
+  "/wallets/user/:userId",
+  requireManageWallets,
+  walletService.createUserWallet,
+);
+router.put("/wallets/:id/credit", requireManageWallets, walletService.addCredit);
+router.put("/wallets/:id/debit", requireManageWallets, walletService.addDebit);
+router.post(
+  "/wallets/transfer",
+  requireManageWallets,
+  walletService.transferBetweenWallets,
+);
+router.get(
+  "/wallets/:id/transactions",
+  requireManageWallets,
+  walletService.getWalletTransactions,
+);
 
 // Recharge codes management routes (require manageRechargeCodes permission)
 router.get(
@@ -252,12 +292,45 @@ router.get(
   rechargeService.getRechargeCodes
 );
 
-router.post("/recharge-codes/generate", rechargeService.generateRechargeCodes);
-router.get("/recharge-codes/stats", rechargeService.getRechargeStats);
-router.get("/recharge-codes/export", rechargeService.exportRechargeCodes);
-router.get("/recharge-codes/:id", rechargeService.getRechargeCode);
-router.put("/recharge-codes/:id", rechargeService.updateRechargeCode);
-router.delete("/recharge-codes/:id", rechargeService.deleteRechargeCode);
+const requireManageRechargeCodes = (req, res, next) => {
+  if (!req.admin.permissions.manageRechargeCodes) {
+    return res.status(403).json({
+      message: "You don't have permission to manage recharge codes",
+    });
+  }
+  next();
+};
+
+router.post(
+  "/recharge-codes/generate",
+  requireManageRechargeCodes,
+  rechargeService.generateRechargeCodes,
+);
+router.get(
+  "/recharge-codes/stats",
+  requireManageRechargeCodes,
+  rechargeService.getRechargeStats,
+);
+router.get(
+  "/recharge-codes/export",
+  requireManageRechargeCodes,
+  rechargeService.exportRechargeCodes,
+);
+router.get(
+  "/recharge-codes/:id",
+  requireManageRechargeCodes,
+  rechargeService.getRechargeCode,
+);
+router.put(
+  "/recharge-codes/:id",
+  requireManageRechargeCodes,
+  rechargeService.updateRechargeCode,
+);
+router.delete(
+  "/recharge-codes/:id",
+  requireManageRechargeCodes,
+  rechargeService.deleteRechargeCode,
+);
 
 // Recharge requests management (require manageSubscriptions permission)
 router.get(

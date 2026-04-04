@@ -59,6 +59,32 @@ const userSchema = new mongoose.Schema(
       required: [true, "Gender is required"],
     },
 
+    interestedIn: {
+      type: String,
+      enum: ["male", "female", "both"],
+      default: "both",
+    },
+    minAgePreference: {
+      type: Number,
+      default: 18,
+      min: 18,
+      max: 80,
+    },
+    maxAgePreference: {
+      type: Number,
+      default: 80,
+      min: 18,
+      max: 80,
+    },
+    location: {
+      type: String,
+      trim: true,
+    },
+    interests: {
+      type: [String],
+      default: [],
+    },
+
     country: {
       type: String,
       trim: true,
@@ -365,8 +391,30 @@ const userSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true },
+    toJSON: {
+      virtuals: true,
+      transform: (_doc, ret) => {
+        delete ret.password;
+        delete ret.passwordResetCode;
+        delete ret.passwordResetExpires;
+        delete ret.passwordResetVerified;
+        delete ret.phoneVerificationCode;
+        delete ret.phoneVerificationExpires;
+        return ret;
+      },
+    },
+    toObject: {
+      virtuals: true,
+      transform: (_doc, ret) => {
+        delete ret.password;
+        delete ret.passwordResetCode;
+        delete ret.passwordResetExpires;
+        delete ret.passwordResetVerified;
+        delete ret.phoneVerificationCode;
+        delete ret.phoneVerificationExpires;
+        return ret;
+      },
+    },
   },
 );
 
@@ -403,7 +451,6 @@ userSchema.index({ email: 1 });
 userSchema.index({ phone: 1 });
 userSchema.index({ gender: 1, age: 1 });
 userSchema.index({ isOnline: 1 });
-userSchema.index({ location: 1 });
 
 // Set image URLs
 userSchema.post("init", (doc) => {

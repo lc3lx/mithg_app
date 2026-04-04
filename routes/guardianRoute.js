@@ -29,50 +29,48 @@ const {
 const authService = require("../services/authService");
 const adminService = require("../services/adminService");
 
-const router = express.Router();
+/** مسارات المستخدم فقط — توكن مستخدم + هاتف موثّق (بدون توكن أدمن) */
+const guardianUserRouter = express.Router();
+guardianUserRouter.use(authService.protect);
+guardianUserRouter.use(authService.requirePhoneVerified);
 
-// All routes require authentication + OTP verified
-router.use(authService.protect);
-router.use(authService.requirePhoneVerified);
+guardianUserRouter.route("/").get(getUserGuardians).post(addGuardianValidator, addGuardian);
 
-// User routes for managing their own guardians
-router.route("/").get(getUserGuardians).post(addGuardianValidator, addGuardian);
-
-router
+guardianUserRouter
   .route("/:id")
   .put(updateGuardianValidator, updateGuardian)
   .delete(removeGuardianValidator, removeGuardian);
 
-router.post(
+guardianUserRouter.post(
   "/:id/documents",
   uploadGuardianDocumentsValidator,
-  uploadGuardianDocuments
+  uploadGuardianDocuments,
 );
 
-router.get("/:id/qr-code", getGuardianQRCodeValidator, getGuardianQRCode);
-router.post(
+guardianUserRouter.get("/:id/qr-code", getGuardianQRCodeValidator, getGuardianQRCode);
+guardianUserRouter.post(
   "/:id/regenerate-qr",
   regenerateGuardianQRValidator,
-  regenerateGuardianQRCode
+  regenerateGuardianQRCode,
 );
 
-// Public route for QR code access (doesn't require user authentication)
-router.post("/access-chat", accessChatWithQRValidator, accessChatWithQRCode);
+guardianUserRouter.post("/access-chat", accessChatWithQRValidator, accessChatWithQRCode);
 
-// Admin only routes
-router.use(adminService.protectAdmin);
+/** مسارات الأدمن فقط — توكن أدمن (لا يُكدّس مع protect المستخدم) */
+const guardianAdminRouter = express.Router();
+guardianAdminRouter.use(adminService.protectAdmin);
 
-router.get("/admin/verifications", getPendingGuardianVerifications);
-router.get("/admin/stats", getGuardianStats);
-router.put(
+guardianAdminRouter.get("/admin/verifications", getPendingGuardianVerifications);
+guardianAdminRouter.get("/admin/stats", getGuardianStats);
+guardianAdminRouter.put(
   "/admin/:id/verify",
   reviewGuardianVerificationValidator,
-  reviewGuardianVerification
+  reviewGuardianVerification,
 );
-router.get(
+guardianAdminRouter.get(
   "/admin/:id/details",
   getGuardianDetailsValidator,
-  getGuardianDetails
+  getGuardianDetails,
 );
 
-module.exports = router;
+module.exports = { guardianUserRouter, guardianAdminRouter };

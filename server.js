@@ -20,6 +20,14 @@ const {
 // تحميل المتغيرات من مجلد backend (غضّ النظر عن cwd عند تشغيل pm2 أو غيره)
 
 dotenv.config({ path: path.join(__dirname, ".env") });
+
+if (process.env.NODE_ENV === "production" && !process.env.CLIENT_URL) {
+  console.error(
+    "FATAL: Set CLIENT_URL in production for CORS and Socket.IO security.",
+  );
+  process.exit(1);
+}
+
 const ApiError = require("./utils/apiError");
 const globalError = require("./middlewares/errorMiddleware");
 const dbConnection = require("./config/database");
@@ -77,10 +85,13 @@ const server = http.createServer(app);
 app.set("trust proxy", 1);
 // Socket.io server (support messages)
 console.log("🔌 [Socket.IO] Initializing Socket.IO server...");
-console.log("🔌 [Socket.IO] CORS Origin:", process.env.CLIENT_URL || "*");
+const socketCorsOrigin =
+  process.env.CLIENT_URL ||
+  (process.env.NODE_ENV === "production" ? false : "http://localhost:3000");
+console.log("🔌 [Socket.IO] CORS Origin:", socketCorsOrigin || "(deny)");
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "*",
+    origin: socketCorsOrigin,
     credentials: true,
   },
 });
@@ -172,16 +183,26 @@ app.use((req, res, next) => {
 //   webhookCheckout
 // );
 
-// Serve static files (images, videos) - BEFORE other middlewares
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-
-// Log static file requests in development
+// Static uploads: مجلد التوثيق يتطلب مستخدماً مسجلاً؛ الباقي عام للتوافق مع الروابط الحالية
+const uploadsRoot = path.join(__dirname, "uploads");
 if (process.env.NODE_ENV === "development") {
-  app.use("/uploads/*", (req, res, next) => {
+  app.use("/uploads", (req, res, next) => {
     console.log(`📁 Static file requested: ${req.originalUrl}`);
     next();
   });
 }
+app.use("/uploads/posts", express.static(path.join(uploadsRoot, "posts")));
+app.use("/uploads/users", express.static(path.join(uploadsRoot, "users")));
+app.use("/uploads/chats", express.static(path.join(uploadsRoot, "chats")));
+app.use("/uploads/messages", express.static(path.join(uploadsRoot, "messages")));
+// ملفات التوثيق: لا تُخدم من الملفات الثابتة — GET /api/v1/verification/files/:filename مع Bearer
+app.use("/uploads/verification", (req, res) => {
+  res.status(403).json({
+    message:
+      "استخدم المسار المحمي: GET /api/v1/verification/files/:filename مع التوكن",
+  });
+});
+app.use("/uploads", express.static(uploadsRoot));
 
 // Middlewares
 app.use(express.json({ limit: "200kb" }));

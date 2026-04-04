@@ -57,7 +57,7 @@ const calculateCompatibilityScore = (user1, user2) => {
 
   // Profile completion (10 points)
   let profileScore = 0;
-  if (user2.bio) profileScore += 3;
+  if (user2.bio || user2.about) profileScore += 3;
   if (user2.profileImg) profileScore += 3;
   if (user2.coverImg) profileScore += 2;
   if (user2.interests && user2.interests.length > 0) profileScore += 2;
@@ -111,7 +111,7 @@ exports.getMatches = asyncHandler(async (req, res) => {
   // Get potential matches
   const potentialMatches = await User.find(matchCriteria)
     .select(
-      "name age gender bio location profileImg coverImg interests isOnline lastSeen profileViews likesReceived",
+      "name age gender bio about location profileImg coverImg interests isOnline lastSeen profileViews likesReceived",
     )
     .lean();
 

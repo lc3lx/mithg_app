@@ -266,12 +266,13 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
   // 1) Get user by email
   const user = await User.findOne({ email: req.body.email });
   if (!user) {
-    return next(
-      new ApiError(`There is no user with that email ${req.body.email}`, 404),
-    );
+    return res.status(200).json({
+      status: "Success",
+      message:
+        "إذا كان البريد مسجلاً لدينا ستصلك رسالة تحتوي الرمز.",
+    });
   }
-  // 2) If user exist, Generate hash reset random 6 digits and save it in db
-  const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+  const resetCode = crypto.randomInt(100000, 1000000).toString();
   const hashedResetCode = crypto
     .createHash("sha256")
     .update(resetCode)
@@ -325,7 +326,9 @@ exports.verifyPassResetCode = asyncHandler(async (req, res, next) => {
     passwordResetExpires: { $gt: Date.now() },
   });
   if (!user) {
-    return next(new ApiError("رمز التعيين غير صحيح أو منتهي الصلاحية"));
+    return next(
+      new ApiError("رمز التعيين غير صحيح أو منتهي الصلاحية", 400),
+    );
   }
 
   // 2) Reset code valid

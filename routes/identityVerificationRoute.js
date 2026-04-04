@@ -16,10 +16,20 @@ const {
 } = require("../utils/validators/identityVerificationValidator");
 
 const uploadImageMiddleware = require("../middlewares/uploadImageMiddleware");
+const {
+  protectVerificationFileAccess,
+  sendVerificationFile,
+} = require("../middlewares/verificationFileAccess");
 const authService = require("../services/authService");
 const adminService = require("../services/adminService");
 
 const router = express.Router();
+
+router.get(
+  "/files/:filename",
+  protectVerificationFileAccess,
+  sendVerificationFile,
+);
 
 // User routes - require user authentication and phone verification
 router.post(

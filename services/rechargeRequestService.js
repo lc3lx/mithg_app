@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const asyncHandler = require("express-async-handler");
 const ApiError = require("../utils/apiError");
 const RechargeRequest = require("../models/rechargeRequestModel");
@@ -56,64 +57,105 @@ exports.getAllRechargeRequests = asyncHandler(async (req, res) => {
 // @access  Private/Admin
 exports.approveRechargeRequest = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
-  const request = await RechargeRequest.findById(id);
-  if (!request) return next(new ApiError("لا يوجد طلب شحن لهذا المعرف", 404));
-  if (request.status !== "pending")
-    return next(new ApiError("الطلب تم معالجته مسبقاً", 400));
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const updateFields = {
+      status: "approved",
+      adminHandledBy: req.admin._id,
+      handledAt: new Date(),
+    };
+    if (req.body.notes !== undefined) {
+      updateFields.notes = req.body.notes;
+    }
 
-  // mark approved
-  request.status = "approved";
-  request.adminHandledBy = req.admin._id;
-  request.handledAt = new Date();
-  request.notes = req.body.notes || request.notes;
-  await request.save();
+    const request = await RechargeRequest.findOneAndUpdate(
+      { _id: id, status: "pending" },
+      updateFields,
+      { new: true, session },
+    );
 
-  // grant subscription / credit - use app wallet to record transaction
-  const user = await User.findById(request.user);
-  if (!user) return next(new ApiError("لا يوجد مستخدم لهذا المعرف", 404));
+    if (!request) {
+      await session.abortTransaction();
+      session.endSession();
+      return next(
+        new ApiError("لا يوجد طلب شحن لهذا المعرف أو تمت معالجته مسبقاً", 404),
+      );
+    }
 
-  // set subscription (30 days) and mark subscribed
-  user.isSubscribed = true;
-  user.subscriptionPackage = user.subscriptionPackage || "premium";
-  const now = new Date();
-  const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-  user.subscriptionEndDate = thirtyDays;
-  await user.save();
+    const user = await User.findById(request.user).session(session);
+    if (!user) {
+      await session.abortTransaction();
+      session.endSession();
+      return next(new ApiError("لا يوجد مستخدم لهذا المعرف", 404));
+    }
 
-  // create transaction against app wallet
-  let appWallet = await Wallet.getAppWallet();
-  if (!appWallet) {
-    appWallet = await Wallet.create({
+    user.isSubscribed = true;
+    user.subscriptionPackage = user.subscriptionPackage || "premium";
+    const now = new Date();
+    user.subscriptionEndDate = new Date(
+      now.getTime() + 30 * 24 * 60 * 60 * 1000,
+    );
+    await user.save({ session });
+
+    let appWallet = await Wallet.findOne({
       walletType: "app",
-      balance: 0,
-      currency: request.currency || "SAR",
-    });
-  }
-  // add credit to app wallet (incoming money)
-  await appWallet.addCredit(
-    request.amount,
-    `Manual recharge by ${user.email}`,
-    null,
-  );
+      isActive: true,
+    }).session(session);
+    if (!appWallet) {
+      const created = await Wallet.create(
+        [
+          {
+            walletType: "app",
+            balance: 0,
+            currency: request.currency || "SAR",
+          },
+        ],
+        { session },
+      );
+      appWallet = created[0];
+    }
 
-  const transaction = await Transaction.create({
-    wallet: appWallet._id,
-    user: user._id,
-    type: "subscription_payment",
-    amount: request.amount,
-    currency: request.currency || "SAR",
-    description: `Manual recharge approved: ${request._id}`,
-    status: "completed",
-    admin: req.admin._id,
-  });
+    await Wallet.findByIdAndUpdate(
+      appWallet._id,
+      {
+        $inc: {
+          balance: request.amount,
+          totalCredits: request.amount,
+        },
+      },
+      { session },
+    );
 
-  res
-    .status(200)
-    .json({
+    const [transaction] = await Transaction.create(
+      [
+        {
+          wallet: appWallet._id,
+          user: user._id,
+          type: "subscription_payment",
+          amount: request.amount,
+          currency: request.currency || "SAR",
+          description: `Manual recharge approved: ${request._id}`,
+          status: "completed",
+          admin: req.admin._id,
+        },
+      ],
+      { session },
+    );
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.status(200).json({
       status: "success",
       message: "Recharge request approved",
       data: { request, transaction },
     });
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+    return next(err);
+  }
 });
 
 // @desc    Reject recharge request (admin)
@@ -132,11 +174,9 @@ exports.rejectRechargeRequest = asyncHandler(async (req, res, next) => {
   request.notes = req.body.notes || request.notes;
   await request.save();
 
-  res
-    .status(200)
-    .json({
-      status: "success",
-      message: "Recharge request rejected",
-      data: request,
-    });
+  res.status(200).json({
+    status: "success",
+    message: "Recharge request rejected",
+    data: request,
+  });
 });

@@ -93,7 +93,9 @@ const setMediaURL = (doc) => {
   if (doc.media && doc.media.length > 0) {
     // For now, use a default URL, but ideally this should be dynamic
     // We'll update this to be dynamic in the controller
-    const baseUrl = process.env.BASE_URL || 'http://10.2.0.2:8000';
+    const baseUrl =
+      process.env.BASE_URL ||
+      (process.env.NODE_ENV === "production" ? "" : "http://localhost:8000");
     doc.media = doc.media.map((item) => {
       // If URL is already full URL, keep it; otherwise prepend base URL
       const url = item.url.startsWith('http') ? item.url : `${baseUrl}/uploads/posts/${item.url}`;

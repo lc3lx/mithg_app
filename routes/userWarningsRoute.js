@@ -28,8 +28,6 @@ const router = express.Router();
 // Admin routes (require admin authentication)
 const adminRouter = express.Router();
 
-// Apply admin middleware to admin routes
-adminRouter.use(authService.protect);
 adminRouter.use(adminService.protectAdmin);
 
 // Check for moderateContent permission

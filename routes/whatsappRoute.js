@@ -1,9 +1,11 @@
 /**
- * GET /api/whatsapp/qr — إرجاع QR لاستهلاكه من تطبيق Flutter.
- * لا يتطلب توكن أدمن (يمكن حمايته لاحقاً إن رغبت).
+ * GET /api/whatsapp/qr — يتطلب توكن أدمن (مثل /api/v1/admins/whatsapp-qr).
  */
 const express = require("express");
+const adminService = require("../services/adminService");
 const router = express.Router();
+
+router.use(adminService.protectAdmin);
 
 router.get("/qr", async (req, res) => {
   try {
