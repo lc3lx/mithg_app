@@ -170,10 +170,8 @@ notificationSchema.post("save", async (doc) => {
       );
     }
   } catch (error) {
-    await doc.constructor.updateOne(
-      { _id: doc._id },
-      { pushSent: true, pushSentAt: new Date() }
-    ).catch(() => {});
+    console.error("[Notification push] failed:", error.message);
+    // Do not mark pushSent — allows retry or manual inspection; avoids false "sent" state.
   }
 
   // إرسال نسخة من الإشعار إلى بريد المستخدم (ما عدا رسائل المحادثة لئلا يصل المستخدم أكثر من إشعار)

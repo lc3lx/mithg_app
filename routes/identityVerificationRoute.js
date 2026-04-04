@@ -41,6 +41,7 @@ router.post(
     { name: 'documents[1][url]', maxCount: 1 },
     { name: 'documents[2][url]', maxCount: 1 },
   ]),
+  uploadImageMiddleware.validateUploadedBuffers,
   submitIdentityVerificationValidator,
   submitIdentityVerification
 );

@@ -58,6 +58,7 @@ const {
 } = require("../services/galleryViewRequestService");
 
 const authService = require("../services/authService");
+const { validateUploadedBuffers } = require("../middlewares/uploadImageMiddleware");
 const {
   requireSubscriptionAndVerification,
   requireSubscriptionForFriendRequest,
@@ -78,12 +79,14 @@ router.put(
 router.post(
   "/uploadProfileImage",
   uploadUserImage,
+  validateUploadedBuffers,
   resizeImage,
   updateLoggedUserData
 );
 router.post(
   "/uploadCoverImage",
   uploadCoverImage,
+  validateUploadedBuffers,
   resizeImage,
   updateLoggedUserData
 );
@@ -163,11 +166,23 @@ router.put(
 router
   .route("/")
   .get(getUsers)
-  .post(uploadUserImage, resizeImage, createUserValidator, createUser);
+  .post(
+    uploadUserImage,
+    validateUploadedBuffers,
+    resizeImage,
+    createUserValidator,
+    createUser,
+  );
 router
   .route("/:id")
   .get(getUserValidator, getUser)
-  .put(uploadUserImage, resizeImage, updateUserValidator, updateUser)
+  .put(
+    uploadUserImage,
+    validateUploadedBuffers,
+    resizeImage,
+    updateUserValidator,
+    updateUser,
+  )
   .delete(deleteUserValidator, deleteUser);
 
 // Friends routes

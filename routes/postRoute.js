@@ -34,7 +34,10 @@ const authService = require("../services/authService");
 const adminService = require("../services/adminService");
 
 // Upload middleware (multer.array)
-const { uploadPostMedia } = require("../middlewares/uploadImageMiddleware");
+const {
+  uploadPostMedia,
+  validateUploadedBuffers,
+} = require("../middlewares/uploadImageMiddleware");
 
 const router = express.Router();
 
@@ -53,6 +56,7 @@ router.post(
   "/",
   adminService.protectAdmin,
   uploadPostMedia("media"), // multer.array("media", 10)
+  validateUploadedBuffers,
   processPostMedia, // sharp للصور + حفظ الفيديو
   createPostValidator,
   createPost
@@ -66,6 +70,7 @@ router.put(
   "/:id",
   adminService.protectAdmin,
   uploadPostMedia("media"),
+  validateUploadedBuffers,
   processPostMedia,
   updatePostValidator,
   updatePost
