@@ -268,8 +268,9 @@ const socketHandler = (io) => {
               socket.emit("error", { message: "لا يمكنك فتح هذه المحادثة" });
               return;
             }
-            // Use cached friends from socket.user (set during auth)
-            const myFriendIds = (socket.user?.friends || []).map((id) => id.toString());
+            // Fetch fresh friends from DB instead of using stale socket.user
+            const currentUser = await User.findById(userId).select("friends").lean();
+            const myFriendIds = (currentUser?.friends || []).map((id) => id.toString());
             const otherFriendIds = (otherUser.friends || []).map((id) => id.toString());
             if (!myFriendIds.includes(otherId) || !otherFriendIds.includes(userId.toString())) {
               socket.emit("error", { message: "يجب أن تكونا أصدقاء لفتح المحادثة" });
@@ -665,7 +666,7 @@ const socketHandler = (io) => {
             .populate({ path: "lastMessage", select: "content sender messageType createdAt" })
             .setOptions(SKIP_AUTO_POPULATE)
             .lean(),
-          Promise.resolve(socket.user),
+          User.findById(userId).select("friends").lean(),
         ]);
 
         if (!chat) {
