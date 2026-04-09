@@ -106,7 +106,7 @@ exports.getChats = asyncHandler(async (req, res) => {
     });
   }
 
-  // استبعاد المحادثات المباشرة عندما أُلغيت الصداقة (المحادثة تختفي من عند الاثنين)
+  // استبعاد المحادثات المباشرة عندما أُلغي التعارف (المحادثة تختفي من عند الاثنين)
   const currentUser = await User.findById(req.user._id)
     .select("friends")
     .lean();
@@ -184,7 +184,7 @@ exports.getChat = asyncHandler(async (req, res, next) => {
         !myFriendIds.includes(otherId) ||
         !otherFriendIds.includes(req.user._id.toString())
       ) {
-        return next(new ApiError("يجب أن تكونا أصدقاء لفتح المحادثة", 403));
+        return next(new ApiError("يجب أن تكونا متعارفين لفتح المحادثة", 403));
       }
     }
   }
@@ -250,7 +250,7 @@ exports.createChat = asyncHandler(async (req, res, next) => {
     return next(new ApiError("User not found", 404));
   }
 
-  // يجب أن تكونا أصدقاء لبدء المحادثة
+  // يجب أن تكونا متعارفين لبدء المحادثة
   const currentFriends = (currentUser.friends || []).map((id) => id.toString());
   const participantFriends = (participant.friends || []).map((id) =>
     id.toString(),
@@ -259,7 +259,7 @@ exports.createChat = asyncHandler(async (req, res, next) => {
     !currentFriends.includes(participantId) ||
     !participantFriends.includes(req.user._id.toString())
   ) {
-    return next(new ApiError("يجب أن تكونا أصدقاء لبدء المحادثة", 403));
+    return next(new ApiError("يجب أن تكونا متعارفين لبدء المحادثة", 403));
   }
 
   // لا يمكن المراسلة إذا حظر أحد الطرفين الآخر
@@ -369,7 +369,7 @@ exports.sendMessage = asyncHandler(async (req, res, next) => {
       const otherFriends = (otherUser.friends || []).map((id) => id.toString());
       if (!otherFriends.includes(req.user._id.toString())) {
         return next(
-          new ApiError("لا يمكنك إرسال رسائل بعد إلغاء الصداقة", 403),
+          new ApiError("لا يمكنك إرسال رسائل بعد إلغاء التعارف", 403),
         );
       }
     }
@@ -469,7 +469,7 @@ exports.getChatMessages = asyncHandler(async (req, res, next) => {
         !myFriendIds.includes(otherId) ||
         !otherFriendIds.includes(req.user._id.toString())
       ) {
-        return next(new ApiError("يجب أن تكونا أصدقاء لفتح المحادثة", 403));
+        return next(new ApiError("يجب أن تكونا متعارفين لفتح المحادثة", 403));
       }
     }
   }
@@ -542,7 +542,7 @@ exports.markAsRead = asyncHandler(async (req, res, next) => {
         !myFriendIds.includes(otherId) ||
         !otherFriendIds.includes(req.user._id.toString())
       ) {
-        return next(new ApiError("يجب أن تكونا أصدقاء لفتح المحادثة", 403));
+        return next(new ApiError("يجب أن تكونا متعارفين لفتح المحادثة", 403));
       }
     }
   }

@@ -11,6 +11,27 @@ const createToken = require("../utils/createToken");
 const User = require("../models/userModel");
 const Notification = require("../models/notificationModel");
 
+const getClientIp = (req) =>
+  (req.headers["x-forwarded-for"] || req.ip || "")
+    .toString()
+    .split(",")[0]
+    .trim();
+
+const getClientDeviceId = (req) =>
+  (
+    req.headers["x-device-id"] ||
+    req.body?.deviceId ||
+    req.body?.device_id ||
+    req.query?.deviceId ||
+    req.query?.device_id ||
+    ""
+  )
+    .toString()
+    .trim();
+
+const isUserCurrentlyBlocked = (user, now = new Date()) =>
+  !!(user?.isBlocked && user?.blockedUntil && user.blockedUntil > now);
+
 const isFullOrPermanentBlock = (user) => {
   if (!user || !user.blockedUntil) return false;
   const hasFullIdentifiers =
@@ -29,6 +50,30 @@ const buildBlockMessage = (user) => {
   return `الحساب محظور حتى ${user.blockedUntil.toLocaleString(
     "ar-SA",
   )}. تواصل مع الدعم.`;
+};
+
+const sendBlockedResponse = (res, user) =>
+  res.status(403).json({
+    status: "fail",
+    code: "ACCOUNT_BLOCKED",
+    message: buildBlockMessage(user),
+    blockedUntil: user?.blockedUntil || null,
+    fullBlock: isFullOrPermanentBlock(user),
+  });
+
+const findActiveIdentifierBlock = async ({ phone, ip, deviceId }) => {
+  const or = [];
+  if (phone) or.push({ "blockedIdentifiers.phone": phone });
+  if (ip) or.push({ "blockedIdentifiers.ips": ip });
+  if (deviceId) or.push({ "blockedIdentifiers.deviceIds": deviceId });
+  if (or.length === 0) return null;
+
+  return User.findOne({
+    isBlocked: true,
+    blockedUntil: { $gt: new Date() },
+    blockedIdentifiers: { $exists: true, $ne: null },
+    $or: or,
+  }).select("_id blockedUntil blockedIdentifiers");
 };
 
 // @desc    Signup
@@ -122,43 +167,19 @@ exports.login = asyncHandler(async (req, res, next) => {
   }
 
   // التحقق من الحظر (حساب أو حظر شامل: جوال / IP / جهاز)
-  if (user.isBlocked && user.blockedUntil && user.blockedUntil > new Date()) {
-    return next(new ApiError(buildBlockMessage(user), 403));
+  const now = new Date();
+  if (isUserCurrentlyBlocked(user, now)) {
+    return sendBlockedResponse(res, user);
   }
-  const clientIp = (req.headers["x-forwarded-for"] || req.ip || "")
-    .toString()
-    .split(",")[0]
-    .trim();
-  const clientDeviceId = req.body.deviceId || req.body.device_id || null;
-  const blockedByPhone = await User.findOne({
-    isBlocked: true,
-    blockedUntil: { $gt: new Date() },
-    "blockedIdentifiers.phone": user.phone,
-  }).select("_id blockedUntil blockedIdentifiers");
-  if (blockedByPhone) {
-    return next(new ApiError(buildBlockMessage(blockedByPhone), 403));
-  }
-  if (clientIp) {
-    const blockedByIp = await User.findOne({
-      isBlocked: true,
-      blockedUntil: { $gt: new Date() },
-      blockedIdentifiers: { $exists: true, $ne: null },
-      "blockedIdentifiers.ips": clientIp,
-    }).select("_id blockedUntil blockedIdentifiers");
-    if (blockedByIp) {
-      return next(new ApiError(buildBlockMessage(blockedByIp), 403));
-    }
-  }
-  if (clientDeviceId) {
-    const blockedByDevice = await User.findOne({
-      isBlocked: true,
-      blockedUntil: { $gt: new Date() },
-      blockedIdentifiers: { $exists: true, $ne: null },
-      "blockedIdentifiers.deviceIds": clientDeviceId,
-    }).select("_id blockedUntil blockedIdentifiers");
-    if (blockedByDevice) {
-      return next(new ApiError(buildBlockMessage(blockedByDevice), 403));
-    }
+  const clientIp = getClientIp(req);
+  const clientDeviceId = getClientDeviceId(req);
+  const blockedByIdentifiers = await findActiveIdentifierBlock({
+    phone: user.phone,
+    ip: clientIp,
+    deviceId: clientDeviceId,
+  });
+  if (blockedByIdentifiers) {
+    return sendBlockedResponse(res, blockedByIdentifiers);
   }
 
   // حفظ آخر IP و deviceId لتستخدم عند الحظر الشامل
@@ -205,6 +226,31 @@ exports.protect = asyncHandler(async (req, res, next) => {
     return next(
       new ApiError("الحساب معطّل أو محذوف. لا يمكنك الوصول لهذه الصفحة.", 403),
     );
+  }
+  const now = new Date();
+  if (isUserCurrentlyBlocked(currentUser, now)) {
+    return sendBlockedResponse(res, currentUser);
+  }
+
+  const clientIp = getClientIp(req) || currentUser.lastLoginIp || "";
+  const clientDeviceId = getClientDeviceId(req) || currentUser.lastDeviceId || "";
+  const blockedByIdentifiers = await findActiveIdentifierBlock({
+    phone: currentUser.phone,
+    ip: clientIp,
+    deviceId: clientDeviceId,
+  });
+  if (blockedByIdentifiers) {
+    return sendBlockedResponse(res, blockedByIdentifiers);
+  }
+
+  // حدّث آخر معرفات للوصول كي يبقى الحظر الشامل فعالاً بدقة.
+  const shouldUpdateIp = clientIp && clientIp !== currentUser.lastLoginIp;
+  const shouldUpdateDevice =
+    clientDeviceId && clientDeviceId !== currentUser.lastDeviceId;
+  if (shouldUpdateIp || shouldUpdateDevice) {
+    if (shouldUpdateIp) currentUser.lastLoginIp = clientIp;
+    if (shouldUpdateDevice) currentUser.lastDeviceId = clientDeviceId;
+    await currentUser.save({ validateBeforeSave: false });
   }
 
   // 4) Check if user change his password after token created

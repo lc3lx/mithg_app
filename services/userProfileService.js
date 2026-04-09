@@ -315,21 +315,12 @@ exports.deleteGalleryItem = asyncHandler(async (req, res, next) => {
 exports.getUserProfile = asyncHandler(async (req, res, next) => {
   const { userId } = req.params;
 
-  const user = await User.findOne({
-    _id: userId,
-    // Only allow viewing profiles of subscribed users (no end date = active)
-    isSubscribed: true,
-    $or: [
-      { subscriptionEndDate: { $gt: new Date() } },
-      { subscriptionEndDate: null },
-      { subscriptionEndDate: { $exists: false } },
-    ],
-  })
+  const user = await User.findById(userId)
     .select(
       "name username age gender bio about profileImg coverImg gallery country city nationality " +
         "educationalLevel fieldOfWork socialStatus religion hijab havingChildren desire polygamy smoking " +
         "hairColor height weight bodyShape isOnline lastSeen friends profileViews likesReceived blockedUsers " +
-        "isSubscribed identityVerified createdAt",
+        "isSubscribed subscriptionEndDate identityVerified createdAt",
     )
     .populate("friends", "name profileImg isOnline");
 
@@ -360,6 +351,15 @@ exports.getUserProfile = asyncHandler(async (req, res, next) => {
   });
   const isSelf = req.user._id.toString() === userId;
   const isFriend = isSelf || friendIds.includes(req.user._id.toString());
+  const hasActiveSubscription =
+    user.isSubscribed === true &&
+    (!user.subscriptionEndDate || user.subscriptionEndDate > new Date());
+
+  // السماح دائماً لصاحب الحساب وصديقه، حتى لو الاشتراك منتهي.
+  // لغير الأصدقاء: يلزم اشتراك نشط لمشاهدة الملف.
+  if (!hasActiveSubscription && !isFriend) {
+    return next(new ApiError("لا يمكنك مشاهدة هذا البروفيل", 403));
+  }
 
   if (isSelf) {
     profileData.gallery = sortedGallery;

@@ -1,4 +1,4 @@
-const asyncHandler = require("express-async-handler");
+﻿const asyncHandler = require("express-async-handler");
 const { v4: uuidv4 } = require("uuid");
 const sharp = require("sharp");
 const bcrypt = require("bcryptjs");
@@ -43,7 +43,7 @@ const normalizeArabic = (value) =>
   (value || "").toString().trim().toLowerCase();
 
 const includesPolygamy = (marriageType) =>
-  normalizeArabic(marriageType).includes("تعدد");
+  normalizeArabic(marriageType).includes("طھط¹ط¯ط¯");
 
 const scoreOneSidePreferences = (preferer, candidate) => {
   let score = 0;
@@ -136,12 +136,12 @@ const scoreOneSidePreferences = (preferer, candidate) => {
 const buildNearMatchMessage = ({ receiverGender, relatedName, score }) => {
   const g = normalizeArabic(receiverGender);
   if (g === "male") {
-    return `يوجد بنت قريبة من اهتماماتك بنسبة ${score}%: ${relatedName}`;
+    return `ظٹظˆط¬ط¯ ط¨ظ†طھ ظ‚ط±ظٹط¨ط© ظ…ظ† ط§ظ‡طھظ…ط§ظ…ط§طھظƒ ط¨ظ†ط³ط¨ط© ${score}%: ${relatedName}`;
   }
   if (g === "female") {
-    return `يوجد شب قريب من اهتماماتك بنسبة ${score}%: ${relatedName}`;
+    return `ظٹظˆط¬ط¯ ط´ط¨ ظ‚ط±ظٹط¨ ظ…ظ† ط§ظ‡طھظ…ط§ظ…ط§طھظƒ ط¨ظ†ط³ط¨ط© ${score}%: ${relatedName}`;
   }
-  return `يوجد شخص قريب من اهتماماتك بنسبة ${score}%: ${relatedName}`;
+  return `ظٹظˆط¬ط¯ ط´ط®طµ ظ‚ط±ظٹط¨ ظ…ظ† ط§ظ‡طھظ…ط§ظ…ط§طھظƒ ط¨ظ†ط³ط¨ط© ${score}%: ${relatedName}`;
 };
 
 const createNearMatchNotificationOncePerDay = async ({
@@ -165,7 +165,7 @@ const createNearMatchNotificationOncePerDay = async ({
   await Notification.create({
     user: receiverId,
     type: "match_suggestion",
-    title: "توافق قريب من اهتماماتك",
+    title: "طھظˆط§ظپظ‚ ظ‚ط±ظٹط¨ ظ…ظ† ط§ظ‡طھظ…ط§ظ…ط§طھظƒ",
     message: buildNearMatchMessage({ receiverGender, relatedName, score }),
     relatedUser: relatedUserId,
     data: { score, source: "preferences_near_match" },
@@ -223,7 +223,7 @@ const maybeNotifyNearPreferenceMatches = async (user) => {
       const scoreFromCandidate = scoreOneSidePreferences(candidate, user);
       const mutualScore = Math.round((scoreFromUser + scoreFromCandidate) / 2);
 
-      // المطلوب: مطابقة قريبة وليست كاملة (80% - 90%)
+      // ط§ظ„ظ…ط·ظ„ظˆط¨: ظ…ط·ط§ط¨ظ‚ط© ظ‚ط±ظٹط¨ط© ظˆظ„ظٹط³طھ ظƒط§ظ…ظ„ط© (80% - 90%)
       if (mutualScore < 80 || mutualScore > 90) return null;
 
       return Promise.all([
@@ -231,14 +231,14 @@ const maybeNotifyNearPreferenceMatches = async (user) => {
           receiverId: user._id,
           relatedUserId: candidate._id,
           receiverGender: user.gender,
-          relatedName: candidate.name || "مستخدم",
+          relatedName: candidate.name || "ظ…ط³طھط®ط¯ظ…",
           score: mutualScore,
         }),
         createNearMatchNotificationOncePerDay({
           receiverId: candidate._id,
           relatedUserId: user._id,
           receiverGender: candidate.gender,
-          relatedName: user.name || "مستخدم",
+          relatedName: user.name || "ظ…ط³طھط®ط¯ظ…",
           score: mutualScore,
         }),
       ]);
@@ -256,14 +256,14 @@ exports.uploadCoverImage = uploadSingleImage("coverImg");
 
 // Image processing
 exports.resizeImage = asyncHandler(async (req, res, next) => {
-  console.log("🔄 resizeImage called, URL:", req.originalUrl);
-  console.log("📁 req.file:", req.file ? "EXISTS" : "NOT FOUND");
-  console.log("📋 req.body:", req.body);
+  console.log("ًں”„ resizeImage called, URL:", req.originalUrl);
+  console.log("ًں“پ req.file:", req.file ? "EXISTS" : "NOT FOUND");
+  console.log("ًں“‹ req.body:", req.body);
 
   const filename = `user-${uuidv4()}-${Date.now()}.jpeg`;
 
   if (req.file) {
-    console.log("🖼️ Processing image file");
+    console.log("ًں–¼ï¸ڈ Processing image file");
     await sharp(req.file.buffer)
       .resize(600, 600)
       .toFormat("jpeg")
@@ -273,13 +273,13 @@ exports.resizeImage = asyncHandler(async (req, res, next) => {
     // Save image into our db - determine which field to update based on URL
     if (req.originalUrl.includes("uploadProfileImage")) {
       req.body.profileImg = filename;
-      console.log("✅ Set profileImg:", filename);
+      console.log("âœ… Set profileImg:", filename);
     } else if (req.originalUrl.includes("uploadCoverImage")) {
       req.body.coverImg = filename;
-      console.log("✅ Set coverImg:", filename);
+      console.log("âœ… Set coverImg:", filename);
     }
   } else {
-    console.log("❌ No file found in request");
+    console.log("â‌Œ No file found in request");
   }
 
   next();
@@ -354,7 +354,7 @@ exports.deleteUser = asyncHandler(async (req, res, next) => {
     return next(new ApiError(`No document for this id ${id}`, 404));
   }
 
-  // حذف جميع المحادثات التي يشارك فيها هذا المستخدم (مع كل الرسائل التابعة لها)
+  // ط­ط°ظپ ط¬ظ…ظٹط¹ ط§ظ„ظ…ط­ط§ط¯ط«ط§طھ ط§ظ„طھظٹ ظٹط´ط§ط±ظƒ ظپظٹظ‡ط§ ظ‡ط°ط§ ط§ظ„ظ…ط³طھط®ط¯ظ… (ظ…ط¹ ظƒظ„ ط§ظ„ط±ط³ط§ط¦ظ„ ط§ظ„طھط§ط¨ط¹ط© ظ„ظ‡ط§)
   await deleteAllChatsForUser(id);
 
   await User.findByIdAndDelete(id);
@@ -390,7 +390,7 @@ exports.getLoggedUserData = asyncHandler(async (req, res, next) => {
     userObject.coverImg = `${process.env.BASE_URL}/uploads/users/${userObject.coverImg}`;
   }
 
-  console.log("👤 getLoggedUserData - Final data:", {
+  console.log("ًں‘¤ getLoggedUserData - Final data:", {
     profileImg: userObject.profileImg,
     coverImg: userObject.coverImg,
   });
@@ -442,7 +442,7 @@ exports.updateLoggedUserData = asyncHandler(async (req, res, next) => {
   // Save to trigger post("save") hooks
   const updatedUser = await user.save();
 
-  console.log("✅ User updated successfully:", {
+  console.log("âœ… User updated successfully:", {
     id: updatedUser._id,
     profileImg: updatedUser.profileImg,
     coverImg: updatedUser.coverImg,
@@ -491,7 +491,7 @@ exports.updateLoggedUserProfileInfo = asyncHandler(async (req, res, next) => {
   if (req.body.bodyShape !== undefined) user.bodyShape = req.body.bodyShape;
   if (req.body.healthProblems !== undefined)
     user.healthProblems = req.body.healthProblems;
-  // صفحة 4.5 - تفضيلات الشريك
+  // طµظپط­ط© 4.5 - طھظپط¶ظٹظ„ط§طھ ط§ظ„ط´ط±ظٹظƒ
   if (req.body.religiousCommitment !== undefined)
     user.religiousCommitment = req.body.religiousCommitment;
   if (req.body.prayerObservance !== undefined)
@@ -518,7 +518,7 @@ exports.updateLoggedUserProfileInfo = asyncHandler(async (req, res, next) => {
   // Save to trigger post("save") hooks
   const updatedUser = await user.save();
 
-  // بعد حفظ تفضيلات صفحة 4.5 نرسل إشعارات المطابقة القريبة (80-90%) للطرفين.
+  // ط¨ط¹ط¯ ط­ظپط¸ طھظپط¶ظٹظ„ط§طھ طµظپط­ط© 4.5 ظ†ط±ط³ظ„ ط¥ط´ط¹ط§ط±ط§طھ ط§ظ„ظ…ط·ط§ط¨ظ‚ط© ط§ظ„ظ‚ط±ظٹط¨ط© (80-90%) ظ„ظ„ط·ط±ظپظٹظ†.
   const hasRelevantPreferenceChange = PROFILE_MATCH_RELEVANT_FIELDS.some(
     (field) => Object.prototype.hasOwnProperty.call(req.body, field),
   );
@@ -528,7 +528,7 @@ exports.updateLoggedUserProfileInfo = asyncHandler(async (req, res, next) => {
     });
   }
 
-  console.log("✅ User profile info updated successfully:", {
+  console.log("âœ… User profile info updated successfully:", {
     id: updatedUser._id,
     name: updatedUser.name,
     email: updatedUser.email,
@@ -547,7 +547,7 @@ exports.deleteLoggedUserData = asyncHandler(async (req, res, next) => {
   res.status(204).json({ status: "Success" });
 });
 
-// @desc    Freeze account (تجميد الحساب) - user can't login until admin reactivates
+// @desc    Freeze account (طھط¬ظ…ظٹط¯ ط§ظ„ط­ط³ط§ط¨) - user can't login until admin reactivates
 // @route   PUT /api/v1/users/freezeAccount
 // @access  Private/Protect
 exports.freezeAccount = asyncHandler(async (req, res, next) => {
@@ -555,27 +555,27 @@ exports.freezeAccount = asyncHandler(async (req, res, next) => {
 
   res.status(200).json({
     status: "Success",
-    message: "تم تجميد الحساب بنجاح. يمكنك التواصل مع الدعم لإلغاء التجميد.",
+    message: "طھظ… طھط¬ظ…ظٹط¯ ط§ظ„ط­ط³ط§ط¨ ط¨ظ†ط¬ط§ط­. ظٹظ…ظƒظ†ظƒ ط§ظ„طھظˆط§طµظ„ ظ…ط¹ ط§ظ„ط¯ط¹ظ… ظ„ط¥ظ„ط؛ط§ط، ط§ظ„طھط¬ظ…ظٹط¯.",
   });
 });
 
-// @desc    Permanent delete account (حذف الحساب بشكل نهائي من قاعدة البيانات)
+// @desc    Permanent delete account (ط­ط°ظپ ط§ظ„ط­ط³ط§ط¨ ط¨ط´ظƒظ„ ظ†ظ‡ط§ط¦ظٹ ظ…ظ† ظ‚ط§ط¹ط¯ط© ط§ظ„ط¨ظٹط§ظ†ط§طھ)
 // @route   DELETE /api/v1/users/permanentDelete
 // @access  Private/Protect
 exports.permanentDeleteAccount = asyncHandler(async (req, res, next) => {
   const userId = req.user._id;
-  // حذف جميع المحادثات التي يشارك فيها هذا المستخدم (مع كل الرسائل التابعة لها)
+  // ط­ط°ظپ ط¬ظ…ظٹط¹ ط§ظ„ظ…ط­ط§ط¯ط«ط§طھ ط§ظ„طھظٹ ظٹط´ط§ط±ظƒ ظپظٹظ‡ط§ ظ‡ط°ط§ ط§ظ„ظ…ط³طھط®ط¯ظ… (ظ…ط¹ ظƒظ„ ط§ظ„ط±ط³ط§ط¦ظ„ ط§ظ„طھط§ط¨ط¹ط© ظ„ظ‡ط§)
   await deleteAllChatsForUser(userId);
   const deleted = await User.findByIdAndDelete(userId);
   if (!deleted) {
-    return next(new ApiError("المستخدم غير موجود أو تم حذفه مسبقاً.", 404));
+    return next(new ApiError("ط§ظ„ظ…ط³طھط®ط¯ظ… ط؛ظٹط± ظ…ظˆط¬ظˆط¯ ط£ظˆ طھظ… ط­ط°ظپظ‡ ظ…ط³ط¨ظ‚ط§ظ‹.", 404));
   }
-  // حذف توكنات الجهاز لهذا المستخدم حتى لا تُرسل له إشعارات
+  // ط­ط°ظپ طھظˆظƒظ†ط§طھ ط§ظ„ط¬ظ‡ط§ط² ظ„ظ‡ط°ط§ ط§ظ„ظ…ط³طھط®ط¯ظ… ط­طھظ‰ ظ„ط§ طھظڈط±ط³ظ„ ظ„ظ‡ ط¥ط´ط¹ط§ط±ط§طھ
   await DeviceToken.deleteMany({ user: userId });
 
   res.status(200).json({
     status: "Success",
-    message: "تم حذف الحساب بشكل نهائي.",
+    message: "طھظ… ط­ط°ظپ ط§ظ„ط­ط³ط§ط¨ ط¨ط´ظƒظ„ ظ†ظ‡ط§ط¦ظٹ.",
   });
 });
 
@@ -667,20 +667,20 @@ exports.sendFriendRequest = asyncHandler(async (req, res, next) => {
     return next(new ApiError("المستخدم غير موجود", 404));
   }
 
-  // Check if they are already friends
+  // Check if they are already connected
   const currentUser = await User.findById(req.user._id);
   if (currentUser.friends.includes(userId)) {
-    return next(new ApiError("أنتم أصدقاء بالفعل", 400));
+    return next(new ApiError("أنتم متعارفون بالفعل", 400));
   }
 
   // Check if request already sent
   if (currentUser.sentFriendRequests.includes(userId)) {
-    return next(new ApiError("تم إرسال طلب الصداقة مسبقاً", 400));
+    return next(new ApiError("تم إرسال طلب التعارف مسبقاً", 400));
   }
 
   // Check if user already sent request to current user
   if (currentUser.friendRequests.includes(userId)) {
-    return next(new ApiError("هذا المستخدم أرسل لك طلب صداقة مسبقاً", 400));
+    return next(new ApiError("هذا المستخدم أرسل لك طلب تعارف مسبقاً", 400));
   }
 
   // Add to sent requests for current user
@@ -697,7 +697,7 @@ exports.sendFriendRequest = asyncHandler(async (req, res, next) => {
   await createFriendRequestNotification(req.user._id, userId);
 
   res.status(200).json({
-    message: "تم إرسال طلب الصداقة بنجاح",
+    message: "تم إرسال طلب التعارف بنجاح",
   });
 });
 
@@ -711,12 +711,12 @@ exports.acceptFriendRequest = asyncHandler(async (req, res, next) => {
   const otherUser = await User.findById(userId);
 
   if (!currentUser || !otherUser) {
-    return next(new ApiError("لا يوجد مستخدم لهذا المعرف", 404));
+    return next(new ApiError("لا يوجد مستخدم لهذا المعرّف", 404));
   }
 
   // Check if request exists
   if (!currentUser.friendRequests.includes(userId)) {
-    return next(new ApiError("لا يوجد طلب صداقة من هذا المستخدم", 400));
+    return next(new ApiError("لا يوجد طلب تعارف من هذا المستخدم", 400));
   }
 
   // Remove from friend requests
@@ -731,7 +731,7 @@ exports.acceptFriendRequest = asyncHandler(async (req, res, next) => {
     $push: { friends: req.user._id },
   });
 
-  // Ensure a direct chat exists between the two friends
+  // Ensure a direct chat exists between the two users
   const existingChat = await Chat.findOne({
     chatType: "direct",
     participants: { $all: [req.user._id, userId] },
@@ -748,7 +748,7 @@ exports.acceptFriendRequest = asyncHandler(async (req, res, next) => {
   await createFriendRequestAcceptedNotification(userId, req.user._id);
 
   res.status(200).json({
-    message: "تم قبول طلب الصداقة بنجاح",
+    message: "تمت الموافقة على طلب التعارف بنجاح",
   });
 });
 
@@ -761,12 +761,12 @@ exports.rejectFriendRequest = asyncHandler(async (req, res, next) => {
   const currentUser = await User.findById(req.user._id);
 
   if (!currentUser) {
-    return next(new ApiError("لا يوجد مستخدم لهذا المعرف", 404));
+    return next(new ApiError("لا يوجد مستخدم لهذا المعرّف", 404));
   }
 
   // Check if request exists
   if (!currentUser.friendRequests.includes(userId)) {
-    return next(new ApiError("لا يوجد طلب صداقة من هذا المستخدم", 400));
+    return next(new ApiError("لا يوجد طلب تعارف من هذا المستخدم", 400));
   }
 
   // Remove from friend requests
@@ -780,7 +780,7 @@ exports.rejectFriendRequest = asyncHandler(async (req, res, next) => {
   });
 
   res.status(200).json({
-    message: "تم رفض طلب الصداقة بنجاح",
+    message: "تم رفض طلب التعارف بنجاح",
   });
 });
 
@@ -793,12 +793,12 @@ exports.cancelFriendRequest = asyncHandler(async (req, res, next) => {
   const currentUser = await User.findById(req.user._id);
 
   if (!currentUser) {
-    return next(new ApiError("لا يوجد مستخدم لهذا المعرف", 404));
+    return next(new ApiError("لا يوجد مستخدم لهذا المعرّف", 404));
   }
 
   // Check if request exists
   if (!currentUser.sentFriendRequests.includes(userId)) {
-    return next(new ApiError("لا يوجد طلب صداقة مرسل إلى هذا المستخدم", 400));
+    return next(new ApiError("لا يوجد طلب تعارف مرسل إلى هذا المستخدم", 400));
   }
 
   // Remove from sent requests
@@ -812,7 +812,7 @@ exports.cancelFriendRequest = asyncHandler(async (req, res, next) => {
   });
 
   res.status(200).json({
-    message: "تم إلغاء طلب الصداقة بنجاح",
+    message: "تم إلغاء طلب التعارف بنجاح",
   });
 });
 
@@ -835,7 +835,7 @@ exports.getFriendRequests = asyncHandler(async (req, res, next) => {
     const data = u.toObject();
     const isFriend = friendIds.includes(u._id.toString());
     data.isFriend = isFriend;
-    // الواردة يمكن فتحها (قرار منتج)، والصادرة لا يمكن حتى القبول.
+    // ط§ظ„ظˆط§ط±ط¯ط© ظٹظ…ظƒظ† ظپطھط­ظ‡ط§ (ظ‚ط±ط§ط± ظ…ظ†طھط¬)طŒ ظˆط§ظ„طµط§ط¯ط±ط© ظ„ط§ ظٹظ…ظƒظ† ط­طھظ‰ ط§ظ„ظ‚ط¨ظˆظ„.
     data.canOpenProfile = true;
     return data;
   });
@@ -900,18 +900,18 @@ exports.removeFriend = asyncHandler(async (req, res, next) => {
   const { userId } = req.params;
 
   if (userId === req.user._id.toString()) {
-    return next(new ApiError("لا يمكنك إزالة نفسك", 400));
+    return next(new ApiError("ظ„ط§ ظٹظ…ظƒظ†ظƒ ط¥ط²ط§ظ„ط© ظ†ظپط³ظƒ", 400));
   }
 
   const currentUser = await User.findById(req.user._id);
   const otherUser = await User.findById(userId);
 
   if (!currentUser || !otherUser) {
-    return next(new ApiError("لا يوجد مستخدم لهذا المعرف", 404));
+    return next(new ApiError("ظ„ط§ ظٹظˆط¬ط¯ ظ…ط³طھط®ط¯ظ… ظ„ظ‡ط°ط§ ط§ظ„ظ…ط¹ط±ظپ", 404));
   }
 
   if (!currentUser.friends.includes(userId)) {
-    return next(new ApiError("لا يوجد هذا المستخدم في قائمة الأصدقاء", 400));
+    return next(new ApiError("ظ„ط§ ظٹظˆط¬ط¯ ظ‡ط°ط§ ط§ظ„ظ…ط³طھط®ط¯ظ… ظپظٹ ظ‚ط§ط¦ظ…ط© ط§ظ„ط£طµط¯ظ‚ط§ط،", 400));
   }
 
   await User.findByIdAndUpdate(req.user._id, {
@@ -931,7 +931,7 @@ exports.removeFriend = asyncHandler(async (req, res, next) => {
   });
 
   res.status(200).json({
-    message: "تم إزالة الصديق بنجاح",
+    message: "طھظ… ط¥ط²ط§ظ„ط© ط§ظ„طµط¯ظٹظ‚ ط¨ظ†ط¬ط§ط­",
   });
 });
 
@@ -942,18 +942,18 @@ exports.blockUser = asyncHandler(async (req, res, next) => {
   const { userId } = req.params;
 
   if (userId === req.user._id.toString()) {
-    return next(new ApiError("لا يمكنك حظر نفسك", 400));
+    return next(new ApiError("ظ„ط§ ظٹظ…ظƒظ†ظƒ ط­ط¸ط± ظ†ظپط³ظƒ", 400));
   }
 
   const currentUser = await User.findById(req.user._id);
   const otherUser = await User.findById(userId);
 
   if (!currentUser || !otherUser) {
-    return next(new ApiError("لا يوجد مستخدم لهذا المعرف", 404));
+    return next(new ApiError("ظ„ط§ ظٹظˆط¬ط¯ ظ…ط³طھط®ط¯ظ… ظ„ظ‡ط°ط§ ط§ظ„ظ…ط¹ط±ظپ", 404));
   }
 
   if (currentUser.blockedUsers.includes(userId)) {
-    return next(new ApiError("المستخدم محظور بالفعل", 400));
+    return next(new ApiError("ط§ظ„ظ…ط³طھط®ط¯ظ… ظ…ط­ط¸ظˆط± ط¨ط§ظ„ظپط¹ظ„", 400));
   }
 
   await User.findByIdAndUpdate(req.user._id, {
@@ -974,7 +974,7 @@ exports.blockUser = asyncHandler(async (req, res, next) => {
   });
 
   res.status(200).json({
-    message: "تم حظر المستخدم بنجاح",
+    message: "طھظ… ط­ط¸ط± ط§ظ„ظ…ط³طھط®ط¯ظ… ط¨ظ†ط¬ط§ط­",
   });
 });
 
@@ -986,12 +986,12 @@ exports.reportUser = asyncHandler(async (req, res, next) => {
   const { reason, details } = req.body || {};
 
   if (userId === req.user._id.toString()) {
-    return next(new ApiError("لا يمكنك الإبلاغ عن نفسك", 400));
+    return next(new ApiError("ظ„ط§ ظٹظ…ظƒظ†ظƒ ط§ظ„ط¥ط¨ظ„ط§ط؛ ط¹ظ† ظ†ظپط³ظƒ", 400));
   }
 
   const otherUser = await User.findById(userId);
   if (!otherUser) {
-    return next(new ApiError("لا يوجد مستخدم لهذا المعرف", 404));
+    return next(new ApiError("ظ„ط§ ظٹظˆط¬ط¯ ظ…ط³طھط®ط¯ظ… ظ„ظ‡ط°ط§ ط§ظ„ظ…ط¹ط±ظپ", 404));
   }
 
   const report = await UserReport.create({
@@ -1002,7 +1002,8 @@ exports.reportUser = asyncHandler(async (req, res, next) => {
   });
 
   res.status(201).json({
-    message: "تم إرسال الشكوى بنجاح",
+    message: "طھظ… ط¥ط±ط³ط§ظ„ ط§ظ„ط´ظƒظˆظ‰ ط¨ظ†ط¬ط§ط­",
     data: report,
   });
 });
+

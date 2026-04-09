@@ -1,4 +1,4 @@
-const asyncHandler = require("express-async-handler");
+﻿const asyncHandler = require("express-async-handler");
 const ApiError = require("../utils/apiError");
 const ApiFeatures = require("../utils/apiFeatures");
 const { getAll, getOne, deleteOne, updateOne } = require("./handlersFactory");
@@ -7,7 +7,7 @@ const Notification = require("../models/notificationModel");
 const User = require("../models/userModel");
 const { sendPushToUser } = require("../utils/pushNotification");
 
-// إشعارات لوحة التحكم فقط (البث من الأدمن)، وليس كل إشعارات التطبيق
+// ط¥ط´ط¹ط§ط±ط§طھ ظ„ظˆط­ط© ط§ظ„طھط­ظƒظ… ظپظ‚ط· (ط§ظ„ط¨ط« ظ…ظ† ط§ظ„ط£ط¯ظ…ظ†)طŒ ظˆظ„ظٹط³ ظƒظ„ ط¥ط´ط¹ط§ط±ط§طھ ط§ظ„طھط·ط¨ظٹظ‚
 const ADMIN_BROADCAST_TYPES = [
   "update",
   "promotion",
@@ -67,7 +67,7 @@ exports.getNotification = asyncHandler(async (req, res, next) => {
   });
 
   if (!notification) {
-    return next(new ApiError(`لا يوجد إشعار بهذا المعرف ${id}`, 404));
+    return next(new ApiError(`ظ„ط§ ظٹظˆط¬ط¯ ط¥ط´ط¹ط§ط± ط¨ظ‡ط°ط§ ط§ظ„ظ…ط¹ط±ظپ ${id}`, 404));
   }
 
   res.status(200).json({ data: notification });
@@ -90,11 +90,11 @@ exports.markAsRead = asyncHandler(async (req, res, next) => {
   );
 
   if (!notification) {
-    return next(new ApiError(`لا يوجد إشعار بهذا المعرف ${id}`, 404));
+    return next(new ApiError(`ظ„ط§ ظٹظˆط¬ط¯ ط¥ط´ط¹ط§ط± ط¨ظ‡ط°ط§ ط§ظ„ظ…ط¹ط±ظپ ${id}`, 404));
   }
 
   res.status(200).json({
-    message: "تم تحديث الإشعار بنجاح",
+    message: "طھظ… طھط­ط¯ظٹط« ط§ظ„ط¥ط´ط¹ط§ط± ط¨ظ†ط¬ط§ط­",
     data: notification,
   });
 });
@@ -114,7 +114,7 @@ exports.markAllAsRead = asyncHandler(async (req, res) => {
   );
 
   res.status(200).json({
-    message: "تم تحديث جميع الإشعارات بنجاح",
+    message: "طھظ… طھط­ط¯ظٹط« ط¬ظ…ظٹط¹ ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ط¨ظ†ط¬ط§ط­",
   });
 });
 
@@ -131,7 +131,7 @@ exports.deleteNotification = asyncHandler(async (req, res, next) => {
   });
 
   if (!notification) {
-    return next(new ApiError(`لا يوجد إشعار بهذا المعرف ${id}`, 404));
+    return next(new ApiError(`ظ„ط§ ظٹظˆط¬ط¯ ط¥ط´ط¹ط§ط± ط¨ظ‡ط°ط§ ط§ظ„ظ…ط¹ط±ظپ ${id}`, 404));
   }
 
   res.status(204).send();
@@ -149,7 +149,7 @@ exports.deleteReadNotifications = asyncHandler(async (req, res) => {
   });
 
   res.status(200).json({
-    message: "تم حذف جميع الإشعارات المقروءة بنجاح",
+    message: "طھظ… ط­ط°ظپ ط¬ظ…ظٹط¹ ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ط§ظ„ظ…ظ‚ط±ظˆط،ط© ط¨ظ†ط¬ط§ط­",
   });
 });
 
@@ -196,7 +196,7 @@ exports.createNotification = asyncHandler(async (req, res) => {
   const notification = await Notification.create(req.body);
 
   res.status(201).json({
-    message: "تم إنشاء الإشعار بنجاح",
+    message: "طھظ… ط¥ظ†ط´ط§ط، ط§ظ„ط¥ط´ط¹ط§ط± ط¨ظ†ط¬ط§ط­",
     data: notification,
   });
 });
@@ -205,7 +205,7 @@ exports.createNotification = asyncHandler(async (req, res) => {
 // Admin specific handlers
 // ===============================
 
-// @desc    Get all notifications (admin) — فقط إشعارات البث من لوحة التحكم
+// @desc    Get all notifications (admin) â€” ظپظ‚ط· ط¥ط´ط¹ط§ط±ط§طھ ط§ظ„ط¨ط« ظ…ظ† ظ„ظˆط­ط© ط§ظ„طھط­ظƒظ…
 // @route   GET /api/v1/notifications/admin
 // @access  Private/Admin
 exports.getAllNotificationsAdmin = asyncHandler(async (req, res) => {
@@ -304,7 +304,7 @@ exports.createAdminBroadcastNotification = asyncHandler(
       if (!Array.isArray(userIds) || userIds.length === 0) {
         return next(
           new ApiError(
-            "يجب أن يتم توفير userIds عندما يكون recipientType خاص",
+            "ظٹط¬ط¨ ط£ظ† ظٹطھظ… طھظˆظپظٹط± userIds ط¹ظ†ط¯ظ…ط§ ظٹظƒظˆظ† recipientType ط®ط§طµ",
             400,
           ),
         );
@@ -329,7 +329,7 @@ exports.createAdminBroadcastNotification = asyncHandler(
     }
 
     if (!recipients || recipients.length === 0) {
-      return next(new ApiError("لا يوجد مستخدمون للتوصيل بهذا المعيار", 404));
+      return next(new ApiError("ظ„ط§ ظٹظˆط¬ط¯ ظ…ط³طھط®ط¯ظ…ظˆظ† ظ„ظ„طھظˆطµظٹظ„ ط¨ظ‡ط°ط§ ط§ظ„ظ…ط¹ظٹط§ط±", 404));
     }
 
     const computedStatus = status || (scheduledAt ? "scheduled" : "sent");
@@ -349,11 +349,11 @@ exports.createAdminBroadcastNotification = asyncHandler(
     }));
 
     const inserted = await Notification.insertMany(docs, { ordered: false });
-    // ملاحظة: إرسال الـ push يتم عبر hook في `notificationModel.js` فقط عندما تكون الحالة "sent".
-    // الإشعارات "scheduled" تُرسل لاحقاً عبر `processScheduledNotifications`.
+    // ظ…ظ„ط§ط­ط¸ط©: ط¥ط±ط³ط§ظ„ ط§ظ„ظ€ push ظٹطھظ… ط¹ط¨ط± hook ظپظٹ `notificationModel.js` ظپظ‚ط· ط¹ظ†ط¯ظ…ط§ طھظƒظˆظ† ط§ظ„ط­ط§ظ„ط© "sent".
+    // ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ "scheduled" طھظڈط±ط³ظ„ ظ„ط§ط­ظ‚ط§ظ‹ ط¹ط¨ط± `processScheduledNotifications`.
 
     res.status(201).json({
-      message: "تم إنشاء الإشعارات المبثوثة بنجاح",
+      message: "طھظ… ط¥ظ†ط´ط§ط، ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ط§ظ„ظ…ط¨ط«ظˆط«ط© ط¨ظ†ط¬ط§ط­",
       results: inserted.length,
       data: inserted,
     });
@@ -361,8 +361,8 @@ exports.createAdminBroadcastNotification = asyncHandler(
 );
 
 /**
- * معالجة الإشعارات المجدولة التي حان موعدها: إرسال push وتحديث الحالة إلى sent
- * يُستدعى من مهمة دورية (كل دقيقة) في server.js
+ * ظ…ط¹ط§ظ„ط¬ط© ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ط§ظ„ظ…ط¬ط¯ظˆظ„ط© ط§ظ„طھظٹ ط­ط§ظ† ظ…ظˆط¹ط¯ظ‡ط§: ط¥ط±ط³ط§ظ„ push ظˆطھط­ط¯ظٹط« ط§ظ„ط­ط§ظ„ط© ط¥ظ„ظ‰ sent
+ * ظٹظڈط³طھط¯ط¹ظ‰ ظ…ظ† ظ…ظ‡ظ…ط© ط¯ظˆط±ظٹط© (ظƒظ„ ط¯ظ‚ظٹظ‚ط©) ظپظٹ server.js
  */
 exports.processScheduledNotifications = async () => {
   const now = new Date();
@@ -386,7 +386,7 @@ exports.processScheduledNotifications = async () => {
         },
       );
     } catch (err) {
-      console.error(`[الإشعار المجدول] فشل ل ${doc._id}:`, err.message);
+      console.error(`[ط§ظ„ط¥ط´ط¹ط§ط± ط§ظ„ظ…ط¬ط¯ظˆظ„] ظپط´ظ„ ظ„ ${doc._id}:`, err.message);
     }
   }
 };
@@ -394,16 +394,18 @@ exports.processScheduledNotifications = async () => {
 // Helper functions for creating notifications
 exports.createFriendRequestNotification = async (senderId, receiverId) => {
   try {
-    const notification = await Notification.create({
+    const notification = await Notification.createNotification({
       user: receiverId,
       type: "friend_request",
-      title: "طلب صداقة جديد",
-      message: "لديك طلب صداقة جديد",
+      title: "طلب تعارف جديد",
+      message: "لديك طلب تعارف جديد",
       relatedUser: senderId,
+      status: "sent",
     });
     return notification;
   } catch (error) {
-    console.error("فشل إنشاء إشعار الطلب الصداقة:", error);
+    console.error("فشل إنشاء إشعار طلب التعارف:", error);
+    return null;
   }
 };
 
@@ -412,16 +414,18 @@ exports.createFriendRequestAcceptedNotification = async (
   receiverId,
 ) => {
   try {
-    const notification = await Notification.create({
+    const notification = await Notification.createNotification({
       user: senderId,
       type: "friend_request_accepted",
-      title: "تم قبول طلب الصداقة",
-      message: "تم قبول طلب صداقتك",
+      title: "تمت الموافقة على طلب التعارف",
+      message: "تمت الموافقة على طلب التعارف الخاص بك",
       relatedUser: receiverId,
+      status: "sent",
     });
     return notification;
   } catch (error) {
-    console.error("فشل إنشاء إشعار قبول الطلب الصداقة:", error);
+    console.error("فشل إنشاء إشعار الموافقة على طلب التعارف:", error);
+    return null;
   }
 };
 
@@ -435,7 +439,7 @@ exports.createMessageNotification = async (
     const notification = await Notification.create({
       user: receiverId,
       type: "new_message",
-      title: "رسالة جديدة",
+      title: "ط±ط³ط§ظ„ط© ط¬ط¯ظٹط¯ط©",
       message:
         messageContent.length > 50
           ? messageContent.substring(0, 50) + "..."
@@ -446,7 +450,7 @@ exports.createMessageNotification = async (
     });
     return notification;
   } catch (error) {
-    console.error("فشل إنشاء إشعار الرسالة:", error);
+    console.error("ظپط´ظ„ ط¥ظ†ط´ط§ط، ط¥ط´ط¹ط§ط± ط§ظ„ط±ط³ط§ظ„ط©:", error);
   }
 };
 
@@ -455,14 +459,14 @@ exports.createLikeNotification = async (likerId, postOwnerId, postId) => {
     const notification = await Notification.create({
       user: postOwnerId,
       type: "post_like",
-      title: "إعجاب جديد",
-      message: "أعجب شخص بمنشورك",
+      title: "ط¥ط¹ط¬ط§ط¨ ط¬ط¯ظٹط¯",
+      message: "ط£ط¹ط¬ط¨ ط´ط®طµ ط¨ظ…ظ†ط´ظˆط±ظƒ",
       relatedUser: likerId,
       relatedPost: postId,
     });
     return notification;
   } catch (error) {
-    console.error("فشل إنشاء إشعار الإعجاب:", error);
+    console.error("ظپط´ظ„ ط¥ظ†ط´ط§ط، ط¥ط´ط¹ط§ط± ط§ظ„ط¥ط¹ط¬ط§ط¨:", error);
   }
 };
 
@@ -476,7 +480,7 @@ exports.createCommentNotification = async (
     const notification = await Notification.create({
       user: postOwnerId,
       type: "post_comment",
-      title: "تعليق جديد",
+      title: "طھط¹ظ„ظٹظ‚ ط¬ط¯ظٹط¯",
       message:
         commentContent.length > 50
           ? commentContent.substring(0, 50) + "..."
@@ -487,7 +491,7 @@ exports.createCommentNotification = async (
     });
     return notification;
   } catch (error) {
-    console.error("فشل إنشاء إشعار التعليق:", error);
+    console.error("ظپط´ظ„ ط¥ظ†ط´ط§ط، ط¥ط´ط¹ط§ط± ط§ظ„طھط¹ظ„ظٹظ‚:", error);
   }
 };
 
@@ -503,39 +507,39 @@ exports.createProfileViewNotification = async (viewerId, profileOwnerId) => {
 
     if (!existingNotification) {
       const viewer = await User.findById(viewerId).select("name").lean();
-      const viewerName = viewer?.name?.trim() || "مستخدم";
+      const viewerName = viewer?.name?.trim() || "ظ…ط³طھط®ط¯ظ…";
       const notification = await Notification.create({
         user: profileOwnerId,
         type: "profile_view",
-        title: "زيارة ملف شخصي",
-        message: `${viewerName} قام بزيارة ملفك الشخصي`,
+        title: "ط²ظٹط§ط±ط© ظ…ظ„ظپ ط´ط®طµظٹ",
+        message: `${viewerName} ظ‚ط§ظ… ط¨ط²ظٹط§ط±ط© ظ…ظ„ظپظƒ ط§ظ„ط´ط®طµظٹ`,
         relatedUser: viewerId,
       });
       return notification;
     }
   } catch (error) {
-    console.error("فشل إنشاء إشعار زيارة ملف شخصي:", error);
+    console.error("ظپط´ظ„ ط¥ظ†ط´ط§ط، ط¥ط´ط¹ط§ط± ط²ظٹط§ط±ط© ظ…ظ„ظپ ط´ط®طµظٹ:", error);
   }
 };
 
 exports.createGalleryViewRequestNotification = async (requesterId, ownerId) => {
   try {
     const requester = await User.findById(requesterId).select("name").lean();
-    const requesterName = requester?.name?.trim() || "مستخدم";
+    const requesterName = requester?.name?.trim() || "ظ…ط³طھط®ط¯ظ…";
     const notification = await Notification.create({
       user: ownerId,
       type: "gallery_view_request",
-      title: "طلب مشاهدة المعرض",
-      message: `${requesterName} يطلب مشاهدة معرض صورك`,
+      title: "ط·ظ„ط¨ ظ…ط´ط§ظ‡ط¯ط© ط§ظ„ظ…ط¹ط±ط¶",
+      message: `${requesterName} ظٹط·ظ„ط¨ ظ…ط´ط§ظ‡ط¯ط© ظ…ط¹ط±ط¶ طµظˆط±ظƒ`,
       relatedUser: requesterId,
     });
     return notification;
   } catch (error) {
-    console.error("فشل إنشاء إشعار طلب مشاهدة المعرض:", error);
+    console.error("ظپط´ظ„ ط¥ظ†ط´ط§ط، ط¥ط´ط¹ط§ط± ط·ظ„ط¨ ظ…ط´ط§ظ‡ط¯ط© ط§ظ„ظ…ط¹ط±ط¶:", error);
   }
 };
 
-// إشعار القبول/الرفض يُرسل فقط لصاحب الطلب (الطالب) وليس لصاحب المعرض
+// ط¥ط´ط¹ط§ط± ط§ظ„ظ‚ط¨ظˆظ„/ط§ظ„ط±ظپط¶ ظٹظڈط±ط³ظ„ ظپظ‚ط· ظ„طµط§ط­ط¨ ط§ظ„ط·ظ„ط¨ (ط§ظ„ط·ط§ظ„ط¨) ظˆظ„ظٹط³ ظ„طµط§ط­ط¨ ط§ظ„ظ…ط¹ط±ط¶
 exports.createGalleryViewAcceptedNotification = async (
   ownerId,
   requesterId,
@@ -547,17 +551,17 @@ exports.createGalleryViewAcceptedNotification = async (
         : requesterId;
     if (!recipientId) return null;
     const owner = await User.findById(ownerId).select("name").lean();
-    const ownerName = owner?.name?.trim() || "مستخدم";
+    const ownerName = owner?.name?.trim() || "ظ…ط³طھط®ط¯ظ…";
     const notification = await Notification.create({
       user: recipientId,
       type: "gallery_view_accepted",
-      title: "تم قبول طلب مشاهدة المعرض",
-      message: `وافق ${ownerName} على طلبك لمشاهدة المعرض. يمكنك المشاهدة مرة واحدة.`,
+      title: "طھظ… ظ‚ط¨ظˆظ„ ط·ظ„ط¨ ظ…ط´ط§ظ‡ط¯ط© ط§ظ„ظ…ط¹ط±ط¶",
+      message: `ظˆط§ظپظ‚ ${ownerName} ط¹ظ„ظ‰ ط·ظ„ط¨ظƒ ظ„ظ…ط´ط§ظ‡ط¯ط© ط§ظ„ظ…ط¹ط±ط¶. ظٹظ…ظƒظ†ظƒ ط§ظ„ظ…ط´ط§ظ‡ط¯ط© ظ…ط±ط© ظˆط§ط­ط¯ط©.`,
       relatedUser: ownerId,
     });
     return notification;
   } catch (error) {
-    console.error("فشل إنشاء إشعار قبول طلب مشاهدة المعرض:", error);
+    console.error("ظپط´ظ„ ط¥ظ†ط´ط§ط، ط¥ط´ط¹ط§ط± ظ‚ط¨ظˆظ„ ط·ظ„ط¨ ظ…ط´ط§ظ‡ط¯ط© ط§ظ„ظ…ط¹ط±ط¶:", error);
   }
 };
 
@@ -572,17 +576,17 @@ exports.createGalleryViewRejectedNotification = async (
         : requesterId;
     if (!recipientId) return null;
     const owner = await User.findById(ownerId).select("name").lean();
-    const ownerName = owner?.name?.trim() || "مستخدم";
+    const ownerName = owner?.name?.trim() || "ظ…ط³طھط®ط¯ظ…";
     const notification = await Notification.create({
       user: recipientId,
       type: "gallery_view_rejected",
-      title: "تم رفض طلب مشاهدة المعرض",
-      message: `رفض ${ownerName} طلبك لمشاهدة المعرض`,
+      title: "طھظ… ط±ظپط¶ ط·ظ„ط¨ ظ…ط´ط§ظ‡ط¯ط© ط§ظ„ظ…ط¹ط±ط¶",
+      message: `ط±ظپط¶ ${ownerName} ط·ظ„ط¨ظƒ ظ„ظ…ط´ط§ظ‡ط¯ط© ط§ظ„ظ…ط¹ط±ط¶`,
       relatedUser: ownerId,
     });
     return notification;
   } catch (error) {
-    console.error("فشل إنشاء إشعار رفض طلب مشاهدة المعرض:", error);
+    console.error("ظپط´ظ„ ط¥ظ†ط´ط§ط، ط¥ط´ط¹ط§ط± ط±ظپط¶ ط·ظ„ط¨ ظ…ط´ط§ظ‡ط¯ط© ط§ظ„ظ…ط¹ط±ط¶:", error);
   }
 };
 
@@ -593,23 +597,23 @@ exports.createMatchNotification = async (userId1, userId2, matchData) => {
       Notification.create({
         user: userId1,
         type: "match_suggestion",
-        title: "تطابق جديد!",
-        message: "تم العثور على تطابق مناسب لك",
+        title: "طھط·ط§ط¨ظ‚ ط¬ط¯ظٹط¯!",
+        message: "طھظ… ط§ظ„ط¹ط«ظˆط± ط¹ظ„ظ‰ طھط·ط§ط¨ظ‚ ظ…ظ†ط§ط³ط¨ ظ„ظƒ",
         relatedUser: userId2,
         data: matchData,
       }),
       Notification.create({
         user: userId2,
         type: "match_suggestion",
-        title: "تطابق جديد!",
-        message: "تم العثور على تطابق مناسب لك",
+        title: "طھط·ط§ط¨ظ‚ ط¬ط¯ظٹط¯!",
+        message: "طھظ… ط§ظ„ط¹ط«ظˆط± ط¹ظ„ظ‰ طھط·ط§ط¨ظ‚ ظ…ظ†ط§ط³ط¨ ظ„ظƒ",
         relatedUser: userId1,
         data: matchData,
       }),
     ]);
     return notifications;
   } catch (error) {
-    console.error("فشل إنشاء إشعارات التطابق:", error);
+    console.error("ظپط´ظ„ ط¥ظ†ط´ط§ط، ط¥ط´ط¹ط§ط±ط§طھ ط§ظ„طھط·ط§ط¨ظ‚:", error);
   }
 };
 
@@ -623,11 +627,11 @@ exports.createSecurityNotification = async (userId, title, message) => {
     });
     return notification;
   } catch (error) {
-    console.error("فشل إنشاء إشعار الأمني:", error);
+    console.error("ظپط´ظ„ ط¥ظ†ط´ط§ط، ط¥ط´ط¹ط§ط± ط§ظ„ط£ظ…ظ†ظٹ:", error);
   }
 };
 
-// إشعار أشخاص بالقرب منك أو لديهم نفس الاهتمامات
+// ط¥ط´ط¹ط§ط± ط£ط´ط®ط§طµ ط¨ط§ظ„ظ‚ط±ط¨ ظ…ظ†ظƒ ط£ظˆ ظ„ط¯ظٹظ‡ظ… ظ†ظپط³ ط§ظ„ط§ظ‡طھظ…ط§ظ…ط§طھ
 exports.createPeopleNearbyNotification = async (userId, matchCount) => {
   try {
     const existing = await Notification.findOne({
@@ -639,15 +643,15 @@ exports.createPeopleNearbyNotification = async (userId, matchCount) => {
     const notification = await Notification.createNotification({
       user: userId,
       type: "people_nearby",
-      title: "أشخاص قد يهمك التعرف عليهم",
+      title: "ط£ط´ط®ط§طµ ظ‚ط¯ ظٹظ‡ظ…ظƒ ط§ظ„طھط¹ط±ظپ ط¹ظ„ظٹظ‡ظ…",
       message:
         matchCount > 1
-          ? `لديك ${matchCount} أشخاص بالقرب منك أو يشتركون معك في الاهتمامات`
-          : "شخص واحد بالقرب منك أو لديه نفس اهتماماتك",
+          ? `ظ„ط¯ظٹظƒ ${matchCount} ط£ط´ط®ط§طµ ط¨ط§ظ„ظ‚ط±ط¨ ظ…ظ†ظƒ ط£ظˆ ظٹط´طھط±ظƒظˆظ† ظ…ط¹ظƒ ظپظٹ ط§ظ„ط§ظ‡طھظ…ط§ظ…ط§طھ`
+          : "ط´ط®طµ ظˆط§ط­ط¯ ط¨ط§ظ„ظ‚ط±ط¨ ظ…ظ†ظƒ ط£ظˆ ظ„ط¯ظٹظ‡ ظ†ظپط³ ط§ظ‡طھظ…ط§ظ…ط§طھظƒ",
     });
     return notification;
   } catch (error) {
-    console.error("فشل إنشاء إشعار الأشخاص القريبين:", error);
+    console.error("ظپط´ظ„ ط¥ظ†ط´ط§ط، ط¥ط´ط¹ط§ط± ط§ظ„ط£ط´ط®ط§طµ ط§ظ„ظ‚ط±ظٹط¨ظٹظ†:", error);
     return null;
   }
 };
@@ -661,36 +665,36 @@ exports.createTestNotifications = asyncHandler(async (req, res) => {
     {
       user: userId,
       type: "friend_request",
-      title: "طلب صداقة جديد",
-      message: "لديك طلب صداقة جديد من أحمد",
+      title: "طلب تعارف جديد",
+      message: "لديك طلب تعارف جديد من أحمد",
       isRead: false,
     },
     {
       user: userId,
       type: "new_message",
-      title: "رسالة جديدة",
-      message: "مرحبا! كيف حالك اليوم؟",
+      title: "ط±ط³ط§ظ„ط© ط¬ط¯ظٹط¯ط©",
+      message: "ظ…ط±ط­ط¨ط§! ظƒظٹظپ ط­ط§ظ„ظƒ ط§ظ„ظٹظˆظ…طں",
       isRead: false,
     },
     {
       user: userId,
       type: "post_like",
-      title: "إعجاب جديد",
-      message: "أعجب شخص بمنشورك",
+      title: "ط¥ط¹ط¬ط§ط¨ ط¬ط¯ظٹط¯",
+      message: "ط£ط¹ط¬ط¨ ط´ط®طµ ط¨ظ…ظ†ط´ظˆط±ظƒ",
       isRead: false,
     },
     {
       user: userId,
       type: "security_update",
-      title: "تحديث أمني",
-      message: "تم تحديث إعدادات الأمان لحسابك",
+      title: "طھط­ط¯ظٹط« ط£ظ…ظ†ظٹ",
+      message: "طھظ… طھط­ط¯ظٹط« ط¥ط¹ط¯ط§ط¯ط§طھ ط§ظ„ط£ظ…ط§ظ† ظ„ط­ط³ط§ط¨ظƒ",
       isRead: true,
     },
     {
       user: userId,
       type: "match_suggestion",
-      title: "تطابق جديد!",
-      message: "تم العثور على تطابق مناسب لك",
+      title: "طھط·ط§ط¨ظ‚ ط¬ط¯ظٹط¯!",
+      message: "طھظ… ط§ظ„ط¹ط«ظˆط± ط¹ظ„ظ‰ طھط·ط§ط¨ظ‚ ظ…ظ†ط§ط³ط¨ ظ„ظƒ",
       isRead: false,
     },
   ];
@@ -698,7 +702,9 @@ exports.createTestNotifications = asyncHandler(async (req, res) => {
   const notifications = await Notification.insertMany(testNotifications);
 
   res.status(201).json({
-    message: "تم إنشاء الإشعارات التجريبية بنجاح",
+    message: "طھظ… ط¥ظ†ط´ط§ط، ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ط§ظ„طھط¬ط±ظٹط¨ظٹط© ط¨ظ†ط¬ط§ط­",
     data: notifications,
   });
 });
+
+
