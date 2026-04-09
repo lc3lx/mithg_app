@@ -373,28 +373,6 @@ exports.getUserProfile = asyncHandler(async (req, res, next) => {
     }));
   }
 
-  if (!isSelf && !isFriend) {
-    profileData.coverImg = null;
-    profileData.bio = null;
-    profileData.about = null;
-    profileData.location = null;
-    profileData.country = null;
-    profileData.city = null;
-    profileData.nationality = null;
-    profileData.educationalLevel = null;
-    profileData.fieldOfWork = null;
-    profileData.socialStatus = null;
-    profileData.religion = null;
-    profileData.hairColor = null;
-    profileData.height = null;
-    profileData.weight = null;
-    profileData.hijab = null;
-    profileData.havingChildren = null;
-    profileData.desire = null;
-    profileData.polygamy = null;
-    profileData.smoking = null;
-  }
-
   profileData.isFriend = isFriend;
 
   // إشعار زيارة البروفايل: فقط عندما يشاهد بروفايلك شخص غير صديق (وليس نفسك)
