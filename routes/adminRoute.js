@@ -112,6 +112,50 @@ if (process.env.ALLOW_DEFAULT_ADMIN_BOOTSTRAP === "true") {
 // Protected admin routes
 router.use(adminService.protectAdmin);
 
+// Device tokens for push notifications (Admin)
+router.post("/device-tokens", async (req, res, next) => {
+  try {
+    const { playerId, platform } = req.body;
+    const adminId = req.admin._id;
+
+    if (!playerId || !platform) {
+      return res.status(400).json({ message: "playerId و platform مطلوبين" });
+    }
+
+    const DeviceToken = require("../models/deviceTokenModel");
+    const token = await DeviceToken.findOneAndUpdate(
+      { user: adminId, playerId },
+      {
+        platform,
+        isActive: true,
+        lastSeenAt: new Date(),
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+
+    res.status(200).json({ data: token });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/device-tokens/:playerId", async (req, res, next) => {
+  try {
+    const { playerId } = req.params;
+    const adminId = req.admin._id;
+
+    const DeviceToken = require("../models/deviceTokenModel");
+    await DeviceToken.findOneAndUpdate(
+      { user: adminId, playerId },
+      { isActive: false, lastSeenAt: new Date() }
+    );
+
+    res.status(200).json({ message: "تم إزالة الرمز المرجعي للجهاز" });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // WhatsApp QR & OTP (admin only)
 router.get("/whatsapp-qr", async (req, res) => {
   try {
